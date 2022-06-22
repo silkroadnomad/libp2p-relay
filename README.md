@@ -12,7 +12,7 @@ This project should be a good starting point for developing projects with OrbitD
 3. When publishing our IFPS-Documents they are still centralized. When ever we publish anything we should inform a pinning service (e.g. https://pinata.cloud, https://estuary.tech , https://web3.storage) or you are going to create your own https://github.com/ipfs-shipyard/rb-pinning-service-api (untested)
 
 ##  Installation
-1. Find a linux hoster install docker and docker-compose 
+1. Find a linux hoster [install docker and docker-compose](https://docs.docker.com/compose/install/) 
 2. Git clone this repo
 3. Run ``cd ipfs/willschenk/``
 4. Edit and run ``./init-letsencrypt.sh`` line 8,11,12 in order to install letsencrypt certificates
