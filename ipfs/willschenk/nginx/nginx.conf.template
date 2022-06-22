@@ -27,7 +27,7 @@ server {
 
 server {
     listen 4003 ssl;
-    server_name ${SERVER_NAME};;
+    server_name ${SERVER_NAME};
 
     ssl_certificate /etc/letsencrypt/live/${SERVER_NAME}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/${SERVER_NAME}/privkey.pem;
