@@ -12,11 +12,11 @@ This project should be a good starting point for developing projects with OrbitD
 3. When publishing our IFPS-Documents they are still centralized. When ever we publish anything we should inform a pinning service (e.g. https://pinata.cloud, https://estuary.tech , https://web3.storage) or you are going to create your own https://github.com/ipfs-shipyard/rb-pinning-service-api (untested)
 
 ##  Installation
-1. Find a linux hoster [install docker and docker-compose](https://docs.docker.com/compose/install/) 
+1. Find a linux hoster [install docker and docker-compose](https://docs.docker.com/engine/install/ubuntu/) 
 2. Git clone this repo
 3. Run ``cd ipfs/willschenk/``
 4. Edit and run ``./init-letsencrypt.sh`` line 8,11,12 in order to install letsencrypt certificates
-5. Run ```docker-compose up -d``` in order to run all components
+5. Edit line 6 (SERVER_NAME) in docker-compose.yml Run ```docker-compose up -d``` in order to run all components
 6. Check to see if you have IPFS peers ```curl -X POST http://127.0.0.1:5001/api/v0/swarm/peers|jq```
 7. and via command line ```docker-compose exec ipfs ipfs swarm peers```
 8. Check the IPFS-Gatewayy ```curl https://ipfs.le-space.de/ipfs/QmPChd2hVbrJ6bfo3WBcTW4iZnpHm8TEzWkLHmLpXhF68A```
