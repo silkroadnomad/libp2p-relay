@@ -1,4 +1,4 @@
-# OrbitDB Starter Project
+# OrbitDB Starter
 ## Description
 
 This project should be a good starting point for developing projects with OrbitDB. 
@@ -22,6 +22,10 @@ This project should be a good starting point for developing projects with OrbitD
 8. Check the IPFS-Gatewayy ```curl https://ipfs.le-space.de/ipfs/QmPChd2hVbrJ6bfo3WBcTW4iZnpHm8TEzWkLHmLpXhF68A```
 9. Check the API isn't exposed to the internet from your machine ```curl http://ipfs.le-space.de:5001/api/v0/swarm/peers|jq```
 10. Checking WebSockets: Visit https://www.websocket.org/echo.html and put in the address of your server to make sure that you can connect over websockets. In my case, it's wss://ipfs.le-space.de:4003
+
+## TODO 
+1. Test react-example
+2. Install and Test webrtc-star
 
 ## References 
 - ["Setting up an IPFS-node"](https://willschenk.com/articles/2019/setting_up_an_ipfs_node/) 
