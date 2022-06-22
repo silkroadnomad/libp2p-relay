@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "skipLibCheck": true,
+    "noImplicitAny": false,
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "noEmit": true,
+    "lib": ["ES2020", "ES2020.Promise", "ES2020.String", "ES2020.BigInt", "DOM", "DOM.Iterable"]
+  },
+  "include": [
+    "src"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "name": "example-js-ipfs-in-electron",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A minimal Electron application with js-ipfs",
+  "keywords": [
+    "Electron",
+    "IPFS",
+    "Example"
+  ],
+  "license": "MIT",
+  "author": "David Dias <daviddias@ipfs.io>",
+  "main": "main.js",
+  "scripts": {
+    "clean": "echo 'Nothing to clean...'",
+    "start": "electron .",
+    "serve": "npm run start",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "ipfs-core": "^0.14.0"
+  },
+  "devDependencies": {
+    "electron": "^17.0.0",
+    "electron-rebuild": "^3.1.1",
+    "test-util-ipfs-example": "^1.0.2"
+  },
+  "greenkeeper": {
+    "ignore": [
+      "electron"
+    ]
+  }
+}

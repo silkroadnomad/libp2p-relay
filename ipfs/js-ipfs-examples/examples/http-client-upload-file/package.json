@@ -1,0 +1,35 @@
+{
+  "name": "example-http-client-upload-file",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Upload file to IPFS via browser using js-ipfs-http-client",
+  "license": "MIT",
+  "author": "Harlan T Wood <code@harlantwood.net>",
+  "contributors": [
+    "Victor Bjelkholm <victor@ipfs.io>"
+  ],
+  "scripts": {
+    "clean": "rimraf ./dist ./.cache ./.parcel-cache",
+    "build": "parcel build index.html --no-scope-hoist",
+    "serve": "parcel serve index.html --open -p 8888",
+    "start": "npm run serve",
+    "test": "npm run build && playwright test tests"
+  },
+  "browserslist": "last 1 Chrome version",
+  "dependencies": {
+    "ipfs-http-client": "^56.0.0",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.14.8",
+    "@playwright/test": "^1.12.3",
+    "ipfs": "^0.62.0",
+    "parcel": "^2.3.2",
+    "playwright": "^1.12.3",
+    "process": "^0.11.10",
+    "rimraf": "^3.0.2",
+    "test-util-ipfs-example": "^1.0.2",
+    "util": "^0.12.4"
+  }
+}

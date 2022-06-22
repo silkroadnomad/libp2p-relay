@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IPFS MFS example</title>
+
+    <link rel="icon" href="./favicon.ico" />
+    <link rel="stylesheet" type="text/css" href="./src/app.css" />
+
+    <script type="module" src="./src/index.js" defer></script>
+  </head>
+  <body>
+    <div
+      id="container"
+      ondrop="dropHandler(event)"
+      ondragover="dragOverHandler(event)"
+    >
+      <div id="buttons">
+        <button id="button-cp" disabled>cp</button>
+        <button id="button-mkdir" disabled>mkdir</button>
+        <button id="button-mv" disabled>mv</button>
+        <button id="button-read" disabled>read</button>
+        <button id="button-rm" disabled>rm</button>
+        <button id="button-stat" disabled>stat</button>
+      </div>
+      <div id="display">
+        <div id="files"></div>
+        <div id="log"></div>
+      </div>
+    </div>
+
+    <div id="modal-screen"></div>
+
+    <div id="form-mkdir" class="modal">
+      <h2>mkdir</h2>
+
+      <label for="form-mkdir-path">path:</label>
+      <input type="text" id="form-mkdir-path" value="/" />
+
+      <label for="form-mkdir-parents">format:</label>
+      <input type="text" id="form-mkdir-format" value="dag-pb" />
+
+      <label for="form-mkdir-parents">hashAlg:</label>
+      <input type="text" id="form-mkdir-hashalg" value="sha2-256" />
+
+      <label for="form-mkdir-parents">parents:</label>
+      <input type="checkbox" id="form-mkdir-parents" checked />
+
+      <label for="form-mkdir-parents">flush:</label>
+      <input type="checkbox" id="form-mkdir-flush" checked />
+
+      <button id="button-form-mkdir-submit">Go!</button>
+    </div>
+
+    <div id="form-cp" class="modal">
+      <h2>cp</h2>
+
+      <label for="form-cp-path">path:</label>
+      <input type="text" id="form-cp-path" value="/" />
+
+      <label for="form-cp-dest">destination:</label>
+      <input type="text" id="form-cp-dest" value="/" />
+
+      <label for="form-cp-parents">format:</label>
+      <input type="text" id="form-cp-format" value="dag-pb" />
+
+      <label for="form-cp-parents">hashAlg:</label>
+      <input type="text" id="form-cp-hashalg" value="sha2-256" />
+
+      <label for="form-cp-parents">parents:</label>
+      <input type="checkbox" id="form-cp-parents" checked />
+
+      <label for="form-cp-parents">flush:</label>
+      <input type="checkbox" id="form-cp-flush" checked />
+
+      <button id="button-form-cp-submit">Go!</button>
+    </div>
+
+    <div id="form-mv" class="modal">
+      <h2>mv</h2>
+
+      <label for="form-mv-path">path:</label>
+      <input type="text" id="form-mv-path" value="/" />
+
+      <label for="form-mv-dest">destination:</label>
+      <input type="text" id="form-mv-dest" value="/" />
+
+      <label for="form-mv-parents">format:</label>
+      <input type="text" id="form-mv-format" value="dag-pb" />
+
+      <label for="form-mv-parents">hashAlg:</label>
+      <input type="text" id="form-mv-hashalg" value="sha2-256" />
+
+      <label for="form-mv-parents">parents:</label>
+      <input type="checkbox" id="form-mv-parents" checked />
+
+      <label for="form-mv-parents">flush:</label>
+      <input type="checkbox" id="form-mv-flush" checked />
+
+      <button id="button-form-mv-submit">Go!</button>
+    </div>
+
+    <div id="form-rm" class="modal">
+      <h2>rm</h2>
+
+      <label for="form-rm-path">path:</label>
+      <input type="text" id="form-rm-path" value="/" />
+
+      <label for="form-mkdir-recursive">recursive:</label>
+      <input type="checkbox" id="form-rm-recursive" checked />
+
+      <button id="button-form-rm-submit">Go!</button>
+    </div>
+
+    <div id="form-stat" class="modal">
+      <h2>stat</h2>
+
+      <label for="form-stat-path">path:</label>
+      <input type="text" id="form-stat-path" value="/" />
+
+      <label for="form-stat-hash">hash:</label>
+      <input type="checkbox" id="form-stat-hash" />
+
+      <label for="form-stat-size">size:</label>
+      <input type="checkbox" id="form-stat-size" />
+
+      <label for="form-stat-withlocal">withLocal:</label>
+      <input type="checkbox" id="form-stat-withlocal" checked />
+
+      <button id="button-form-stat-submit">Go!</button>
+    </div>
+
+    <div id="form-read" class="modal">
+      <h2>read</h2>
+
+      <label for="form-read-path">path:</label>
+      <input type="text" id="form-read-path" value="/" />
+
+      <label for="form-read-offset">offset:</label>
+      <input type="number" id="form-read-offset" value="" />
+
+      <label for="form-read-length">length:</label>
+      <input type="number" id="form-read-length" value="" />
+
+      <button id="button-form-read-submit">Go!</button>
+    </div>
+  </body>
+</html>

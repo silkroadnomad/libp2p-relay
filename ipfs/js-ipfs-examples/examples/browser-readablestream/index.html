@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IPFS Videostream example</title>
+
+    <link rel="icon" href="./favicon.ico" />
+    <link rel="stylesheet" type="text/css" href="./src/style.css" />
+
+    <script
+      src="https://cdn.jsdelivr.net/npm/ipfs/dist/index.min.js"
+      defer
+    ></script>
+    <script type="module" src="./src/index.js" defer></script>
+  </head>
+  <body>
+    <div
+      id="container"
+      ondrop="dropHandler(event)"
+      ondragover="dragOverHandler(event)"
+    >
+      <div id="form-wrapper">
+        <form>
+          <input type="text" id="cid" placeholder="CID" disabled />
+          <button id="gobutton" disabled>Go!</button>
+        </form>
+        <video id="video" controls></video>
+      </div>
+      <pre id="output" style="display: inline-block"></pre>
+    </div>
+  </body>
+</html>
