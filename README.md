@@ -1,7 +1,7 @@
-# OrbitDB Starter
+# IPFS-Node-Infrastructure
 ## Description
 
-This project should be a good starting point for developing projects with OrbitDB. 
+This project should be a good starting point for setting up an IPFS-Node with a couple of necessary components (e.g. secure websockets, WebRTC, Nginx, LetsEncrypt, Pinning Service etc.)
 
 1. We need an IPFS Node which is accessible by secure websockets (wss) if possible on a public reachable host. For that reason I updated, adapted and improved the howtos of: 
 - WillSchenk ["Setting up an IPFS-node"](https://willschenk.com/articles/2019/setting_up_an_ipfs_node/) 
@@ -27,6 +27,8 @@ This project should be a good starting point for developing projects with OrbitD
 ## TODO 
 1. Test react-example
 2. Install and Test webrtc-star
+3. Install turn and stun server with webrtc-star
+4. Install/Implement pinning server 
 
 ## References 
 - ["Setting up an IPFS-node"](https://willschenk.com/articles/2019/setting_up_an_ipfs_node/) 

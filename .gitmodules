@@ -1,6 +1,6 @@
 [submodule "react-orbitdb"]
 	path = react-orbitdb
 	url = https://github.com/revolunet/react-orbitdb.git
-[submodule "orbit/react-blog"]
-	path = orbit/react-blog
-	url = https://github.com/inspiraluna/react-blog.git
+[submodule "orbit/orbit-db"]
+	path = orbit/orbit-db
+	url = https://github.com/inspiraluna/orbit-db.git
