@@ -3,7 +3,7 @@
 
 This project should be a good starting point for setting up an IPFS-Node with a couple of necessary components (e.g. secure websockets, WebRTC, Nginx, LetsEncrypt, Pinning Service etc.)
 
-1. We need an IPFS Node which is accessible by secure websockets (wss) if possible on a public reachable host. For that reason I updated, adapted and improved the howtos of: 
+1. We need an IPFS Node which is accessible by secure websockets (wss) if possible on a public reachable host. For that reason I updated and adapted the howtos of: 
 - WillSchenk ["Setting up an IPFS-node"](https://willschenk.com/articles/2019/setting_up_an_ipfs_node/) 
 - Philipp Schmieder Medien (Seybothenreuth, Germany) ["Nginx and Let’s Encrypt with Docker in Less Than 5 Minutes"]  (https://pentacent.medium.com/nginx-and-lets-encrypt-with-docker-in-less-than-5-minutes-b4b8a60d3a71)
 
