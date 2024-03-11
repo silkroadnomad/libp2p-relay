@@ -3,11 +3,10 @@ services:
   nginx:
     image: nginx:1.22.0
     environment:
-      - SERVER_NAME=ipfs.decentrasol.network
+      - SERVER_NAME=ipfs.le-space.de
     ports:
       - "80:80"
       - "443:443"
-      - "4003:4003"
     volumes:
       - ./nginx/nginx.conf.template:/etc/nginx/nginx.conf.template
       - ./nginx/docker-entrypoint.d/:/docker-entrypoint.d/
@@ -22,16 +21,12 @@ services:
       - ./data/certbot/conf:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
-  ipfs:
-    image: ipfs/go-ipfs:latest
-    environment:
-      - IPFS_PROFILE=server
-      - IPFS_PATH=/ipfsdata
-    volumes:
-      - ./container-init.d:/container-init.d/
-      - ./data/ipfs:/ipfsdata
+  relay-service:
+    build: .
     ports:
-      - "4001:4001"
-      - "127.0.0.1:8080:8080"
-      - "127.0.0.1:8081:8081"
-      - "127.0.0.1:5001:5001"
+      - "12345:12345"
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    environment:
+      - NODE_ENV=production
