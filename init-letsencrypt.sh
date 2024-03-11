@@ -5,7 +5,7 @@ if ! [ -x "$(command -v docker-compose)" ]; then
   exit 1
 fi
 
-domains=(ipfs.decentrasol.network)
+domains=(ipfs.le-space.de)
 rsa_key_size=4096
 data_path="./data/certbot"
 email="acccounting@decentrasol.network" # Adding a valid address is strongly recommended

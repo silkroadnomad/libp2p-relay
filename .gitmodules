@@ -1,6 +1,3 @@
-[submodule "react-orbitdb"]
-	path = react-orbitdb
-	url = https://github.com/revolunet/react-orbitdb.git
-[submodule "orbit/orbit-db"]
-	path = orbit/orbit-db
-	url = https://github.com/inspiraluna/orbit-db.git
+[submodule "deContact"]
+	path = deContact
+	url = http://github.com/silkroadnomad/deContact
