@@ -7,4 +7,5 @@ RUN npm install
 EXPOSE 12345
 
 # Command to run your app
-CMD [ "node", "src/relay.js" ]
+CMD [ "node", "relay/src/relay.js" ]
+#CMD [ "ls", "-l" ]
