@@ -11,6 +11,7 @@ This is a docker image and docker compose file which runs a
 1. Modify init-letsencrypt.sh (domains=(ipfs.le-space.de) around line 8) to setup your letsencrypt domain 
 2. Run ```./init-letsencrypt.sh``` (letsencrypt is creating ssl certificates for nginx)
 3. Run ```docker-compose up -d``` (nginx, letsencrypt, relay-service starting)
+4. Run ```docker-compose logs``` and find the libp2p address to connect your peers
 
 ## Todo
 - SERVER_NAME inside docker-compose.yml should go  into .env

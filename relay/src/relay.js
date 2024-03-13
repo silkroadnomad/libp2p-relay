@@ -1,7 +1,8 @@
 import { yamux } from '@chainsafe/libp2p-yamux'
 import { createLibp2p } from 'libp2p'
 import { noise } from '@chainsafe/libp2p-noise'
-import { circuitRelayServer } from '@libp2p/circuit-relay-v2'
+import { circuitRelayTransport,circuitRelayServer } from '@libp2p/circuit-relay-v2'
+import { tcp } from '@libp2p/tcp'
 import { webSockets } from '@libp2p/websockets'
 import * as filters from '@libp2p/websockets/filters'
 import { identify } from '@libp2p/identify'
@@ -33,6 +34,8 @@ const server =
 			announce: ['/dns4/ipfs.le-space.de//tcp/443/wss']
 		},
 		transports: [
+			circuitRelayTransport(),
+			tcp(),
 			webSockets({
 				filter: filters.all
 			})
@@ -44,7 +47,7 @@ const server =
 				list: ['/ip4/159.69.119.82/udp/9090/webrtc-direct/certhash/uEiAIh0DoA5Qk2xTpc_j58KZMvww9CQzN6UNgsJ-DTuM6XQ/p2p/12D3KooWF5fGyE4VeXMhSGd9rCwckyxCVkA6xfoyFJG9DWJis62v']}),
 			pubsubPeerDiscovery({
 				interval: 1000,
-				topics: ['dev-decontact._peer-discovery._p2p._pubsub','decontact._peer-discovery._p2p._pubsub'], // defaults to ['_peer-discovery._p2p._pubsub']
+				topics: ['dev-dcontact._peer-discovery._p2p._pubsub','dcontact._peer-discovery._p2p._pubsub'], // defaults to ['_peer-discovery._p2p._pubsub']
 				listenOnly: false
 			})
 		],
