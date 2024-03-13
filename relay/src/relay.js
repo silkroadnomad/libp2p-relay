@@ -29,7 +29,7 @@ const server =
 	await createLibp2p({
 		peerId,
 		addresses: {
-			listen: ['/ip4/0.0.0.0/tcp/12345/ws']
+			listen: ['/ip4/0.0.0.0/tcp/12345/ws'],
 			announce: ['/dns4/ipfs.le-space.de//tcp/443/wss']
 		},
 		transports: [
