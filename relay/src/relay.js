@@ -25,12 +25,12 @@ const encoded = uint8ArrayFromString(relayPrivKey, 'hex')
 const privateKey = await unmarshalPrivateKey(encoded)
 const peerId = await createFromPrivKey(privateKey)
 
-<<<<<<< HEAD
 const server =
 	await createLibp2p({
 		peerId,
 		addresses: {
 			listen: ['/ip4/0.0.0.0/tcp/12345/ws']
+			announce: ['/dns4/ipfs.le-space.de//tcp/443/wss']
 		},
 		transports: [
 			webSockets({
@@ -65,33 +65,6 @@ const server =
 			})
 		}
 	})
-=======
-const server = await createLibp2p({
-	peerId,
-	addresses: {
-		listen: ['/ip4/0.0.0.0/tcp/12345/ws'],
-		announce: ['/dns4/ipfs.le-space.de//tcp/443/wss']
-	},
-	transports: [
-		webSockets({
-			filter: filters.all
-		})
-	],
-	connectionEncryption: [noise()],
-	streamMuxers: [yamux()],
-	services: {
-		identify: identify(),
-		relay: circuitRelayServer({
-			reservations: {
-				maxReservations: 5000,
-				reservationTtl: 1000,
-				defaultDataLimit: BigInt(1024 * 1024 * 1024)
-			}
-		})
-	}
-})
->>>>>>> 7ddb10efdeb67f98ee265dc8ef0fc4201c633bda
-
 server.addEventListener('peer:connect', async event => {
 	console.log('peer:connect', event.detail)
 })
