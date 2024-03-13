@@ -1,3 +1,6 @@
+upstream relay_service {
+    server relay-service:12345;
+}
 server {
     listen 80;
     server_name ${SERVER_NAME};
@@ -19,11 +22,15 @@ server {
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
     
     location / {
-    	proxy_pass http://ipfs:12345;
+	proxy_pass http://relay_service;
         proxy_set_header Host $host;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_cache_bypass $http_upgrade;
         proxy_http_version 1.1;
+   	proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
     }
 }
