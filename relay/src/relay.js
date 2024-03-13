@@ -25,7 +25,6 @@ const encoded = uint8ArrayFromString(relayPrivKey, 'hex')
 const privateKey = await unmarshalPrivateKey(encoded)
 const peerId = await createFromPrivKey(privateKey)
 
-<<<<<<< HEAD
 const server =
 	await createLibp2p({
 		peerId,
