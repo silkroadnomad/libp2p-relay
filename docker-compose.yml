@@ -3,7 +3,7 @@ services:
   nginx:
     image: nginx:1.22.0
     environment:
-      - SERVER_NAME=ipfs.le-space.de
+      - SERVER_NAME=${SERVER_NAME}
     ports:
       - "80:80"
       - "443:443"
