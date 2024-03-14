@@ -32,8 +32,12 @@ const server =
 	await createLibp2p({
 		peerId,
 		addresses: {
-			listen: ['/ip4/0.0.0.0/tcp/12345/ws'],
-			announce: ['/dns4/ipfs.le-space.de//tcp/443/wss']
+			listen: [
+				'/ip4/0.0.0.0/tcp/1234',
+				'/ip4/0.0.0.0/tcp/12345/ws'],
+			announce: [
+				'/ip4/0.0.0.0/tcp/1234',
+				'/dns4/ipfs.le-space.de/tcp/443/wss']
 		},
 		transports: [
 			circuitRelayTransport(),
