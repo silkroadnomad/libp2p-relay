@@ -37,7 +37,9 @@ const server =
 				'/ip4/0.0.0.0/tcp/12345/ws'],
 			announce: [
 				'/ip4/0.0.0.0/tcp/1234',
-				'/dns4/ipfs.le-space.de/tcp/443/wss']
+				'/dns4/ipfs.le-space.de/tcp/1234',
+				'/dns4/ipfs.le-space.de/tcp/443/wss'
+			]
 		},
 		transports: [
 			circuitRelayTransport(),
