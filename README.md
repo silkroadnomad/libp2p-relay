@@ -15,7 +15,7 @@ This is a docker image and docker compose file which runs a
 4. Run ```docker-compose logs``` and find the libp2p address to connect your peers
 
 ## Todo
-- [ ] move private key from relay.js into .env
+- [x] move private key from relay.js into .env
 - [x] SERVER_NAME inside docker-compose.yml should go into .env
 - [ ] init-letsencrypt.sh should take SERVER_NAME as an argument or environment variable 
 - [ ] make listen addresses of relay service configurable via .env / docker-compose

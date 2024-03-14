@@ -15,10 +15,12 @@ import {ping} from "@libp2p/ping";
 import {autoNAT} from "@libp2p/autonat";
 import {dcutr} from "@libp2p/dcutr";
 import {gossipsub} from "@chainsafe/libp2p-gossipsub";
+import 'dotenv/config'
+
 // import {bootstrapConfig} from "./config.js";
 
 // output of: console.log(server.peerId.privateKey.toString('hex'))
-const relayPrivKey = '08011240821cb6bc3d4547fcccb513e82e4d718089f8a166b23ffcd4a436754b6b0774cf07447d1693cd10ce11ef950d7517bad6e9472b41a927cd17fc3fb23f8c70cd99'
+const relayPrivKey = process.env.RELAY_PRIVATE_KEY;
 // the peer id of the above key
 // const relayId = '12D3KooWAJjbRkp8FPF5MKgMU53aUTxWkqvDrs4zc1VMbwRwfsbE'
 
