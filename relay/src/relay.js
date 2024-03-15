@@ -36,7 +36,7 @@ const server =
 				'/ip4/0.0.0.0/tcp/1234',
 				'/ip4/0.0.0.0/tcp/12345/ws'],
 			announce: [
-				'/ip4/0.0.0.0/tcp/1234',
+				// '/ip4/0.0.0.0/tcp/1234',
 				'/dns4/ipfs.le-space.de/tcp/1234',
 				'/dns4/ipfs.le-space.de/tcp/443/wss'
 			]
@@ -52,7 +52,7 @@ const server =
 		streamMuxers: [yamux()],
 		peerDiscovery: [
 			bootstrap({
-				list: ['/ip4/159.69.119.82/udp/9090/webrtc-direct/certhash/uEiAIh0DoA5Qk2xTpc_j58KZMvww9CQzN6UNgsJ-DTuM6XQ/p2p/12D3KooWF5fGyE4VeXMhSGd9rCwckyxCVkA6xfoyFJG9DWJis62v']}),
+				list: ['/ip4/159.69.119.82/udp/9091/quic-v1/p2p/12D3KooWF5fGyE4VeXMhSGd9rCwckyxCVkA6xfoyFJG9DWJis62v']}),
 			pubsubPeerDiscovery({
 				interval: 1000,
 				topics: ['dev-dcontact._peer-discovery._p2p._pubsub','dcontact._peer-discovery._p2p._pubsub'], // defaults to ['_peer-discovery._p2p._pubsub']
