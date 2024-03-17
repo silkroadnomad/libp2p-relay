@@ -66,7 +66,7 @@ const server =
 			identify: identify(),
 			autoNAT: autoNAT(),
 			dcutr: dcutr(),
-			pubsub: gossipsub({allowPublishToZeroPeers: true, canRelayMessage: true}),
+			pubsub: gossipsub({allowPublishToZeroTopicPeers: true, canRelayMessage: true}),
 			relay: circuitRelayServer({
 				reservations: {
 					maxReservations: 5000,
