@@ -31,4 +31,5 @@ services:
       - .:/usr/src/app
       - /usr/src/app/node_modules
     environment:
+      - DEBUG="libp2p:*"
       - NODE_ENV=production
