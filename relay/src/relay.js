@@ -40,7 +40,7 @@ const server =
 				'/ip4/0.0.0.0/tcp/1235',
 				'/ip4/0.0.0.0/udp/9092/quic',
 				'/ip4/0.0.0.0/tcp/12345/ws',
-				'/dns4/ipfs.le-space.de/tcp/1234',
+				'/dns4/ipfs.le-space.de/tcp/1235',
 				'/dns4/ipfs.le-space.de/tcp/443/wss'
 			]
 		},
@@ -56,8 +56,7 @@ const server =
 		peerDiscovery: [
 			bootstrap({
 				list: [
-					'/ip4/127.0.0.1/udp/9091/quic-v1/p2p/12D3KooWKABDpSmjtXQRm1FmkwbRDMzLHYi83btQnxHMAYRpYH8k' +
-				'/ip4/127.0.0.1/udp/9091/quic/p2p/12D3KooWKABDpSmjtXQRm1FmkwbRDMzLHYi83btQnxHMAYRpYH8k']
+				'/ip4/159.69.119.82/udp/9091/quic-v1/p2p/12D3KooWF5fGyE4VeXMhSGd9rCwckyxCVkA6xfoyFJG9DWJis62v']
 			}),
 			pubsubPeerDiscovery({
 				interval: 1000,
