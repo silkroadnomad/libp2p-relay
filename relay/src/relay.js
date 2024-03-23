@@ -90,6 +90,13 @@ server.addEventListener('peer:disconnect', async event => {
 	server.peerStore.delete(event.detail)
 })
 server.services.pubsub.subscribe(CONTENT_TOPIC)
+server.services.pubsub.addEventListener('message', event => {
+	const topic = event.detail.topic
+	const message = toString(event.detail.data)
+	if(!topic.startsWith(CONTENT_TOPIC)) return
+	console.log(`Message received on topic '${topic}': ${message}`)
+	server.services.pubsub.publish(event.detail.data)
+})
 
 console.log(server.peerId.toString())
 console.log('p2p addr: ', server.getMultiaddrs().map((ma) => ma.toString()))
