@@ -37,15 +37,15 @@ const server =
 				'/ip4/0.0.0.0/udp/9092/quic',
 				'/ip4/0.0.0.0/tcp/12345/ws'],
 			announce: [
-				'/ip4/0.0.0.0/tcp/1235',
-				'/ip4/0.0.0.0/udp/9092/quic',
-				'/ip4/0.0.0.0/tcp/12345/ws',
+				// '/ip4/0.0.0.0/tcp/1235',
+				// '/ip4/0.0.0.0/udp/9092/quic',
+				// '/ip4/0.0.0.0/tcp/12345/ws',
 				'/dns4/ipfs.le-space.de/tcp/1235',
 				'/dns4/ipfs.le-space.de/tcp/443/wss'
 			]
 		},
 		transports: [
-			circuitRelayTransport({discoverRelays:2}),
+			// circuitRelayTransport({discoverRelays:2}),
 			tcp(),
 			webSockets({
 				filter: filters.all
