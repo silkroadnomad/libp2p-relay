@@ -62,7 +62,7 @@ const server =
 				'/ip4/159.69.119.82/udp/9091/quic-v1/p2p/12D3KooWF5fGyE4VeXMhSGd9rCwckyxCVkA6xfoyFJG9DWJis62v']
 			}),
 			pubsubPeerDiscovery({
-				interval: 1000,
+				interval: 30000,
 				topics: ['dev-dcontact._peer-discovery._p2p._pubsub','dcontact._peer-discovery._p2p._pubsub'], // defaults to ['_peer-discovery._p2p._pubsub']
 				listenOnly: false
 			})
