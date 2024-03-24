@@ -77,9 +77,7 @@ const server =
 			pubsub: gossipsub({ allowPublishToZeroTopicPeers: true, canRelayMessage: true }),
 			relay: circuitRelayServer({
 				reservations: {
-					maxReservations: 5000,
-					reservationTtl: 1000,
-					defaultDataLimit: BigInt(1024 * 1024 * 1024)
+					maxReservations: Infinity
 				}
 			})
 		}
