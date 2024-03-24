@@ -51,6 +51,9 @@ const server =
 				filter: filters.all
 			})
 		],
+		connectionManager: {
+			minConnections: 0
+		},
 		connectionEncryption: [noise()],
 		streamMuxers: [yamux()],
 		peerDiscovery: [
