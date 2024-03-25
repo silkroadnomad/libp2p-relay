@@ -72,7 +72,7 @@ const server =
 				protocolPrefix: 'dContact', // default
 			}),
 			identify: identify(),
-			autoNAT: autoNAT(),
+			// autoNAT: autoNAT(),
 			dcutr: dcutr(),
 			pubsub: gossipsub({ allowPublishToZeroTopicPeers: true, canRelayMessage: true }),
 			relay: circuitRelayServer({
