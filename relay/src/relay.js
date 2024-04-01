@@ -74,7 +74,13 @@ const server =
 			identify: identify(),
 			// autoNAT: autoNAT(),
 			dcutr: dcutr(),
-			pubsub: gossipsub({ allowPublishToZeroTopicPeers: true, canRelayMessage: true }),
+			pubsub: gossipsub({ allowPublishToZeroTopicPeers: true, canRelayMessage: true, scoreThresholds: {
+					gossipThreshold: -100,
+					publishThreshold: -500,
+					graylistThreshold: -800,
+					// acceptPXThreshold: 10,
+					// opportunisticGraftThreshold: 20
+				}}),
 			relay: circuitRelayServer({
 				reservations: {
 					maxReservations: Infinity
