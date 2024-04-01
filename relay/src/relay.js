@@ -75,9 +75,9 @@ const server =
 			// autoNAT: autoNAT(),
 			dcutr: dcutr(),
 			pubsub: gossipsub({ allowPublishToZeroTopicPeers: true, canRelayMessage: true, scoreThresholds: {
-					gossipThreshold: -100,
-					publishThreshold: -500,
-					graylistThreshold: -800,
+					gossipThreshold: -Infinity,
+					publishThreshold: -Infinity,
+					graylistThreshold: -Infinity,
 					// acceptPXThreshold: 10,
 					// opportunisticGraftThreshold: 20
 				}}),
