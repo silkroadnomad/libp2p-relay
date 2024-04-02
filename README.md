@@ -18,7 +18,7 @@ This is a docker image and docker compose file which runs a
 - [x] move private key from relay.js into .env
 - [x] SERVER_NAME inside docker-compose.yml should go into .env
 - [ ] init-letsencrypt.sh should take SERVER_NAME as an argument or environment variable 
-- [ ] make listen addresses of relay service configurable via .env / docker-compose
-- [ ] make bootstrap seed nodes configurable via .env / docker-compose
-- [ ] make pubsubPeerDiscovery topics configurable via .env / docker-compose
-- [ ] make announce: ['/dns4/ipfs.le-space.de//tcp/443/wss'] configurable via .env / docker-compose
+- [x] make listen addresses of relay service configurable via .env / docker-compose
+- [x] make announce: ['/dns4/ipfs.le-space.de//tcp/443/wss'] configurable via .env / docker-compose
+- [x] make bootstrap seed nodes configurable via .env / docker-compose
+- [x] make pubsubPeerDiscovery topics configurable via .env / docker-compose

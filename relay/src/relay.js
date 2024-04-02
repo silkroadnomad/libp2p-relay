@@ -17,10 +17,15 @@ import { webSockets } from '@libp2p/websockets'
 import * as filters from '@libp2p/websockets/filters'
 import 'dotenv/config'
 
-// import {bootstrapConfig} from "./config.js";
-
 export const CONTENT_TOPIC = "/dContact/3/message/proto";
 const relayPrivKey = process.env.RELAY_PRIVATE_KEY;
+const bootstrapList = process.env.RELAY_BOOTSTRAP_LIST.split(',')
+const listenAddresses = process.env.RELAY_LISTEN_ADDRESSES.split(',')
+const announceAddresses = process.env.RELAY_ANNOUNCE_ADDRESSES.split(',')
+const pubsubPeerDiscoveryTopics = process.env.RELAY_PUBSUB_PEER_DISCOVERY_TOPICS.split(',')
+const relayDevMode = process.env.RELAY_DEV_MODE
+
+console.log("RELAY_PUBSUB_PEER_DISCOVERY_TOPICS",pubsubPeerDiscoveryTopics)
 // the peer id of the above key
 // const relayId = '12D3KooWAJjbRkp8FPF5MKgMU53aUTxWkqvDrs4zc1VMbwRwfsbE'
 
@@ -28,66 +33,59 @@ const encoded = uint8ArrayFromString(relayPrivKey, 'hex')
 const privateKey = await unmarshalPrivateKey(encoded)
 const peerId = await createFromPrivKey(privateKey)
 
-const server =
-	await createLibp2p({
-		peerId,
-		addresses: {
-			listen: [
-				'/ip4/0.0.0.0/tcp/1235',
-				'/ip4/0.0.0.0/udp/9092/quic',
-				'/ip4/0.0.0.0/tcp/12345/ws'],
-			announce: [
-				// '/ip4/0.0.0.0/tcp/1235',
-				// '/ip4/0.0.0.0/udp/9092/quic',
-				// '/ip4/0.0.0.0/tcp/12345/ws',
-				'/dns4/ipfs.le-space.de/tcp/1235',
-				'/dns4/ipfs.le-space.de/tcp/443/wss'
-			]
-		},
-		transports: [
-			// circuitRelayTransport({discoverRelays:2}),
-			tcp(),
-			webSockets({
-				filter: filters.all
-			})
-		],
-		connectionManager: {
-			minConnections: 0
-		},
-		connectionEncryption: [noise()],
-		streamMuxers: [yamux()],
-		peerDiscovery: [
-			bootstrap({
-				list: [
-				'/ip4/159.69.119.82/udp/9091/quic-v1/p2p/12D3KooWF5fGyE4VeXMhSGd9rCwckyxCVkA6xfoyFJG9DWJis62v']
-			}),
-			pubsubPeerDiscovery({
-				interval: 30000,
-				topics: ['dev-dcontact._peer-discovery._p2p._pubsub','dcontact._peer-discovery._p2p._pubsub'], // defaults to ['_peer-discovery._p2p._pubsub']
-				listenOnly: false
-			})
-		],
-		services: {
-			ping: ping({
-				protocolPrefix: 'dContact', // default
-			}),
-			identify: identify(),
-			// autoNAT: autoNAT(),
-			dcutr: dcutr(),
-			pubsub: gossipsub({ allowPublishToZeroTopicPeers: true, canRelayMessage: true, scoreThresholds: {
-					gossipThreshold: -Infinity,
-					publishThreshold: -Infinity,
-					graylistThreshold: -Infinity,
-					// acceptPXThreshold: 10,
-					// opportunisticGraftThreshold: 20
-				}}),
-			relay: circuitRelayServer({
-				reservations: {
-					maxReservations: Infinity
-				}
-			})
-		}
-	})
+let scoreThresholds = {}
+if(relayDevMode) scoreThresholds = {
+	gossipThreshold: -Infinity,
+	publishThreshold: -Infinity,
+	graylistThreshold: -Infinity,
+	// acceptPXThreshold: 10,
+	// opportunisticGraftThreshold: 20
+}
+
+const config = {
+	peerId,
+	addresses: {
+		listen: listenAddresses,
+		announce: announceAddresses
+	},
+	transports: [
+		// circuitRelayTransport({discoverRelays:2}),
+		tcp(),
+		webSockets({
+			filter: filters.all
+		})
+	],
+	connectionManager: {
+		minConnections: 0
+	},
+	connectionEncryption: [noise()],
+	streamMuxers: [yamux()],
+	peerDiscovery: [
+		bootstrap({
+			list: bootstrapList
+		}),
+		pubsubPeerDiscovery({
+			interval: 10000,
+			topics: pubsubPeerDiscoveryTopics, // defaults to ['_peer-discovery._p2p._pubsub']
+			listenOnly: false
+		})
+	],
+	services: {
+		ping: ping({
+			protocolPrefix: 'dContact', // default
+		}),
+		identify: identify(),
+		// autoNAT: autoNAT(),
+		dcutr: dcutr(),
+		pubsub: gossipsub({ allowPublishToZeroTopicPeers: true, canRelayMessage: true, scoreThresholds}),
+		relay: circuitRelayServer({
+			reservations: {
+				maxReservations: Infinity
+			}
+		})
+	}
+}
+const server = await createLibp2p(config)
 server.addEventListener('peer:connect', async event => {
 	console.log('peer:connect', event.detail)
 })
