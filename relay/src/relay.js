@@ -2,7 +2,7 @@ import { createLibp2p } from 'libp2p'
 import { identify } from '@libp2p/identify'
 import { yamux } from '@chainsafe/libp2p-yamux'
 import { noise } from '@chainsafe/libp2p-noise'
-import { circuitRelayTransport,circuitRelayServer } from '@libp2p/circuit-relay-v2'
+import { circuitRelayServer,circuitRelayTransport } from '@libp2p/circuit-relay-v2'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { unmarshalPrivateKey } from '@libp2p/crypto/keys'
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
@@ -49,7 +49,7 @@ const config = {
 		announce: announceAddresses
 	},
 	transports: [
-		// circuitRelayTransport({discoverRelays:2}),
+		circuitRelayTransport({ discoverRelays:2 }),
 		tcp(),
 		webSockets({
 			filter: filters.all
@@ -75,7 +75,7 @@ const config = {
 			protocolPrefix: 'dContact', // default
 		}),
 		identify: identify(),
-		// autoNAT: autoNAT(),
+		autoNAT: autoNAT(),
 		dcutr: dcutr(),
 		pubsub: gossipsub({ allowPublishToZeroTopicPeers: true, canRelayMessage: true, scoreThresholds}),
 		relay: circuitRelayServer({
@@ -86,6 +86,10 @@ const config = {
 	}
 }
 const server = await createLibp2p(config)
+server.addEventListener('self:peer:update', (evt) => {
+	// Updated self multiaddrs?
+	console.log(`Advertising with a relay address of ${server.getMultiaddrs()[0].toString()}`)
+})
 server.addEventListener('peer:connect', async event => {
 	console.log('peer:connect', event.detail)
 })

@@ -8,6 +8,16 @@ This is a docker image and docker compose file which runs a
 - letsencrypt
 
 ## Usage
+### via nodejs
+0. Copy .env.example to .env and change according to your environment
+    - RELAY_DEV_MODE=true in order to disable gossip-sub tresholds
+    - SERVER_NAME=your-server-name.domain.xyz
+    - RELAY_PUBSUB_PEER_DISCOVERY_TOPICS=your-topic._peer-discovery._p2p._pubsub
+    - RELAY_PRIVATE_KEY=how to generate a good private key for your node?
+1. Run ```node relay/src/relay.js```
+2. Run ```DEBUG=libp2p:* node relay/src/relay.js```  (for debug mode) or
+
+### Docker
 0. Copy .env.example to .env and change to your environment
 1. Modify init-letsencrypt.sh (domains=(ipfs.le-space.de) around line 8) to setup your letsencrypt domain 
 2. Run ```./init-letsencrypt.sh``` (letsencrypt is creating ssl certificates for nginx)
