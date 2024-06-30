@@ -64,9 +64,6 @@ const config = {
 	connectionEncryption: [noise()],
 	streamMuxers: [yamux()],
 	peerDiscovery: [
-		bootstrap({
-			list: bootstrapList
-		}),
 		pubsubPeerDiscovery({
 			interval: 10000,
 			topics: pubsubPeerDiscoveryTopics, // defaults to ['_peer-discovery._p2p._pubsub']
@@ -88,6 +85,9 @@ const config = {
 		})
 	}
 }
+
+if(bootstrapList && bootstrapList.length > 0)
+	config.peerDiscovery = bootstrap({ list: bootstrapList })
 
 async function createNode () {
 	const libp2p = await createLibp2p(config)
