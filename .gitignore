@@ -2,3 +2,5 @@ relay/node_modules
 data/
 .env
 .idea
+relay/helia-blocks
+relay/helia-data
