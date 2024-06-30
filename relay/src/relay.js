@@ -1,4 +1,6 @@
+import 'dotenv/config'
 import { createLibp2p } from 'libp2p'
+import { createHelia } from 'helia'
 import { identify } from '@libp2p/identify'
 import { yamux } from '@chainsafe/libp2p-yamux'
 import { noise } from '@chainsafe/libp2p-noise'
@@ -14,20 +16,21 @@ import { dcutr } from "@libp2p/dcutr";
 import { gossipsub } from "@chainsafe/libp2p-gossipsub";
 import { tcp } from '@libp2p/tcp'
 import { webSockets } from '@libp2p/websockets'
-import * as filters from '@libp2p/websockets/filters'
-import 'dotenv/config'
-
+import { LevelBlockstore } from "blockstore-level"
+import { LevelDatastore } from "datastore-level";
+import * as filters from "@libp2p/websockets/filters";
 export const CONTENT_TOPIC = "/dContact/3/message/proto";
+
+//output of: console.log(server.peerId.privateKey.toString('hex'))
+//hex of libp2p  console.info('PeerId:', Buffer.from(server.peerId.privateKey).toString('hex'))
 const relayPrivKey = process.env.RELAY_PRIVATE_KEY;
-const bootstrapList = process.env.RELAY_BOOTSTRAP_LIST.split(',')
-const listenAddresses = process.env.RELAY_LISTEN_ADDRESSES.split(',')
-const announceAddresses = process.env.RELAY_ANNOUNCE_ADDRESSES.split(',')
-const pubsubPeerDiscoveryTopics = process.env.RELAY_PUBSUB_PEER_DISCOVERY_TOPICS.split(',')
+const bootstrapList = process.env.RELAY_BOOTSTRAP_LIST?.split(',')
+const listenAddresses = process.env.RELAY_LISTEN_ADDRESSES?.split(',')
+const announceAddresses = process.env.RELAY_ANNOUNCE_ADDRESSES?.split(',')
+const pubsubPeerDiscoveryTopics = process.env.RELAY_PUBSUB_PEER_DISCOVERY_TOPICS?.split(',')
 const relayDevMode = process.env.RELAY_DEV_MODE
 
 console.log("RELAY_PUBSUB_PEER_DISCOVERY_TOPICS",pubsubPeerDiscoveryTopics)
-// the peer id of the above key
-// const relayId = '12D3KooWAJjbRkp8FPF5MKgMU53aUTxWkqvDrs4zc1VMbwRwfsbE'
 
 const encoded = uint8ArrayFromString(relayPrivKey, 'hex')
 const privateKey = await unmarshalPrivateKey(encoded)
@@ -85,28 +88,45 @@ const config = {
 		})
 	}
 }
-const server = await createLibp2p(config)
-server.addEventListener('self:peer:update', (evt) => {
-	// Updated self multiaddrs?
-	console.log(`Advertising with a relay address of ${server.getMultiaddrs()[0].toString()}`)
-})
-server.addEventListener('peer:connect', async event => {
-	console.log('peer:connect', event.detail)
-})
 
-server.addEventListener('peer:disconnect', async event => {
-	console.log('peer:disconnect', event.detail)
-	server.peerStore.delete(event.detail)
-})
-server.services.pubsub.subscribe(CONTENT_TOPIC)
-server.services.pubsub.addEventListener('message', event => {
-	const topic = event.detail.topic
-	const message = toString(event.detail.data)
-	if(!topic.startsWith(CONTENT_TOPIC)) return
-	console.log(`Message received on topic '${topic}': ${message}`)
-	server.services.pubsub.publish(event.detail.data)
-})
+async function createNode () {
+	const libp2p = await createLibp2p(config)
+	libp2p.addEventListener('self:peer:update', (evt) => {
+		// Updated self multiaddrs?
+		console.log('Advertising with a relay address of ', libp2p.getMultiaddrs().map((ma) => ma.toString()))
+		// console.log(`Advertising with a relay address of ${libp2p.getMultiaddrs()[0].toString()}`)
+	})
+	libp2p.addEventListener('peer:connect', async event => {
+		console.log('peer:connect', event.detail)
+	})
 
-console.log(server.peerId.toString())
-console.log('p2p addr: ', server.getMultiaddrs().map((ma) => ma.toString()))
+	libp2p.addEventListener('peer:disconnect', async event => {
+		console.log('peer:disconnect', event.detail)
+		libp2p.peerStore.delete(event.detail)
+	})
+
+	libp2p.services.pubsub.subscribe(CONTENT_TOPIC)
+	libp2p.services.pubsub.addEventListener('message', event => {
+		const topic = event.detail.topic
+		const message = toString(event.detail.data)
+		if(!topic.startsWith(CONTENT_TOPIC)) return
+		console.log(`Message received on topic '${topic}': ${message}`)
+		libp2p.services.pubsub.publish(event.detail.data)
+	})
+
+	let blockstore = new LevelBlockstore("./helia-blocks")
+	let datastore = new LevelDatastore("./helia-data")
+	console.log(libp2p.peerId.toString())
+	console.log('p2p addr: ', libp2p.getMultiaddrs().map((ma) => ma.toString()))
+	return await createHelia({
+		datastore,
+		blockstore,
+		libp2p
+	})
+}
+
+const node = await createNode()
+console.info('Helia is running')
+console.info('PeerId:', node.libp2p.peerId.toString())
+// console.info('PeerId:', Buffer.from(server.peerId.privateKey).toString('hex'))
 // generates a deterministic address: /ip4/127.0.0.1/tcp/33519/ws/p2p/12D3KooWAJjbRkp8FPF5MKgMU53aUTxWkqvDrs4zc1VMbwRwfsbE

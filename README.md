@@ -24,11 +24,25 @@ This is a docker image and docker compose file which runs a
 3. Run ```docker-compose up -d``` (nginx, letsencrypt, relay-service starting)
 4. Run ```docker-compose logs``` and find the libp2p address to connect your peers
 
-## Todo
-- [x] move private key from relay.js into .env
-- [x] SERVER_NAME inside docker-compose.yml should go into .env
-- [ ] init-letsencrypt.sh should take SERVER_NAME as an argument or environment variable 
-- [x] make listen addresses of relay service configurable via .env / docker-compose
-- [x] make announce: ['/dns4/ipfs.le-space.de//tcp/443/wss'] configurable via .env / docker-compose
-- [x] make bootstrap seed nodes configurable via .env / docker-compose
-- [x] make pubsubPeerDiscovery topics configurable via .env / docker-compose
+### Ideas
+When starting a relay-node for libp2p, it would be nice to have place where other peers could find the multi address of our new peer.
+It is also the case that webtransport and webrtc peers and generate new hashes to connect. (E.g. webtransport hashes need to renewed every 2 weeks).
+
+The idea is now to store those multi addresses on a blockchain such as Bitcoin (via Ordinals) or Doichain (a merged-mining Namecoin fork)
+
+What will it do?
+1. During start, connect to the blockchain (e.g., Electrumx) and query a certain namespace for seed nodes and 
+2. If our node is not yet stored on blockchain and a private key is inside .env it should send a transaction to a blockchain
+
+FAQ:
+- Q: Can everybody store a relay nodes multi-address? 
+  - A: Yes, everybody should.
+- Q: What if the seed node / relay node is a malicious node and try to connect peers with malicious peers? 
+  - A: Every peer in the network must be regarded as malicious, it's on the peer's consensus to prevent malicious actions.
+  - A: If a big number of malicious relay nodes appear on blockchain, they could prevent others from connecting to the real network.
+    - Q: Are there any measures taken by libp2p / gossip sub protocol? 
+    - A: Needs more research: 
+      - a peer connecting successfully to a relay could ping other relays in the list before connecting.
+      - if the pinged peer isn't responding, it either means it is offline or not connected to the network and put it in 'quarantine.'
+      - if direct dialing cannot connect to the peers in quarantine means they are offline 
+      - the list of leftovers could be regarded as malicious (or being the right network, in case we are connected to the wrong network)
