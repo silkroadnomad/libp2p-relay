@@ -108,9 +108,10 @@ async function createNode () {
 	libp2p.services.pubsub.subscribe(CONTENT_TOPIC)
 	libp2p.services.pubsub.addEventListener('message', event => {
 
-		const message = toString(event.detail.data)
+		// const message = toString(event.detail.data)
 		const topic = event.detail.topic
-		console.log("message detail",message)
+		console.log("message topic",topic)
+		console.log("message detail",event.detail)
 
 		// if(!topic.startsWith(CONTENT_TOPIC)) return
 		// console.log(`Message received on topic '${topic}': ${message}`)
