@@ -25,6 +25,7 @@
 		"datastore-level": "^10.1.6",
 		"dotenv": "^16.4.5",
 		"helia": "^4.2.4",
-		"libp2p": "^1.3.0"
+		"libp2p": "^1.3.0",
+		"uint8arrays": "^5.1.0"
 	}
 }

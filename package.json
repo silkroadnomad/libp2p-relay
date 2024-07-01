@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "uint8arrays": "^5.1.0"
   }
 }
