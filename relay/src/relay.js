@@ -46,7 +46,7 @@ if(relayDevMode) scoreThresholds = {
 	// opportunisticGraftThreshold: 20
 }
 
-const config = {
+let config = {
 	peerId,
 	addresses: {
 		listen: listenAddresses,
@@ -79,16 +79,21 @@ const config = {
 		autoNAT: autoNAT(),
 		dcutr: dcutr(),
 		pubsub: gossipsub({ allowPublishToZeroTopicPeers: true, canRelayMessage: true, scoreThresholds}),
-		relay: circuitRelayServer({
-			reservations: {
-				maxReservations: Infinity
-			}
+		circuitRelay: circuitRelayServer({
+				reservations: {
+					maxReservations: Infinity
+				}
 		})
+		// relay: circuitRelayServer({
+		// 	reservations: {
+		// 		maxReservations: Infinity
+		// 	}
+		// })
 	}
 }
-
-if(bootstrapList && bootstrapList.length > 0)
-	config.peerDiscovery = bootstrap({ list: bootstrapList })
+console.log("bootstrapList",bootstrapList)
+// if(bootstrapList && bootstrapList.length > 0)
+// 	config = config.peerDiscovery = bootstrap({ list: bootstrapList })
 
 async function createNode () {
 	const libp2p = await createLibp2p(config)
