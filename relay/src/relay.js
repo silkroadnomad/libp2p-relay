@@ -108,13 +108,13 @@ async function createNode () {
 	libp2p.services.pubsub.subscribe(CONTENT_TOPIC)
 	libp2p.services.pubsub.addEventListener('message', event => {
 
-		const message = event.detail
+		const message = toString(event.detail.data)
 		const topic = event.detail.topic
 		console.log("message detail",message)
 
-		if(!topic.startsWith(CONTENT_TOPIC)) return
-		console.log(`Message received on topic '${topic}': ${message}`)
-		libp2p.services.pubsub.publish(event.detail.data)
+		// if(!topic.startsWith(CONTENT_TOPIC)) return
+		// console.log(`Message received on topic '${topic}': ${message}`)
+		// libp2p.services.pubsub.publish(event.detail.data)
 	})
 
 	let blockstore = new LevelBlockstore("./helia-blocks")
