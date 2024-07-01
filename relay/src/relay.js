@@ -104,12 +104,12 @@ async function createNode () {
 		console.log('peer:disconnect', event.detail)
 		libp2p.peerStore.delete(event.detail)
 	})
-
+	libp2p.services.pubsub.subscribe("doichain-nfc")
 	libp2p.services.pubsub.subscribe(CONTENT_TOPIC)
 	libp2p.services.pubsub.addEventListener('message', event => {
 		const topic = event.detail.topic
 		const message = toString(event.detail.data)
-		if(!topic.startsWith(CONTENT_TOPIC)) return
+		if(!topic.startsWith(CONTENT_TOPIC) && !topic.startsWith("doichain-nfc")) return
 		console.log(`Message received on topic '${topic}': ${message}`)
 		libp2p.services.pubsub.publish(event.detail.data)
 	})
