@@ -19,7 +19,7 @@ import { webSockets } from '@libp2p/websockets'
 import { LevelBlockstore } from "blockstore-level"
 import { LevelDatastore } from "datastore-level";
 import * as filters from "@libp2p/websockets/filters";
-export const CONTENT_TOPIC = "/dContact/3/message/proto";
+export const CONTENT_TOPIC = process.env.CONTENT_TOPIC || "/dContact/3/message/proto";
 
 //output of: console.log(server.peerId.privateKey.toString('hex'))
 //hex of libp2p  console.info('PeerId:', Buffer.from(server.peerId.privateKey).toString('hex'))
@@ -104,12 +104,12 @@ async function createNode () {
 		console.log('peer:disconnect', event.detail)
 		libp2p.peerStore.delete(event.detail)
 	})
-	libp2p.services.pubsub.subscribe("doichain-nfc")
+	// libp2p.services.pubsub.subscribe("doichain-nfc")
 	libp2p.services.pubsub.subscribe(CONTENT_TOPIC)
 	libp2p.services.pubsub.addEventListener('message', event => {
 		const topic = event.detail.topic
 		const message = toString(event.detail.data)
-		if(!topic.startsWith(CONTENT_TOPIC) && !topic.startsWith("doichain-nfc")) return
+		if(!topic.startsWith(CONTENT_TOPIC)) return
 		console.log(`Message received on topic '${topic}': ${message}`)
 		libp2p.services.pubsub.publish(event.detail.data)
 	})
