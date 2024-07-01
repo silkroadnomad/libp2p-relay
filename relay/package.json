@@ -6,6 +6,7 @@
 	"type": "module",
 	"dependencies": {
 		"@chainsafe/libp2p-gossipsub": "^13.0.0",
+		"@chainsafe/libp2p-noise": "^15.1.0",
 		"@chainsafe/libp2p-yamux": "^6.0.2",
 		"@libp2p/autonat": "^1.0.13",
 		"@libp2p/bootstrap": "^10.0.16",
@@ -15,6 +16,7 @@
 		"@libp2p/interface-pubsub": "^4.0.1",
 		"@libp2p/interface-transport": "^4.0.3",
 		"@libp2p/kad-dht": "^12.0.9",
+		"@libp2p/peer-id-factory": "^4.1.4",
 		"@libp2p/ping": "^1.0.8",
 		"@libp2p/pubsub-peer-discovery": "^10.0.2",
 		"@libp2p/tcp": "^9.0.16",
