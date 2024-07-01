@@ -4,10 +4,11 @@ import { createHelia } from 'helia'
 import { identify } from '@libp2p/identify'
 import { yamux } from '@chainsafe/libp2p-yamux'
 import { noise } from '@chainsafe/libp2p-noise'
-import { circuitRelayServer,circuitRelayTransport } from '@libp2p/circuit-relay-v2'
+import { circuitRelayServer, circuitRelayTransport } from '@libp2p/circuit-relay-v2'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { unmarshalPrivateKey } from '@libp2p/crypto/keys'
 import { toString } from 'uint8arrays/to-string'
+import { fromString } from 'uint8arrays/to-string'
 import { bootstrap } from "@libp2p/bootstrap";
 import { pubsubPeerDiscovery } from "@libp2p/pubsub-peer-discovery";
 import { ping } from "@libp2p/ping";
@@ -32,7 +33,7 @@ const relayDevMode = process.env.RELAY_DEV_MODE
 
 console.log("RELAY_PUBSUB_PEER_DISCOVERY_TOPICS",pubsubPeerDiscoveryTopics)
 
-const encoded = uint8ArrayFromString(relayPrivKey, 'hex')
+const encoded = fromString(relayPrivKey, 'hex')
 const privateKey = await unmarshalPrivateKey(encoded)
 const peerId = await createFromPrivKey(privateKey)
 
