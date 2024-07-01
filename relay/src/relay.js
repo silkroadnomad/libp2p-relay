@@ -7,7 +7,7 @@ import { noise } from '@chainsafe/libp2p-noise'
 import { circuitRelayServer,circuitRelayTransport } from '@libp2p/circuit-relay-v2'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { unmarshalPrivateKey } from '@libp2p/crypto/keys'
-import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
+import { toString } from 'uint8arrays/to-string'
 import { bootstrap } from "@libp2p/bootstrap";
 import { pubsubPeerDiscovery } from "@libp2p/pubsub-peer-discovery";
 import { ping } from "@libp2p/ping";
@@ -111,7 +111,7 @@ async function createNode () {
 		// const message = toString(event.detail.data)
 		const topic = event.detail.topic
 		console.log("message topic",topic)
-		console.log("message detail",fromString(event.detail.data))
+		console.log("message detail",toString(event.detail.data))
 
 		// if(!topic.startsWith(CONTENT_TOPIC)) return
 		// console.log(`Message received on topic '${topic}': ${message}`)
