@@ -112,7 +112,7 @@ async function createNode () {
 		// const message = toString(event.detail.data)
 		const topic = event.detail.topic
 		console.log("message topic",topic)
-		console.log("message detail",new TextDecoder().decode(message.detail.data))
+		console.log("message detail",new TextDecoder().decode(event.detail.data))
 
 		// if(!topic.startsWith(CONTENT_TOPIC)) return
 		// console.log(`Message received on topic '${topic}': ${message}`)
