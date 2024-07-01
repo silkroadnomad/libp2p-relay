@@ -8,7 +8,7 @@ import { circuitRelayServer, circuitRelayTransport } from '@libp2p/circuit-relay
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { unmarshalPrivateKey } from '@libp2p/crypto/keys'
 import { toString } from 'uint8arrays/to-string'
-import { fromString } from 'uint8arrays/to-string'
+import { fromString } from 'uint8arrays/from-string'
 import { bootstrap } from "@libp2p/bootstrap";
 import { pubsubPeerDiscovery } from "@libp2p/pubsub-peer-discovery";
 import { ping } from "@libp2p/ping";
