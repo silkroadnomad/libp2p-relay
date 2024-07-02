@@ -146,6 +146,10 @@ async function createNode () {
 			//libp2p.peerStore.delete(event.detail)
 		})
 
+		node.libp2p.addEventListener("peer:discovery", ev => {
+			console.log("[peer:discovery]", ev.detail);
+		});
+
 		node.libp2p.services.pubsub.subscribe(CONTENT_TOPIC)
 		console.log("subscribers", node.libp2p.services.pubsub.getSubscribers())
 
