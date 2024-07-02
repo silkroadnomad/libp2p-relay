@@ -68,6 +68,14 @@ let config = {
 	connectionEncryption: [noise()],
 	streamMuxers: [yamux()],
 	peerDiscovery: [
+		bootstrap({
+			list: [
+				'/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN',
+				'/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa',
+				'/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb',
+				'/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt'
+			]
+		}),
 		pubsubPeerDiscovery({
 			interval: 10000,
 			topics: pubsubPeerDiscoveryTopics, // defaults to ['_peer-discovery._p2p._pubsub']
@@ -90,16 +98,16 @@ let config = {
 	}
 }
 
-if(bootstrapList && bootstrapList.length > 0){
-	config.peerDiscovery = [
-		bootstrap({ list: bootstrapList }),
-		pubsubPeerDiscovery({
-			interval: 10000,
-			topics: pubsubPeerDiscoveryTopics, // defaults to ['_peer-discovery._p2p._pubsub']
-			listenOnly: false
-		})
-	]
-}
+// if(bootstrapList && bootstrapList.length > 0){
+// 	config.peerDiscovery = [
+// 		bootstrap({ list: bootstrapList }),
+// 		pubsubPeerDiscovery({
+// 			interval: 10000,
+// 			topics: pubsubPeerDiscoveryTopics, // defaults to ['_peer-discovery._p2p._pubsub']
+// 			listenOnly: false
+// 		})
+// 	]
+// }
 console.log("config",config)
 
 async function createNode () {
