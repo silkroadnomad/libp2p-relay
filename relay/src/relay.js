@@ -89,7 +89,7 @@ let config = {
 		})
 	}
 }
-console.log("bootstrapList",bootstrapList)
+
 if(bootstrapList && bootstrapList.length > 0){
 	config.peerDiscovery = [
 		bootstrap({ list: bootstrapList }),
@@ -100,7 +100,7 @@ if(bootstrapList && bootstrapList.length > 0){
 		})
 	]
 }
-
+console.log("config",config)
 
 async function createNode () {
 	const libp2p = await createLibp2p(config)
