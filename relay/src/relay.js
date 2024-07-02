@@ -7,7 +7,6 @@ import { noise } from '@chainsafe/libp2p-noise'
 import { circuitRelayServer, circuitRelayTransport } from '@libp2p/circuit-relay-v2'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { unmarshalPrivateKey } from '@libp2p/crypto/keys'
-import { toString } from 'uint8arrays/to-string'
 import { fromString } from 'uint8arrays/from-string'
 import { bootstrap } from "@libp2p/bootstrap";
 import { pubsubPeerDiscovery } from "@libp2p/pubsub-peer-discovery";
@@ -51,7 +50,7 @@ if(relayDevMode) scoreThresholds = {
 }
 
 let config = {
-	// peerId,
+	peerId,
 	addresses: {
 		listen: listenAddresses,
 		announce: announceAddresses
@@ -91,8 +90,17 @@ let config = {
 	}
 }
 console.log("bootstrapList",bootstrapList)
-if(bootstrapList && bootstrapList.length > 0)
-	config = config.peerDiscovery.push(bootstrap({ list: bootstrapList }))
+if(bootstrapList && bootstrapList.length > 0){
+	config.peerDiscovery = [
+		bootstrap({ list: bootstrapList }),
+		pubsubPeerDiscovery({
+			interval: 10000,
+			topics: pubsubPeerDiscoveryTopics, // defaults to ['_peer-discovery._p2p._pubsub']
+			listenOnly: false
+		})
+	]
+}
+
 
 async function createNode () {
 	const libp2p = await createLibp2p(config)
