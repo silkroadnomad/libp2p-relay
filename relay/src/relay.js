@@ -19,6 +19,7 @@ import { tcp } from '@libp2p/tcp'
 import { webSockets } from '@libp2p/websockets'
 import { LevelBlockstore } from "blockstore-level"
 import { LevelDatastore } from "datastore-level";
+import { unixfs } from '@helia/unixfs'
 import * as filters from "@libp2p/websockets/filters";
 export const CONTENT_TOPIC = process.env.CONTENT_TOPIC || "/dContact/3/message/proto";
 
@@ -32,6 +33,9 @@ const pubsubPeerDiscoveryTopics = process.env.RELAY_PUBSUB_PEER_DISCOVERY_TOPICS
 const relayDevMode = process.env.RELAY_DEV_MODE
 
 console.log("RELAY_PUBSUB_PEER_DISCOVERY_TOPICS",pubsubPeerDiscoveryTopics)
+
+let blockstore = new LevelBlockstore("./helia-blocks")
+let datastore = new LevelDatastore("./helia-data")
 
 const encoded = fromString(relayPrivKey, 'hex')
 const privateKey = await unmarshalPrivateKey(encoded)
@@ -106,21 +110,6 @@ async function createNode () {
 		libp2p.peerStore.delete(event.detail)
 	})
 
-	libp2p.services.pubsub.subscribe(CONTENT_TOPIC)
-	libp2p.services.pubsub.addEventListener('message', event => {
-
-		// const message = toString(event.detail.data)
-		const topic = event.detail.topic
-		console.log("message topic",topic)
-		console.log("message detail",new TextDecoder().decode(event.detail.data))
-
-		// if(!topic.startsWith(CONTENT_TOPIC)) return
-		// console.log(`Message received on topic '${topic}': ${message}`)
-		// libp2p.services.pubsub.publish(event.detail.data)
-	})
-
-	let blockstore = new LevelBlockstore("./helia-blocks")
-	let datastore = new LevelDatastore("./helia-data")
 	console.log(libp2p.peerId.toString())
 	console.log('p2p addr: ', libp2p.getMultiaddrs().map((ma) => ma.toString()))
 	return await createHelia({
@@ -130,8 +119,34 @@ async function createNode () {
 	})
 }
 
-const node = await createNode()
-console.info('Helia is running')
-console.info('PeerId:', node.libp2p.peerId.toString())
+		const node = await createNode()
+		console.info('Helia is running')
+		console.info('PeerId:', node.libp2p.peerId.toString())
+		node.libp2p.addEventListener('peer:connect', async event => {
+			console.log('peer:connect', event.detail)
+		})
+
+		node.libp2p.addEventListener('peer:disconnect', async event => {
+			console.log('peer:disconnect', event.detail)
+			//libp2p.peerStore.delete(event.detail)
+		})
+
+		node.libp2p.services.pubsub.subscribe(CONTENT_TOPIC)
+		console.log("subscribers", node.libp2p.services.pubsub.getSubscribers())
+
+		node.libp2p.services.pubsub.addEventListener('message', async event => {
+
+				const topic = event.detail.topic
+				console.log("message topic",topic)
+				const message = new TextDecoder().decode(event.detail.data)
+
+				if(!topic.startsWith(CONTENT_TOPIC)) return
+				console.log("message detail",message)
+				console.log("message topic",topic)
+				const fs2 = unixfs(node)
+
+				await fs2.cat(message)
+
+				console.log('stored received file in blockstore', message)
+		})
 // console.info('PeerId:', Buffer.from(server.peerId.privateKey).toString('hex'))
-// generates a deterministic address: /ip4/127.0.0.1/tcp/33519/ws/p2p/12D3KooWAJjbRkp8FPF5MKgMU53aUTxWkqvDrs4zc1VMbwRwfsbE
