@@ -90,9 +90,9 @@ let config = {
 		})
 	}
 }
-// console.log("bootstrapList",bootstrapList)
-// if(bootstrapList && bootstrapList.length > 0)
-// 	config = config.peerDiscovery.bootstrap = bootstrap({ list: bootstrapList })
+console.log("bootstrapList",bootstrapList)
+if(bootstrapList && bootstrapList.length > 0)
+	config = config.peerDiscovery.bootstrap = bootstrap({ list: bootstrapList })
 
 async function createNode () {
 	const libp2p = await createLibp2p(config)
