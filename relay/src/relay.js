@@ -70,10 +70,9 @@ let config = {
 	peerDiscovery: [
 		bootstrap({
 			list: [
-				'/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN',
-				'/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa',
-				'/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb',
-				'/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt'
+				'/ip4/176.115.95.29/tcp/4001/p2p/QmXMc1k77MWG79GMSe3X4T2Em9UyPtXyPPVb1VphifUHMA',
+				'/ip4/65.109.31.97/tcp/4005/p2p/12D3KooWPHb3Uw2vEcDdWbd6n2EkRwT7pc4toePJyjzSRcSJqXGb',
+				'/ip4/168.119.172.178/tcp/4001/p2p/12D3KooWDXvBTyoFtdh3WZt18oQs9rEgBVVgoo2YPW9WFsgvbF1Z'
 			]
 		}),
 		pubsubPeerDiscovery({
