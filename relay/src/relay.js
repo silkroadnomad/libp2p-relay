@@ -51,7 +51,7 @@ if(relayDevMode) scoreThresholds = {
 }
 
 let config = {
-	peerId,
+	// peerId,
 	addresses: {
 		listen: listenAddresses,
 		announce: announceAddresses
