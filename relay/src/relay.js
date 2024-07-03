@@ -119,20 +119,6 @@ config.addresses = {
 
 async function createNode () {
 	const libp2p = await createLibp2p(config)
-	libp2p.addEventListener('self:peer:update', (evt) => {
-		// Updated self multiaddrs?
-		console.log('Advertising with a relay address of ', libp2p.getMultiaddrs().map((ma) => ma.toString()))
-		// console.log(`Advertising with a relay address of ${libp2p.getMultiaddrs()[0].toString()}`)
-	})
-	libp2p.addEventListener('peer:connect', async event => {
-		console.log('peer:connect', event.detail)
-	})
-
-	libp2p.addEventListener('peer:disconnect', async event => {
-		// console.log('peer:disconnect', event.detail)
-		// libp2p.peerStore.delete(event.detail)
-	})
-
 	console.log(libp2p.peerId.toString())
 	console.log('p2p addr: ', libp2p.getMultiaddrs().map((ma) => ma.toString()))
 	return await createHelia({
@@ -146,16 +132,16 @@ async function createNode () {
 		console.info('Helia is running')
 		console.info('PeerId:', node.libp2p.peerId.toString())
 		node.libp2p.addEventListener('peer:connect', async event => {
-			console.log('peer:connect', event.detail)
+			// console.log('peer:connect', event.detail)
 		})
 
 		node.libp2p.addEventListener('peer:disconnect', async event => {
-			console.log('peer:disconnect', event.detail)
+			// console.log('peer:disconnect', event.detail)
 			//libp2p.peerStore.delete(event.detail)
 		})
 
 		node.libp2p.addEventListener("peer:discovery", ev => {
-			console.log("[peer:discovery]", ev.detail);
+			// console.log("[peer:discovery]", ev.detail);
 		});
 
 		node.libp2p.services.pubsub.subscribe(CONTENT_TOPIC)
@@ -180,6 +166,7 @@ async function createNode () {
 					onProgress: (evt) => console.log('pin event', evt)
 				});
 
-
+				const pinnedBlocks = await node.pins.ls()
+				console.log("pinnedBlocks",pinnedBlocks)
 		})
 // console.info('PeerId:', Buffer.from(server.peerId.privateKey).toString('hex'))
