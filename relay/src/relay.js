@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { createLibp2p } from 'libp2p'
-import { createHelia } from 'helia'
+import {createHelia, libp2pDefaults} from 'helia'
 import { identify } from '@libp2p/identify'
 import { yamux } from '@chainsafe/libp2p-yamux'
 import { noise } from '@chainsafe/libp2p-noise'
@@ -48,7 +48,7 @@ if(relayDevMode) scoreThresholds = {
 	// acceptPXThreshold: 10,
 	// opportunisticGraftThreshold: 20
 }
-
+/*
 let config = {
 	peerId,
 	addresses: {
@@ -67,20 +67,20 @@ let config = {
 	},
 	connectionEncryption: [noise()],
 	streamMuxers: [yamux()],
-	peerDiscovery: [
-		bootstrap({
-			list: [
-				'/ip4/176.115.95.29/tcp/4001/p2p/QmXMc1k77MWG79GMSe3X4T2Em9UyPtXyPPVb1VphifUHMA',
-				'/ip4/65.109.31.97/tcp/4005/p2p/12D3KooWPHb3Uw2vEcDdWbd6n2EkRwT7pc4toePJyjzSRcSJqXGb',
-				'/ip4/168.119.172.178/tcp/4001/p2p/12D3KooWDXvBTyoFtdh3WZt18oQs9rEgBVVgoo2YPW9WFsgvbF1Z'
-			]
-		}),
-		pubsubPeerDiscovery({
-			interval: 10000,
-			topics: pubsubPeerDiscoveryTopics, // defaults to ['_peer-discovery._p2p._pubsub']
-			listenOnly: false
-		})
-	],
+	// peerDiscovery: [
+	// 	bootstrap({
+	// 		list: [
+	// 			'/ip4/176.115.95.29/tcp/4001/p2p/QmXMc1k77MWG79GMSe3X4T2Em9UyPtXyPPVb1VphifUHMA',
+	// 			'/ip4/65.109.31.97/tcp/4005/p2p/12D3KooWPHb3Uw2vEcDdWbd6n2EkRwT7pc4toePJyjzSRcSJqXGb',
+	// 			'/ip4/168.119.172.178/tcp/4001/p2p/12D3KooWDXvBTyoFtdh3WZt18oQs9rEgBVVgoo2YPW9WFsgvbF1Z'
+	// 		]
+	// 	}),
+	// 	pubsubPeerDiscovery({
+	// 		interval: 10000,
+	// 		topics: pubsubPeerDiscoveryTopics, // defaults to ['_peer-discovery._p2p._pubsub']
+	// 		listenOnly: false
+	// 	})
+	// ],
 	services: {
 		ping: ping({
 			protocolPrefix: 'dContact', // default
@@ -95,7 +95,7 @@ let config = {
 				}
 		})
 	}
-}
+}*/
 
 // if(bootstrapList && bootstrapList.length > 0){
 // 	config.peerDiscovery = [
@@ -107,7 +107,10 @@ let config = {
 // 		})
 // 	]
 // }
-console.log("config",config)
+// console.log("config",config)
+const config = libp2pDefaults({peerId})
+const newPubsub = {...config.services.pubsub, ...{ services: { pubsub: gossipsub({ allowPublishToZeroTopicPeers: true, canRelayMessage: true }) } }}
+config.services.pubsub = newPubsub.services.pubsub
 
 async function createNode () {
 	const libp2p = await createLibp2p(config)
