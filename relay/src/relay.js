@@ -176,7 +176,7 @@ async function createNode () {
 
 				const pinCid = CID.parse(message)
 				console.log('stored received file in blockstore', message)
-				const pin = await helia.pins.add(pinCid, {
+				const pin = await node.pins.add(pinCid, {
 					onProgress: (evt) => console.log('pin event', evt)
 				});
 
