@@ -158,7 +158,7 @@ async function createNode () {
 				console.log("message topic",topic)
 				const fs2 = unixfs(node)
 
-				await fs2.cat(message)
+				for await (const buf of fs2.cat(cid)) {   console. info(buf) }
 
 				const pinCid = CID.parse(message)
 				console.log('stored received file in blockstore', message)
