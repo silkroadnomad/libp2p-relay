@@ -111,6 +111,10 @@ let config = {
 const config = libp2pDefaults({peerId})
 const newPubsub = {...config.services.pubsub, ...{ services: { pubsub: gossipsub({ allowPublishToZeroTopicPeers: true, canRelayMessage: true }) } }}
 config.services.pubsub = newPubsub.services.pubsub
+config.addresses = {
+	listen: listenAddresses,
+	announce: announceAddresses
+}
 
 async function createNode () {
 	const libp2p = await createLibp2p(config)
@@ -124,8 +128,8 @@ async function createNode () {
 	})
 
 	libp2p.addEventListener('peer:disconnect', async event => {
-		console.log('peer:disconnect', event.detail)
-		libp2p.peerStore.delete(event.detail)
+		// console.log('peer:disconnect', event.detail)
+		// libp2p.peerStore.delete(event.detail)
 	})
 
 	console.log(libp2p.peerId.toString())
