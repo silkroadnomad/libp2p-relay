@@ -20,6 +20,7 @@ import { LevelBlockstore } from "blockstore-level"
 import { LevelDatastore } from "datastore-level";
 import { unixfs } from '@helia/unixfs'
 import * as filters from "@libp2p/websockets/filters";
+import {CID} from "multiformats";
 export const CONTENT_TOPIC = process.env.CONTENT_TOPIC || "/dContact/3/message/proto";
 
 //output of: console.log(server.peerId.privateKey.toString('hex'))
@@ -173,6 +174,12 @@ async function createNode () {
 
 				await fs2.cat(message)
 
+				const pinCid = CID.parse(message)
 				console.log('stored received file in blockstore', message)
+				const pin = await helia.pins.add(pinCid, {
+					onProgress: (evt) => console.log('pin event', evt)
+				});
+
+
 		})
 // console.info('PeerId:', Buffer.from(server.peerId.privateKey).toString('hex'))
