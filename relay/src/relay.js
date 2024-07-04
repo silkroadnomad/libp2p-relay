@@ -136,20 +136,20 @@ async function createNode () {
 		console.log("subscribers", node.libp2p.services.pubsub.getSubscribers())
 
 		node.libp2p.services.pubsub.addEventListener('message', async event => {
-
 				const topic = event.detail.topic
-				console.log("message topic",topic)
-				const message = new TextDecoder().decode(event.detail.data)
-
 				if(!topic.startsWith(CONTENT_TOPIC)) return
-				console.log("message detail",message)
-				console.log("message topic",topic)
 
+				const message = new TextDecoder().decode(event.detail.data)
+				console.log("message detail",message)
 				const fs2 = unixfs(node)
 				try {
-					for await (const buf of fs2.cat(cid)) {   console. info(buf) }
 					if(message.startsWith("NEW-CID")){
-						const pinCid = CID.parse(message.substring(8))
+						//loading cid
+						const cid  = message.substring(8)
+						for await (const buf of fs2.cat(cid)) {   console. info(buf) }
+
+						//pinning
+						const pinCid = CID.parse(cid)
 						console.log('stored received file in blockstore', message)
 						const pin = await node.pins.add(pinCid, {
 							onProgress: (evt) => console.log('pin event', evt)
