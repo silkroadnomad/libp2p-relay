@@ -9,7 +9,7 @@ import { LevelBlockstore } from "blockstore-level"
 import { LevelDatastore } from "datastore-level";
 import { unixfs } from '@helia/unixfs'
 import { CID } from "multiformats";
-export const CONTENT_TOPIC = process.env.CONTENT_TOPIC || "/dContact/3/message/proto";
+export const CONTENT_TOPIC = process.env.CONTENT_TOPIC || "/doichain-nfc/1/message/proto";
 
 //output of: console.log(server.peerId.privateKey.toString('hex'))
 //hex of libp2p  console.info('PeerId:', Buffer.from(server.peerId.privateKey).toString('hex'))
@@ -148,15 +148,16 @@ async function createNode () {
 				const fs2 = unixfs(node)
 				try {
 					for await (const buf of fs2.cat(cid)) {   console. info(buf) }
+					if(message.startsWith("NEW-CID")){
+						const pinCid = CID.parse(message.substring(8))
+						console.log('stored received file in blockstore', message)
+						const pin = await node.pins.add(pinCid, {
+							onProgress: (evt) => console.log('pin event', evt)
+						});
 
-					const pinCid = CID.parse(message)
-					console.log('stored received file in blockstore', message)
-					const pin = await node.pins.add(pinCid, {
-						onProgress: (evt) => console.log('pin event', evt)
-					});
-
-					const pinnedBlocks = await node.pins.ls()
-					console.log("pinnedBlocks",pinnedBlocks)
+						const pinnedBlocks = await node.pins.ls()
+						console.log("pinnedBlocks",pinnedBlocks)
+					}
 				}catch(ex){
 				console.log("exception during loading from ipfs",ex)
 				}
