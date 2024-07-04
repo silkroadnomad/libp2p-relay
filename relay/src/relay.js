@@ -1,26 +1,14 @@
 import 'dotenv/config'
 import { createLibp2p } from 'libp2p'
 import {createHelia, libp2pDefaults} from 'helia'
-import { identify } from '@libp2p/identify'
-import { yamux } from '@chainsafe/libp2p-yamux'
-import { noise } from '@chainsafe/libp2p-noise'
-import { circuitRelayServer, circuitRelayTransport } from '@libp2p/circuit-relay-v2'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { unmarshalPrivateKey } from '@libp2p/crypto/keys'
 import { fromString } from 'uint8arrays/from-string'
-import { bootstrap } from "@libp2p/bootstrap";
-import { pubsubPeerDiscovery } from "@libp2p/pubsub-peer-discovery";
-import { ping } from "@libp2p/ping";
-import { autoNAT } from "@libp2p/autonat";
-import { dcutr } from "@libp2p/dcutr";
 import { gossipsub } from "@chainsafe/libp2p-gossipsub";
-import { tcp } from '@libp2p/tcp'
-import { webSockets } from '@libp2p/websockets'
 import { LevelBlockstore } from "blockstore-level"
 import { LevelDatastore } from "datastore-level";
 import { unixfs } from '@helia/unixfs'
-import * as filters from "@libp2p/websockets/filters";
-import {CID} from "multiformats";
+import { CID } from "multiformats";
 export const CONTENT_TOPIC = process.env.CONTENT_TOPIC || "/dContact/3/message/proto";
 
 //output of: console.log(server.peerId.privateKey.toString('hex'))
@@ -156,17 +144,22 @@ async function createNode () {
 				if(!topic.startsWith(CONTENT_TOPIC)) return
 				console.log("message detail",message)
 				console.log("message topic",topic)
+
 				const fs2 = unixfs(node)
+				try {
+					for await (const buf of fs2.cat(cid)) {   console. info(buf) }
 
-				for await (const buf of fs2.cat(cid)) {   console. info(buf) }
+					const pinCid = CID.parse(message)
+					console.log('stored received file in blockstore', message)
+					const pin = await node.pins.add(pinCid, {
+						onProgress: (evt) => console.log('pin event', evt)
+					});
 
-				const pinCid = CID.parse(message)
-				console.log('stored received file in blockstore', message)
-				const pin = await node.pins.add(pinCid, {
-					onProgress: (evt) => console.log('pin event', evt)
-				});
+					const pinnedBlocks = await node.pins.ls()
+					console.log("pinnedBlocks",pinnedBlocks)
+				}catch(ex){
+				console.log("exception during loading from ipfs",ex)
+				}
 
-				const pinnedBlocks = await node.pins.ls()
-				console.log("pinnedBlocks",pinnedBlocks)
 		})
 // console.info('PeerId:', Buffer.from(server.peerId.privateKey).toString('hex'))
