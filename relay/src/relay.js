@@ -37,54 +37,6 @@ if(relayDevMode) scoreThresholds = {
 	// acceptPXThreshold: 10,
 	// opportunisticGraftThreshold: 20
 }
-/*
-let config = {
-	peerId,
-	addresses: {
-		listen: listenAddresses,
-		announce: announceAddresses
-	},
-	transports: [
-		// circuitRelayTransport(),
-		tcp(),
-		webSockets({
-			filter: filters.all
-		})
-	],
-	connectionManager: {
-		minConnections: 0
-	},
-	connectionEncryption: [noise()],
-	streamMuxers: [yamux()],
-	// peerDiscovery: [
-	// 	bootstrap({
-	// 		list: [
-	// 			'/ip4/176.115.95.29/tcp/4001/p2p/QmXMc1k77MWG79GMSe3X4T2Em9UyPtXyPPVb1VphifUHMA',
-	// 			'/ip4/65.109.31.97/tcp/4005/p2p/12D3KooWPHb3Uw2vEcDdWbd6n2EkRwT7pc4toePJyjzSRcSJqXGb',
-	// 			'/ip4/168.119.172.178/tcp/4001/p2p/12D3KooWDXvBTyoFtdh3WZt18oQs9rEgBVVgoo2YPW9WFsgvbF1Z'
-	// 		]
-	// 	}),
-	// 	pubsubPeerDiscovery({
-	// 		interval: 10000,
-	// 		topics: pubsubPeerDiscoveryTopics, // defaults to ['_peer-discovery._p2p._pubsub']
-	// 		listenOnly: false
-	// 	})
-	// ],
-	services: {
-		ping: ping({
-			protocolPrefix: 'dContact', // default
-		}),
-		identify: identify(),
-		autoNAT: autoNAT(),
-		dcutr: dcutr(),
-		pubsub: gossipsub({ allowPublishToZeroTopicPeers: true, canRelayMessage: true, scoreThresholds}),
-		circuitRelay: circuitRelayServer({
-				reservations: {
-					maxReservations: Infinity
-				}
-		})
-	}
-}*/
 
 // if(bootstrapList && bootstrapList.length > 0){
 // 	config.peerDiscovery = [
@@ -97,6 +49,7 @@ let config = {
 // 	]
 // }
 // console.log("config",config)
+
 const config = libp2pDefaults({peerId})
 const newPubsub = {...config.services.pubsub, ...{ services: { pubsub: gossipsub({ allowPublishToZeroTopicPeers: true, canRelayMessage: true,scoreThresholds }) } }}
 config.services.pubsub = newPubsub.services.pubsub
@@ -122,15 +75,15 @@ async function createNode () {
 		node.libp2p.addEventListener('peer:connect', async event => {
 			// console.log('peer:connect', event.detail)
 		})
-
-		node.libp2p.addEventListener('peer:disconnect', async event => {
-			// console.log('peer:disconnect', event.detail)
-			//libp2p.peerStore.delete(event.detail)
-		})
-
-		node.libp2p.addEventListener("peer:discovery", ev => {
-			// console.log("[peer:discovery]", ev.detail);
-		});
+		//
+		// node.libp2p.addEventListener('peer:disconnect', async event => {
+		// 	// console.log('peer:disconnect', event.detail)
+		// 	//libp2p.peerStore.delete(event.detail)
+		// })
+		//
+		// node.libp2p.addEventListener("peer:discovery", ev => {
+		// 	// console.log("[peer:discovery]", ev.detail);
+		// });
 
 		node.libp2p.services.pubsub.subscribe(CONTENT_TOPIC)
 		console.log("subscribers", node.libp2p.services.pubsub.getSubscribers())
@@ -175,4 +128,4 @@ async function createNode () {
 				}
 
 		})
-// console.info('PeerId:', Buffer.from(server.peerId.privateKey).toString('hex'))
+console.info('PeerId:', Buffer.from(server.peerId.privateKey).toString('hex'))
