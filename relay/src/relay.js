@@ -146,7 +146,9 @@ async function createNode () {
 					if(message.startsWith("NEW-CID")){
 						//loading cid
 						const cid  = message.substring(8)
-						for await (const buf of fs2.cat(cid)) {   console. info(buf) }
+						for await (const buf of fs2.cat(cid)) { console. info(buf) }
+
+						node.libp2p.services.pubsub.publish(CONTENT_TOPIC,new TextEncoder.encode("ADDED-CID:"+cid))
 
 						//pinning
 						const pinCid = CID.parse(cid)
@@ -154,6 +156,7 @@ async function createNode () {
 						const pin = await node.pins.add(pinCid, {
 							onProgress: (evt) => console.log('pin event', evt)
 						});
+						node.libp2p.services.pubsub.publish(CONTENT_TOPIC,new TextEncoder.encode("PINNED-CID:"+cid))
 
 						const pinnedBlocks = await node.pins.ls()
 						console.log("pinnedBlocks",pinnedBlocks)
