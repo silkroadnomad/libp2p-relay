@@ -133,4 +133,4 @@ async function createNode () {
 				}
 
 		})
-console.info('PeerId:', Buffer.from(server.peerId.privateKey).toString('hex'))
+// console.info('PeerId:', Buffer.from(server.peerId.privateKey).toString('hex'))
