@@ -98,7 +98,7 @@ let config = {
 // }
 // console.log("config",config)
 const config = libp2pDefaults({peerId})
-const newPubsub = {...config.services.pubsub, ...{ services: { pubsub: gossipsub({ allowPublishToZeroTopicPeers: true, canRelayMessage: true }) } }}
+const newPubsub = {...config.services.pubsub, ...{ services: { pubsub: gossipsub({ allowPublishToZeroTopicPeers: true, canRelayMessage: true,scoreThresholds }) } }}
 config.services.pubsub = newPubsub.services.pubsub
 config.addresses = {
 	listen: listenAddresses,
@@ -147,23 +147,25 @@ async function createNode () {
 						//loading cid
 						const cid  = message.substring(8)
 						const addingMsg = "ADDING-CID:"+cid
-						console.log("message detail",addingMsg)
-						node.libp2p.services.pubsub.publish(CONTENT_TOPIC,new TextEncoder.encode(addingMsg))
-						console.log("message detail published")
+						console.log("pinning",addingMsg)
+						node.libp2p.services.pubsub.publish(CONTENT_TOPIC,new TextEncoder().encode(addingMsg))
+						console.log("pinning published")
 						for await (const buf of fs2.cat(cid)) { console. info(buf) }
 						const addedMsg = "ADDED-CID:"+cid
-						console.log("message detail",addingMsg)
-						node.libp2p.services.pubsub.publish(CONTENT_TOPIC,new TextEncoder.encode(addedMsg))
-						console.log("message detail published")
+						console.log("pinning adding",addingMsg)
+						node.libp2p.services.pubsub.publish(CONTENT_TOPIC,new TextEncoder().encode(addedMsg))
+						console.log("pinning published")
 
 						//pinning
 						const pinCid = CID.parse(cid)
-						console.log('stored received file in blockstore', message)
-						node.libp2p.services.pubsub.publish(CONTENT_TOPIC,new TextEncoder.encode("PINNING-CID:"+cid))
+						console.log('pinning stored in blockstore', pinCid)
+						node.libp2p.services.pubsub.publish(CONTENT_TOPIC,new TextEncoder().encode("PINNING-CID:"+cid))
 						const pin = await node.pins.add(pinCid, {
 							onProgress: (evt) => console.log('pin event', evt)
 						});
-						node.libp2p.services.pubsub.publish(CONTENT_TOPIC,new TextEncoder.encode("PINNED-CID:"+cid))
+						console.log("pinning pin",pin)
+						node.libp2p.services.pubsub.publish(CONTENT_TOPIC,new TextEncoder().encode("PINNED-CID:"+cid))
+						console.log("pinning published pinned")
 
 						const pinnedBlocks = await node.pins.ls()
 						console.log("pinnedBlocks",pinnedBlocks)
