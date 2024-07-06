@@ -9,6 +9,7 @@ import { LevelBlockstore } from "blockstore-level"
 import { LevelDatastore } from "datastore-level";
 import { unixfs } from '@helia/unixfs'
 import { CID } from "multiformats";
+import {pubsubPeerDiscovery} from "@libp2p/pubsub-peer-discovery";
 export const CONTENT_TOPIC = process.env.CONTENT_TOPIC || "/doichain-nfc/1/message/proto";
 
 //output of: console.log(server.peerId.privateKey.toString('hex'))
@@ -38,20 +39,24 @@ if(relayDevMode) scoreThresholds = {
 	// opportunisticGraftThreshold: 20
 }
 
+
+const config = libp2pDefaults({peerId})
 // if(bootstrapList && bootstrapList.length > 0){
-// 	config.peerDiscovery = [
-// 		bootstrap({ list: bootstrapList }),
-// 		pubsubPeerDiscovery({
-// 			interval: 10000,
-// 			topics: pubsubPeerDiscoveryTopics, // defaults to ['_peer-discovery._p2p._pubsub']
-// 			listenOnly: false
-// 		})
-// 	]
+	config.peerDiscovery = [
+		// bootstrap({ list: bootstrapList }),
+		pubsubPeerDiscovery({
+			interval: 10000,
+			topics: pubsubPeerDiscoveryTopics, // defaults to ['_peer-discovery._p2p._pubsub']
+			listenOnly: false
+		})
+	]
 // }
 // console.log("config",config)
 
-const config = libp2pDefaults({peerId})
-const newPubsub = {...config.services.pubsub, ...{ services: { pubsub: gossipsub({ allowPublishToZeroTopicPeers: true, canRelayMessage: true,scoreThresholds }) } }}
+
+const newPubsub = {...config.services.pubsub, ...{ services: {
+	pubsub: gossipsub({ allowPublishToZeroTopicPeers: true, canRelayMessage: true,scoreThresholds }) } }}
+
 config.services.pubsub = newPubsub.services.pubsub
 config.addresses = {
 	listen: listenAddresses,
