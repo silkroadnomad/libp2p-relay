@@ -146,10 +146,15 @@ async function createNode () {
 					if(message.startsWith("NEW-CID")){
 						//loading cid
 						const cid  = message.substring(8)
-						node.libp2p.services.pubsub.publish(CONTENT_TOPIC,new TextEncoder.encode("ADDING-CID:"+cid))
+						const addingMsg = "ADDING-CID:"+cid
+						console.log("message detail",addingMsg)
+						node.libp2p.services.pubsub.publish(CONTENT_TOPIC,new TextEncoder.encode(addingMsg))
+						console.log("message detail published")
 						for await (const buf of fs2.cat(cid)) { console. info(buf) }
-
-						node.libp2p.services.pubsub.publish(CONTENT_TOPIC,new TextEncoder.encode("ADDED-CID:"+cid))
+						const addedMsg = "ADDED-CID:"+cid
+						console.log("message detail",addingMsg)
+						node.libp2p.services.pubsub.publish(CONTENT_TOPIC,new TextEncoder.encode(addedMsg))
+						console.log("message detail published")
 
 						//pinning
 						const pinCid = CID.parse(cid)
