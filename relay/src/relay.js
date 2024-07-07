@@ -22,7 +22,6 @@ const listenAddresses = process.env.RELAY_LISTEN_ADDRESSES?.split(',')
 const announceAddresses = process.env.RELAY_ANNOUNCE_ADDRESSES?.split(',')
 const pubsubPeerDiscoveryTopics = process.env.RELAY_PUBSUB_PEER_DISCOVERY_TOPICS?.split(',')
 const relayDevMode = process.env.RELAY_DEV_MODE
-	/dns4/elastic.dag.house/tcp/443/wss
 
 
 let blockstore = new LevelBlockstore("./helia-blocks")
