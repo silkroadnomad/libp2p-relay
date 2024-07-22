@@ -25,7 +25,7 @@ const announceAddresses = process.env.RELAY_ANNOUNCE_ADDRESSES.split(',')
 const pubsubPeerDiscoveryTopics = process.env.RELAY_PUBSUB_PEER_DISCOVERY_TOPICS.split(',')
 const relayDevMode = process.env.RELAY_DEV_MODE
 
-console.log("RELAY_PUBSUB_PEER_DISCOVERY_TOPICS",pubsubPeerDiscoveryTopics)
+console.log("RELAY_PUBSUB_PEER_DISCOVERY_TOPICS", pubsubPeerDiscoveryTopics)
 // the peer id of the above key
 // const relayId = '12D3KooWAJjbRkp8FPF5MKgMU53aUTxWkqvDrs4zc1VMbwRwfsbE'
 
@@ -104,7 +104,7 @@ server.services.pubsub.addEventListener('message', event => {
 	const message = toString(event.detail.data)
 	if(!topic.startsWith(CONTENT_TOPIC)) return
 	console.log(`Message received on topic '${topic}': ${message}`)
-	server.services.pubsub.publish(event.detail.data)
+	//server.services.pubsub.publish(event.detail.data)
 })
 
 console.log(server.peerId.toString())
