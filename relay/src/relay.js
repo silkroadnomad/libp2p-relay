@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { createLibp2p } from 'libp2p'
-import {createHelia, libp2pDefaults} from 'helia'
+import { createHelia, libp2pDefaults } from 'helia'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { unmarshalPrivateKey } from '@libp2p/crypto/keys'
 import { fromString } from 'uint8arrays/from-string'
@@ -9,8 +9,12 @@ import { LevelBlockstore } from "blockstore-level"
 import { LevelDatastore } from "datastore-level";
 import { unixfs } from '@helia/unixfs'
 import { CID } from "multiformats";
-import {pubsubPeerDiscovery} from "@libp2p/pubsub-peer-discovery";
-import {bootstrap} from "@libp2p/bootstrap";
+import { pubsubPeerDiscovery } from "@libp2p/pubsub-peer-discovery";
+import { bootstrap } from "@libp2p/bootstrap";
+import { connectElectrum } from "./doichain/connectElectrum.js";
+import { scanBlockchainForNameOps } from "./scanBlockchainForNameOps.js";
+
+
 export const CONTENT_TOPIC = process.env.CONTENT_TOPIC || "/doichain-nfc/1/message/proto";
 
 //output of: console.log(server.peerId.privateKey.toString('hex'))
@@ -22,7 +26,6 @@ const listenAddresses = process.env.RELAY_LISTEN_ADDRESSES?.split(',')
 const announceAddresses = process.env.RELAY_ANNOUNCE_ADDRESSES?.split(',')
 const pubsubPeerDiscoveryTopics = process.env.RELAY_PUBSUB_PEER_DISCOVERY_TOPICS?.split(',')
 const relayDevMode = process.env.RELAY_DEV_MODE
-
 
 let blockstore = new LevelBlockstore("./helia-blocks")
 let datastore = new LevelDatastore("./helia-data")
@@ -52,8 +55,6 @@ if(bootstrapList && bootstrapList.length > 0){
 		})
 	]
 }
-// console.log("config",config)
-
 
 const newPubsub = {...config.services.pubsub, ...{ services: {
 	pubsub: gossipsub({ allowPublishToZeroTopicPeers: true, canRelayMessage: true,scoreThresholds }) } }}
@@ -78,6 +79,12 @@ async function createNode () {
 const node = await createNode()
 console.info('Helia is running')
 console.info('PeerId:', node.libp2p.peerId.toString())
+
+const network = { name: 'doichain-mainnet' }; // Replace with actual network object
+const electrumClient = await connectElectrum(network, (x,y)=>{console.log("updateStore",x,y)})
+
+// await scanBlockchainForNameOps(electrumClient)
+
 node.libp2p.addEventListener('peer:connect', async event => {
 	// console.log('peer:connect', event.detail)
 })
@@ -106,32 +113,33 @@ node.libp2p.services.pubsub.addEventListener('message', async event => {
 				//loading cid
 				const cid  = message.substring(8)
 				const addingMsg = "ADDING-CID:"+cid
-				console.log("pinning",addingMsg)
-				node.libp2p.services.pubsub.publish(CONTENT_TOPIC,new TextEncoder().encode(addingMsg))
-				console.log("pinning published")
+				console.log("publishing query in ipfs:",addingMsg)
+				node.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addingMsg))
+				console.log("querying published")
+
 				for await (const buf of fs2.cat(cid)) { console. info(buf) }
 				const addedMsg = "ADDED-CID:"+cid
-				console.log("pinning adding",addingMsg)
-				node.libp2p.services.pubsub.publish(CONTENT_TOPIC,new TextEncoder().encode(addedMsg))
-				console.log("pinning published")
+				console.log("publishing",addingMsg)
+				node.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addedMsg))
 
 				//pinning
 				const pinCid = CID.parse(cid)
-				console.log('pinning stored in blockstore', pinCid)
-				node.libp2p.services.pubsub.publish(CONTENT_TOPIC,new TextEncoder().encode("PINNING-CID:"+cid))
+				console.log('publishing pinning ', pinCid)
+				node.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNING-CID:"+cid))
 				const pin = await node.pins.add(pinCid, {
 					onProgress: (evt) => console.log('pin event', evt)
 				});
-				console.log("pinning pin",pin)
-				node.libp2p.services.pubsub.publish(CONTENT_TOPIC,new TextEncoder().encode("PINNED-CID:"+cid))
-				console.log("pinning published pinned")
+				console.log("pinning done - publishing pinning",pinCid)
+				node.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNED-CID:"+cid))
+				console.log("pinning published")
 
 				const pinnedBlocks = await node.pins.ls()
 				console.log("pinnedBlocks",pinnedBlocks)
 			}
-		}catch(ex){
+		} catch(ex){
 		console.log("exception during loading from ipfs",ex)
 		}
-
 })
+scanBlockchainForNameOps(electrumClient,node)
+
 // console.info('PeerId:', Buffer.from(server.peerId.privateKey).toString('hex'))

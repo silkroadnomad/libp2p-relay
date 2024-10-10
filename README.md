@@ -34,15 +34,9 @@ What will it do?
 1. During start, connect to the blockchain (e.g., Electrumx) and query a certain namespace for seed nodes and 
 2. If our node is not yet stored on blockchain and a private key is inside .env it should send a transaction to a blockchain
 
-FAQ:
-- Q: Can everybody store a relay nodes multi-address? 
-  - A: Yes, everybody should.
-- Q: What if the seed node / relay node is a malicious node and try to connect peers with malicious peers? 
-  - A: Every peer in the network must be regarded as malicious, it's on the peer's consensus to prevent malicious actions.
-  - A: If a big number of malicious relay nodes appear on blockchain, they could prevent others from connecting to the real network.
-    - Q: Are there any measures taken by libp2p / gossip sub protocol? 
-    - A: Needs more research: 
-      - a peer connecting successfully to a relay could ping other relays in the list before connecting.
-      - if the pinged peer isn't responding, it either means it is offline or not connected to the network and put it in 'quarantine.'
-      - if direct dialing cannot connect to the peers in quarantine means they are offline 
-      - the list of leftovers could be regarded as malicious (or being the right network, in case we are connected to the wrong network)
+# Adaptation of this relay
+- [x] the relay is scanning Doichain blockchain for name-ops
+- [ ] if a name-op is being found, it needs to be investigated 
+  - [ ] create a file which contains all name-ops of today an ipns name (with the today date e.g. 2024-10-09) and references the files cid
+  - [ ] everytime a new name-op is found this file is being added again and the new resulting cid updated to the ipns name
+  - [ ] if its value contains an ipfs:// url the CID 
