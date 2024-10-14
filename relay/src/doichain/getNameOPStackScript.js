@@ -16,8 +16,8 @@ const ERRORS = {
  * - https://github.com/brandonrobertz/bitcore-namecoin/blob/master/lib/names.js
  * - https://github.com/doichain/doichain-transaction
  *
- * @param {string} nameId - The identifier for the name.
- * @param {string} nameValue - The value associated with the name.
+ * @param {string} nameId - The identifier for the ipnsInstance.
+ * @param {string} nameValue - The value associated with the ipnsInstance.
  * @param {string} recipientAddress - The recipient's Doichain address.
  * @param {string} network - The Doichain network (e.g., 'mainent', 'testnet', 'regtest').
  * @returns {Buffer} The compiled script as a Buffer.

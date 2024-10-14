@@ -64,7 +64,7 @@ export const generatePSBT = async (electrumClient,selectedUtxos,nameId,nameValue
 
 	console.log(`recipientAddress namescript output ${doiAmount}`,recipientAddress)
 	const opCodesStackScript = getNameOPStackScript(nameId,nameValue,recipientAddress, DOICHAIN)
-	psbt.setVersion(VERSION) //use this for name transactions
+	psbt.setVersion(VERSION) //use this for ipnsInstance transactions
 	psbt.addOutput({
 		script: opCodesStackScript,
 		value: storageFee //not the doiAmount here!
