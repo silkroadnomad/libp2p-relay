@@ -11,7 +11,7 @@ This is a docker image and docker compose file which runs a
 ### via nodejs
 0. Copy .env.example to .env and change according to your environment
     - RELAY_DEV_MODE=true in order to disable gossip-sub tresholds
-    - SERVER_NAME=your-server-name.domain.xyz
+    - SERVER_NAME=your-server-ipnsInstance.domain.xyz
     - RELAY_PUBSUB_PEER_DISCOVERY_TOPICS=your-topic._peer-discovery._p2p._pubsub
     - RELAY_PRIVATE_KEY=how to generate a good private key for your node?
 1. Run ```node relay/src/relay.js```
@@ -36,7 +36,14 @@ What will it do?
 
 # Adaptation of this relay
 - [x] the relay is scanning Doichain blockchain for name-ops
-- [ ] if a name-op is being found, it needs to be investigated 
-  - [ ] create a file which contains all name-ops of today an ipns name (with the today date e.g. 2024-10-09) and references the files cid
-  - [ ] everytime a new name-op is found this file is being added again and the new resulting cid updated to the ipns name
-  - [ ] if its value contains an ipfs:// url the CID 
+- [x] if a name-ops is being found, it needs to be investigated 
+  - [x] create a file which contains all name-ops of today an ipns name-ops (with the today date e.g. 2024-10-09) and references the files cid
+  - [x] everytime a new name-ops is found this file is being added again and the new resulting cid updated to the ipns name-ops
+  - [ ] if name-op contains an ipfs:// url the CID needs to be gathered from the ipfs node (or the network)
+    - [ ] if its available marked available? 
+    - [ ] or if its not available marked as unavailable
+- [ ] every browser can call LIST-TODAY or LIST-DATE (e.g. LIST-20241014) 
+- [ ] every relay who has the name_ops of today is publishing it (not sure if that is efficient enough)
+- [ ] every browser should also index the blockchain for name_ops (like the relay does) and answer for requests
+- [ ] question is: how much should every browser cash
+- [ ] pinner should only pin if a minimum fee is paid

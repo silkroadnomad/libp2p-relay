@@ -5,3 +5,5 @@ data/
 .idea
 relay/helia-blocks
 relay/helia-data
+/relay/ipns-keys/
+/relay/scanning_state.json
