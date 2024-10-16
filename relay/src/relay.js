@@ -1,30 +1,34 @@
 import 'dotenv/config'
-import { createHelia, libp2pDefaults } from 'helia'
-import { gossipsub } from '@chainsafe/libp2p-gossipsub'
-// import { tls } from '@libp2p/tls'
+
+// External libraries
+import moment from 'moment'
+import { CID } from "multiformats/cid"
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
-import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
-import { LevelBlockstore } from "blockstore-level"
-import { LevelDatastore } from "datastore-level"
-import { pubsubPeerDiscovery } from "@libp2p/pubsub-peer-discovery"
-import { bootstrap } from "@libp2p/bootstrap"
-import { scanBlockchainForNameOps } from "./pinner/scanBlockchainForNameOps.js"
-import logger from './logger.js'
-import { createFromJSON } from "@libp2p/peer-id-factory";
-import { defaultLogger } from "@libp2p/logger";
-import { ipns } from "@helia/ipns";
-import { connectElectrum } from "./doichain/connectElectrum.js";
-import {unixfs} from "@helia/unixfs";
+
+// Libp2p and related modules
+import { createLibp2p } from 'libp2p'
 import { tcp } from '@libp2p/tcp'
 import { noise } from '@chainsafe/libp2p-noise'
 import { yamux } from '@chainsafe/libp2p-yamux'
 import { identify } from '@libp2p/identify'
-import { createLibp2p } from 'libp2p'
+import { gossipsub } from '@chainsafe/libp2p-gossipsub'
+import { pubsubPeerDiscovery } from "@libp2p/pubsub-peer-discovery"
+import { bootstrap } from "@libp2p/bootstrap"
 import { privateKeyFromProtobuf } from '@libp2p/crypto/keys'
-import {CID} from "multiformats/cid";
-import { getTodayNameOpsCids } from "./pinner/scanBlockchainForNameOps.js";
-import { getNameOpsCidsForDate } from "./pinner/scanBlockchainForNameOps.js";
-import moment from 'moment';
+
+// Helia and related modules
+import { createHelia, libp2pDefaults } from 'helia'
+import { unixfs } from "@helia/unixfs"
+
+// Storage modules
+import { LevelBlockstore } from "blockstore-level"
+import { LevelDatastore } from "datastore-level"
+
+// Local modules
+import logger from './logger.js'
+import { connectElectrum } from "./doichain/connectElectrum.js"
+import { getNameOpsCidsForDate } from "./pinner/scanBlockchainForNameOps.js"
+import { scanBlockchainForNameOps } from '../src/pinner/scanBlockchainForNameOps.js'
 
 export const CONTENT_TOPIC = process.env.CONTENT_TOPIC || "/doichain-nfc/1/message/proto"
 
@@ -46,8 +50,6 @@ if(relayDevMode) scoreThresholds = {
 	gossipThreshold: -Infinity,
 	publishThreshold: -Infinity,
 	graylistThreshold: -Infinity,
-	// acceptPXThreshold: 10,
-	// opportunisticGraftThreshold: 20
 }
 
 const config = libp2pDefaults({
@@ -59,7 +61,7 @@ if(bootstrapList && bootstrapList.length > 0) {
 		bootstrap({ list: bootstrapList }),
 		pubsubPeerDiscovery({
 			interval: 10000,
-			topics: pubsubPeerDiscoveryTopics, // defaults to ['_peer-discovery._p2p._pubsub'] //if we enable this too many will connect to us!
+			topics: pubsubPeerDiscoveryTopics,
 			listenOnly: false
 		})
 	]
@@ -67,7 +69,7 @@ if(bootstrapList && bootstrapList.length > 0) {
 
 async function createNode () {
 	const libp2p = await createLibp2p({
-		privateKey: keyPair, // Directly use the key pair as privateKey
+		privateKey: keyPair,
 		datastore,
 		addresses: {
 			listen: listenAddresses,
@@ -101,37 +103,19 @@ async function createNode () {
 	console.log('Configured listen addresses:', listenAddresses)
 	console.log('Actual listen addresses:', helia.libp2p.getMultiaddrs().map(ma => ma.toString()))
 
-	const ipnsInstance = ipns({
-		datastore,
-		routing: helia.libp2p.services.pubsub,
-		logger: defaultLogger(),
-	})
-
-	return { helia, ipnsInstance }
+	return { helia }
 }
 
-const { helia, ipnsInstance} = await createNode()
+const { helia } = await createNode()
 logger.info('Helia is running')
 const network = { name: 'doichain-mainnet' }; // Replace with actual network object
-const electrumClient = await connectElectrum(network, (x,y)=>{//logger.info("updateStore")
-
-})
+const electrumClient = await connectElectrum(network, (x,y)=>{})
 
 helia.libp2p.addEventListener('peer:connect', async event => {
 /*	console.log('peer:connect', event.detail)*/
 })
-//
-// node.libp2p.addEventListener('peer:disconnect', async event => {
-// 	// console.log('peer:disconnect', event.detail)
-// 	//libp2p.peerStore.delete(event.detail)
-// })
-//
-// node.libp2p.addEventListener("peer:discovery", ev => {
-// 	// console.log("[peer:discovery]", ev.detail);
-// });
 
 helia.libp2p.services.pubsub.subscribe(CONTENT_TOPIC)
-// console.log("subscribers", helia.libp2p.services.pubsub.getSubscribers())
 helia.libp2p.services.pubsub.addEventListener('message', async event => {
 		const topic = event.detail.topic
 		if(!topic.startsWith(CONTENT_TOPIC)) return
@@ -141,7 +125,6 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
 		const fs2 = unixfs(helia)
 		try {
 			if(message.startsWith("NEW-CID")){
-				//loading cid
 				const cid  = message.substring(8)
 				const addingMsg = "ADDING-CID:"+cid
 				console.log("publishing query in ipfs:", addingMsg)
@@ -150,10 +133,9 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
 
 				for await (const buf of fs2.cat(cid)) { console. info(buf) }
 				const addedMsg = "ADDED-CID:"+cid
-				console.log("publishing", addingMsg)
+				console.log("publishing", addedMsg)
 				helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addedMsg))
 
-				//pinning
 				const pinCid = CID.parse(cid)
 				console.log('publishing pinning ', pinCid)
 				helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNING-CID:"+cid))
@@ -164,8 +146,6 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
 				helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNED-CID:"+cid))
 				console.log("pinning published")
 
-				// const pinnedBlocks = await helia.pins.ls()
-				// console.log("pinnedBlocks",pinnedBlocks)
 			} else if (message.startsWith("LIST_")) {
 				console.log("Received LIST request:", message);
 				const dateString = message.substring(5); // Extract the date part
@@ -180,14 +160,14 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
 					console.log("Invalid date format received");
 					helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("INVALID_DATE_FORMAT"));
 				} else {
-					const cids = await getNameOpsCidsForDate(helia, ipnsInstance, date);
+					const foundNameOps = await getNameOpsCidsForDate(helia, date);
 					const formattedDate = date.toISOString().split('T')[0]; // Format as YYYY-MM-DD
-					if (cids.length > 0) {
-						const response = `${formattedDate}_CIDS:` + cids.join(',');
-						console.log(`Publishing CIDs for ${formattedDate}:`, response);
-						helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(response));
+					if (foundNameOps.length > 0) {
+						console.log(`Publishing NameOps for ${formattedDate}:`, foundNameOps);
+						const jsonString = JSON.stringify(foundNameOps);
+						helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(jsonString));
 					} else {
-						console.log(`No CIDs found for ${formattedDate}`);
+						console.log(`No NameOps found for ${formattedDate}`);
 						helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(`${formattedDate}_CIDS:NONE`));
 					}
 				}
@@ -196,6 +176,4 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
 		console.log("exception during message handling",ex)
 		}
 })
-scanBlockchainForNameOps(electrumClient,helia,ipnsInstance)
-
-// console.info('PeerId:', Buffer.from(server.peerId.privateKey).toString('hex'))
+scanBlockchainForNameOps(electrumClient, helia)

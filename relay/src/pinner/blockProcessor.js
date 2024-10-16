@@ -1,5 +1,4 @@
 import moment from 'moment/moment.js'
-import { getOrGenerateKey } from './ipnsKeyManager.js'
 
 export async function processBlockAtHeight(height, electrumClient) {
     let counter = 0;
@@ -10,6 +9,7 @@ export async function processBlockAtHeight(height, electrumClient) {
         try {
             const tx = await electrumClient.request('blockchain.transaction.id_from_pos', [height, counter]);
             const txDetails = await electrumClient.request('blockchain.transaction.get', [tx, true]);
+            blockDate = new Date(txDetails.blocktime * 1000); // Convert UNIX timestamp to JavaScript Date object
 
             for (const vout of txDetails.vout) {
                 const asm = vout.scriptPubKey.asm
