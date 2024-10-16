@@ -14,6 +14,7 @@ import { noise } from '@chainsafe/libp2p-noise'
 import { yamux } from '@chainsafe/libp2p-yamux'
 import { bootstrap } from "@libp2p/bootstrap"
 import { pubsubPeerDiscovery } from "@libp2p/pubsub-peer-discovery"
+import moment from 'moment';
 
 const pubsubPeerDiscoveryTopics = process.env.RELAY_PUBSUB_PEER_DISCOVERY_TOPICS?.split(',')
 const CONTENT_TOPIC = '/doichain-nfc/1/message/proto';
@@ -51,10 +52,8 @@ describe('Helia IPNS Node Test', function() {
       datastore: new MemoryDatastore(),
       blockstore: new MemoryBlockstore(),
     });
-//can we log the peer id?
-console.log('Peer ID:', helia.libp2p.peerId.toString());
-   // const existingNodeAddr = multiaddr('/ip4/127.0.0.1/tcp/9090/p2p/12D3KooWR7R2mMusGhtsXofgsdY1gzVgG2ykCfS7G5NnNKsAkdCo')
-   //  await helia.libp2p.dial(existingNodeAddr)
+
+    console.log('Peer ID:', helia.libp2p.peerId.toString());
     fs = unixfs(helia);
     pubsub = helia.libp2p.services.pubsub;
 
@@ -62,7 +61,9 @@ console.log('Peer ID:', helia.libp2p.peerId.toString());
 
     pubsub.addEventListener('message', (event) => {
       if (event.detail.topic === CONTENT_TOPIC) {
+       
         const message = new TextDecoder().decode(event.detail.data);
+        console.log("message received:", message);
         messages.push(message);
       }
     });
@@ -76,69 +77,114 @@ console.log('Peer ID:', helia.libp2p.peerId.toString());
   });
 
   it('should connect to the existing Helia node and check for specific peer', async function() {
-    const peers = await helia.libp2p.peerStore.all()
+    const peers = await helia.libp2p.getPeers()
+    console.log(`Total number of peers: ${peers.length}`)
     expect(peers.length).to.be.at.least(1)
 
     const targetPeerId = '12D3KooWR7R2mMusGhtsXofgsdY1gzVgG2ykCfS7G5NnNKsAkdCo'
-    const targetPeer = peerIdFromString(targetPeerId)
     
-    let isTargetPeerConnected = false
-    let targetPeerInfo = null
+    let targetConnection = null
 
-    // Check if the target peer is connected and log its multiaddrs
+    // Check if the target peer is in the list of connected peers
     for (const peer of peers) {
-        console.log('current peer id:',peer.id.toString())
-      if (peer.id.toString() === targetPeerId) {
-        isTargetPeerConnected = true
-        targetPeerInfo = await helia.libp2p.peerStore.get(peer.id)
-        break
-      }
+        console.log(`Checking peer: ${peer.toString()}`)
+        console.log(`Is this the target peer? ${peer.toString() === targetPeerId}`)
+        
+        if (peer.toString() === targetPeerId) {
+            console.log('Target peer found in connected peers')
+            targetConnection = peer
+            break
+        }
     }
 
-    console.log(`Is target peer ${targetPeerId} connected: ${isTargetPeerConnected}`)
+    console.log(`Is target peer ${targetPeerId} connected: ${!!targetConnection}`)
 
-    if (isTargetPeerConnected && targetPeerInfo) {
-      console.log('Target peer multiaddrs:')
-      for (const addr of targetPeerInfo.addresses) {
-        console.log(addr.multiaddr.toString())
-      }
-    } else {
-      console.log('Target peer not found in connected peers')
-    }
-
-    // Optional: Assert that the target peer is connected
-    expect(isTargetPeerConnected).to.be.true
+    expect(targetConnection).to.exist
   })
 
   it('should add a file to IPFS and publish messages', async () => {
     const content = 'Hello, IPFS!';
     const cid = await fs.addBytes(uint8ArrayFromString(content));
 
-    // Simulate the message handling process
     await pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(`NEW-CID:${cid}`));
 
-    // Wait for all messages to be processed
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Check if all expected messages were published
     expect(messages).to.include(`ADDING-CID:${cid}`);
     expect(messages).to.include(`ADDED-CID:${cid}`);
     expect(messages).to.include(`PINNING-CID:${cid}`);
     expect(messages).to.include(`PINNED-CID:${cid}`);
 
-    // Verify the content
     let retrievedContent = '';
     for await (const chunk of fs.cat(cid)) {
       retrievedContent += new TextDecoder().decode(chunk);
     }
     expect(retrievedContent).to.equal(content);
 
-    // // Check if the CID is pinned
-    // const pinnedBlocks = [];
-    // for await (const pin of helia.pins.ls()) {
-    //   pinnedBlocks.push(pin);
-    // }
-    // expect(pinnedBlocks).to.deep.include(cid);
   });
 
+  it('should receive CIDs response when requesting LIST_TODAY', async function() {
+      this.timeout(20000); // Increase timeout for this specific test
+      messages.length = 0; // Clear messages array
+
+      const today = moment().format('YYYY-MM-DD');
+      console.log('Publishing LIST_TODAY message');
+      await pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode('LIST_TODAY'));
+
+      // Wait for response with a longer timeout
+      for (let i = 0; i < 10; i++) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log(`Checking for response (attempt ${i + 1})`);
+        console.log('Current messages:', messages);
+        
+        const todayCidsResponse = messages.find(msg => msg.startsWith(`${today}_CIDS:`));
+        if (todayCidsResponse) {
+          console.log('Received CIDs response for today:', todayCidsResponse);
+          expect(todayCidsResponse).to.exist;
+
+          if (todayCidsResponse === `${today}_CIDS:NONE`) {
+            console.log('No CIDs found for today');
+          } else {
+            const cids = todayCidsResponse.split(':')[1].split(',');
+            console.log(`Received ${cids.length} CIDs for today`);
+            expect(cids.length).to.be.greaterThan(0);
+          }
+          return; // Exit the test if we got a response
+        }
+      }
+
+      // If we get here, we didn't receive a response
+      throw new Error('Did not receive CIDs response for today within the timeout period');
+  });
+
+  it('should receive CIDs response for the last 10 days', async function() {
+    this.timeout(300000); // Increase timeout for multiple requests
+
+    const days = 10;
+    const startDate = moment('2024-10-05');
+
+    for (let i = 0; i < days; i++) {
+      const date = startDate.clone().subtract(i, 'days').format('YYYY-MM-DD');
+      console.log(`Requesting CIDs for ${date}`);
+
+      messages.length = 0; // Clear messages array
+      await pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(`LIST_DATE:${date}`));
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      const dateResponse = messages.find(msg => msg.startsWith(`${date}_CIDS:`));
+      console.log('Received CIDs :', messages);
+      console.log('dateResponse :', dateResponse);
+
+      if (dateResponse === `${date}_CIDS:NONE`) {
+        console.log(`No CIDs found for ${date}`);
+      } else {
+        console.log("dateResponse", dateResponse);
+        const cids = dateResponse.split(':')[1].split(',');
+        console.log(`Received ${cids.length} CIDs for ${date}`);
+        expect(cids.length).to.be.greaterThan(0);
+      }
+
+      // Add a small delay between requests to avoid overwhelming the network
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  });
 });

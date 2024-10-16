@@ -22,6 +22,9 @@ import { identify } from '@libp2p/identify'
 import { createLibp2p } from 'libp2p'
 import { privateKeyFromProtobuf } from '@libp2p/crypto/keys'
 import {CID} from "multiformats/cid";
+import { getTodayNameOpsCids } from "./pinner/scanBlockchainForNameOps.js";
+import { getNameOpsCidsForDate } from "./pinner/scanBlockchainForNameOps.js";
+import moment from 'moment';
 
 export const CONTENT_TOPIC = process.env.CONTENT_TOPIC || "/doichain-nfc/1/message/proto"
 
@@ -163,11 +166,36 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
 
 				// const pinnedBlocks = await helia.pins.ls()
 				// console.log("pinnedBlocks",pinnedBlocks)
+			} else if (message.startsWith("LIST_")) {
+				console.log("Received LIST request:", message);
+				const dateString = message.substring(5); // Extract the date part
+				let date;
+				if (dateString === "TODAY") {
+					date = moment.utc().toDate();
+				} else {
+					date = moment.utc(dateString, 'YYYY-MM-DD').startOf('day').toDate();
+				}
+
+				if (isNaN(date.getTime())) {
+					console.log("Invalid date format received");
+					helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("INVALID_DATE_FORMAT"));
+				} else {
+					const cids = await getNameOpsCidsForDate(helia, ipnsInstance, date);
+					const formattedDate = date.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+					if (cids.length > 0) {
+						const response = `${formattedDate}_CIDS:` + cids.join(',');
+						console.log(`Publishing CIDs for ${formattedDate}:`, response);
+						helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(response));
+					} else {
+						console.log(`No CIDs found for ${formattedDate}`);
+						helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(`${formattedDate}_CIDS:NONE`));
+					}
+				}
 			}
 		} catch(ex){
-		console.log("exception during loading from ipfs",ex)
+		console.log("exception during message handling",ex)
 		}
 })
-//scanBlockchainForNameOps(electrumClient,helia,ipnsInstance)
+scanBlockchainForNameOps(electrumClient,helia,ipnsInstance)
 
 // console.info('PeerId:', Buffer.from(server.peerId.privateKey).toString('hex'))

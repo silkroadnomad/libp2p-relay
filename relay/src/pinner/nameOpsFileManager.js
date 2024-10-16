@@ -1,10 +1,6 @@
-import { CID } from 'multiformats/cid'
 import { unixfs } from '@helia/unixfs'
 import { updateScanningState } from './scanningStateManager.js'
 import logger from '../logger.js'
-// import { Helia } from '@helia/interface'
-// import { IPNS } from '@helia/ipns'/**/
-// import { PrivateKey } from '@libp2p/interface'
 
 /**
  * Updates the daily name operations file in IPFS and publishes it to IPNS.
@@ -39,10 +35,14 @@ export async function updateDailyNameOpsFile(nameOpUtxos, helia, ipnsInstance, i
     let existingNameOps = []
     let existingMetadata = { firstBlockHeight: blockHeight, firstBlockHash: blockHash, lastBlockHeight: blockHeight, lastBlockHash: blockHash }
     try {
-        const resolvedPath = await ipnsInstance.resolve(ipnsPrivateKey.publicKey)
-        
+        const publicKeyHex = Buffer.from(ipnsPrivateKey.publicKey.raw).toString('hex');
+        console.log("Attempting to resolve IPNS path, public key (hex):", publicKeyHex);
+        const resolvedPath = await ipnsInstance.resolve(ipnsPrivateKey.publicKey);
+        console.log("IPNS path resolved:", resolvedPath);
+
+        console.log("Attempting to read content from resolved CID")
         const chunks = []
-        for await (const chunk of fs.cat(CID.parse(resolvedPath))) {
+        for await (const chunk of fs.cat(resolvedPath.cid)) {
             chunks.push(chunk)
         }
         const existingContent = new TextDecoder().decode(Buffer.concat(chunks))
@@ -51,7 +51,12 @@ export async function updateDailyNameOpsFile(nameOpUtxos, helia, ipnsInstance, i
         existingMetadata = parsedContent.metadata
         logger.info(`Existing file found and read for ${fileName}`)
     } catch (error) {
-        logger.info(`No existing file found for ${fileName}, starting fresh`, { error: error.message })
+        console.error("Error during IPNS resolution or content reading:", error)
+        if (error.code === 'ERR_NOT_FOUND') {
+            logger.info(`No existing IPNS record found for ${fileName}, starting fresh`)
+        } else {
+            logger.warn(`Error reading existing file for ${fileName}, starting fresh`, { error: error.message })
+        }
     }
 
     existingMetadata.lastBlockHeight = blockHeight
@@ -70,7 +75,7 @@ export async function updateDailyNameOpsFile(nameOpUtxos, helia, ipnsInstance, i
     }, null, 2)
 
     const cid = await fs.addBytes(encoder.encode(content))
-    logger.info(`File added to IPFS with CID: ${cid}`)
+    logger.info(`File added to IPFS with CID: ${cid} with content `)
 
     const publicKey = ipnsPrivateKey.publicKey;
 
@@ -89,12 +94,18 @@ export async function updateDailyNameOpsFile(nameOpUtxos, helia, ipnsInstance, i
     const key = ipnsPrivateKey 
 
     try {
-            await ipnsInstance.publish(key, value)
-            logger.info(`IPNS updated for key ${key.toString('hex')} to point to CID: ${value}`)
+        console.log("Attempting to publish to IPNS")
+        await ipnsInstance.publish(key, value)
+        logger.info(`IPNS updated for key ${key.toString('hex')} to point to CID: ${value}`)
+
+        console.log("Verifying IPNS publication")
+        const resolvedPath = await ipnsInstance.resolve(ipnsPrivateKey.publicKey)
+        logger.info("IPNS resolution after publication:", resolvedPath)
     } catch (error) {
-        logger.error('Error publishing to IPNS:', error);
-        logger.info('key:', key);
-        logger.info('value:', value);
+        console.error('Error during IPNS publication or verification:', error)
+        logger.error('Error publishing to IPNS:', error)
+        logger.info('key:', key)
+        logger.info('value:', value)
     }
 
     await updateScanningState(existingMetadata)

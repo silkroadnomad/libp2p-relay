@@ -15,9 +15,11 @@ async function ensureKeysDirectory() {
 }
 
 async function loadKey(keyName) {
+    console.log(`Attempting to load key: ${keyName}`)
     try {
         const keyPath = path.join(KEYS_DIRECTORY, `${keyName}.json`)
         const keyData = await fs.readFile(keyPath, 'utf8')
+        console.log(`Key file found for ${keyName}`)
         
         let parsedData
         try {
@@ -32,9 +34,12 @@ async function loadKey(keyName) {
         }
 
         const rawKey = uint8ArrayFromString(parsedData.raw, 'base64pad')
+        console.log(`Key ${keyName} loaded successfully`)
         return await generateKeyPair('Ed25519', rawKey)
     } catch (error) {
-        if (error.code !== 'ENOENT') {
+        if (error.code === 'ENOENT') {
+            console.log(`Key file not found for ${keyName}`)
+        } else {
             console.error(`Error loading key ${keyName}:`, error)
         }
         return null
@@ -42,6 +47,7 @@ async function loadKey(keyName) {
 }
 
 async function saveKey(name, key) {
+    console.log(`Attempting to save key: ${name}`)
     const keyPath = path.join(KEYS_DIRECTORY, `${name}.json`);
     try {
         await fs.writeFile(keyPath, uint8ArrayToString(key.raw, 'base64pad'));
@@ -53,6 +59,7 @@ async function saveKey(name, key) {
 }
 
 export async function getOrGenerateKey(keyName) {
+    console.log(`getOrGenerateKey called for: ${keyName}`)
     await ensureKeysDirectory()
     let keyPair = await loadKey(keyName)
     if (!keyPair) {
