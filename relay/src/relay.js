@@ -62,11 +62,11 @@ if(relayDevMode) scoreThresholds = {
 	graylistThreshold: -Infinity,
 }
 
-const httpServer = https.createServer({
+/*const httpServer = https.createServer({
 	cert: fs.readFileSync('./test_certs/cert.pem'),
 	key: fs.readFileSync('./test_certs/key.pem')
-})
-console.log("httpServer created",httpServer)
+})*/
+/*console.log("httpServer created",httpServer)*/
 async function createNode () {
 	const libp2p = await createLibp2p({
 		privateKey: keyPair,
@@ -81,15 +81,15 @@ async function createNode () {
 			/*webRTCDirect(),*/
 			/*webRTC(),*/
 			circuitRelayTransport({ discoverRelays:1 }) ,   
-			// webSockets({
-			// 	filter: filters.all
-			//   })
-			  webSockets({
-				server: httpServer,
-				websocket: {
-					rejectUnauthorized: false
-				}
-			})
+			webSockets({
+				filter: filters.all
+			  })
+			//   webSockets({
+			// 	server: httpServer,
+			// 	websocket: {
+			// 		rejectUnauthorized: false
+			// 	}
+			// })
 		],
 		connectionGater: {
 			denyDialMultiaddr: async () => false
@@ -204,4 +204,4 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
 		console.log("exception during message handling",ex)
 		}
 })
-// scanBlockchainForNameOps(electrumClient, helia)
+scanBlockchainForNameOps(electrumClient, helia)
