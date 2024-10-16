@@ -3,9 +3,6 @@ import { format } from 'winston'
 import { consoleFormat } from 'winston-console-format'
 import path from 'path'
 
-// Add this import
-import TransportStream from 'winston-transport'
-
 // Add this custom format function
 const fileAndLine = format((info) => {
   const originalPrepareStackTrace = Error.prepareStackTrace
@@ -20,11 +17,11 @@ const fileAndLine = format((info) => {
       return fileName && !fileName.endsWith('logger.js')
     })
 
-    if (relevantFrame) {
-      const callerFile = relevantFrame.getFileName()
-      const callerLine = relevantFrame.getLineNumber()
-      info.caller = `${path.basename(callerFile)}:${callerLine}`
-    }
+    // if (relevantFrame) {
+    //   const callerFile = relevantFrame.getFileName()
+    //   const callerLine = relevantFrame.getLineNumber()
+    //   info.caller = `${path.basename(callerFile)}:${callerLine}`
+    // }
   }
   return info
 })

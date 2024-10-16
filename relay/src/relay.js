@@ -4,6 +4,8 @@ import 'dotenv/config'
 import moment from 'moment'
 import { CID } from "multiformats/cid"
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
+import fs from 'fs'
+import https from 'https'
 
 // Libp2p and related modules
 import { createLibp2p } from 'libp2p'
@@ -11,14 +13,22 @@ import { tcp } from '@libp2p/tcp'
 import { noise } from '@chainsafe/libp2p-noise'
 import { yamux } from '@chainsafe/libp2p-yamux'
 import { identify } from '@libp2p/identify'
+import { ping } from "@libp2p/ping";
+import { autoNAT } from "@libp2p/autonat";
+import { dcutr } from "@libp2p/dcutr";
 import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 import { pubsubPeerDiscovery } from "@libp2p/pubsub-peer-discovery"
-import { bootstrap } from "@libp2p/bootstrap"
 import { privateKeyFromProtobuf } from '@libp2p/crypto/keys'
+import { webSockets } from '@libp2p/websockets'
+import * as filters from '@libp2p/websockets/filters'
+// import { webTransport } from '@libp2p/webtransport'
+// import { webRTC, webRTCDirect } from '@libp2p/webrtc'
+import { circuitRelayServer, circuitRelayTransport } from '@libp2p/circuit-relay-v2'
 
 // Helia and related modules
 import { createHelia, libp2pDefaults } from 'helia'
 import { unixfs } from "@helia/unixfs"
+
 
 // Storage modules
 import { LevelBlockstore } from "blockstore-level"
@@ -52,21 +62,11 @@ if(relayDevMode) scoreThresholds = {
 	graylistThreshold: -Infinity,
 }
 
-const config = libp2pDefaults({
-	transports: [tcp()],
+const httpServer = https.createServer({
+	cert: fs.readFileSync('./test_certs/cert.pem'),
+	key: fs.readFileSync('./test_certs/key.pem')
 })
-
-if(bootstrapList && bootstrapList.length > 0) {
-	config.peerDiscovery = [
-		bootstrap({ list: bootstrapList }),
-		pubsubPeerDiscovery({
-			interval: 10000,
-			topics: pubsubPeerDiscoveryTopics,
-			listenOnly: false
-		})
-	]
-}
-
+console.log("httpServer created",httpServer)
 async function createNode () {
 	const libp2p = await createLibp2p({
 		privateKey: keyPair,
@@ -75,7 +75,25 @@ async function createNode () {
 			listen: listenAddresses,
 			announce: announceAddresses
 		},
-		transports: [tcp()],
+		transports: [
+			tcp(),
+			// webTransport(), /* webtransport does not allow listening to webtransport https://github.com/libp2p/js-libp2p/blob/c5bbb2596273d2503e1996169bab2411546fe674/packages/transport-webtransport/README.md?plain=1#L31C1-L33C197*/
+			/*webRTCDirect(),*/
+			/*webRTC(),*/
+			circuitRelayTransport({ discoverRelays:1 }) ,   
+			// webSockets({
+			// 	filter: filters.all
+			//   })
+			  webSockets({
+				server: httpServer,
+				websocket: {
+					rejectUnauthorized: false
+				}
+			})
+		],
+		connectionGater: {
+			denyDialMultiaddr: async () => false
+		},
 		connectionEncrypters: [noise()],
 		streamMuxers: [yamux()],
 		peerDiscovery: [
@@ -86,8 +104,18 @@ async function createNode () {
 			})
 		],
 		services: {
+			ping: ping({
+				protocolPrefix: 'doi-libp2p', // default
+			}),
 			identify: identify(),
-			pubsub: gossipsub({ allowPublishToZeroTopicPeers: true, canRelayMessage: true, scoreThresholds })
+			autoNAT: autoNAT(),
+			dcutr: dcutr(),
+			pubsub: gossipsub({ allowPublishToZeroTopicPeers: true, canRelayMessage: true, scoreThresholds}),
+			relay: circuitRelayServer({
+				reservations: {
+					maxReservations: Infinity
+				}
+			})
 		}
 	})
 
@@ -176,4 +204,4 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
 		console.log("exception during message handling",ex)
 		}
 })
-scanBlockchainForNameOps(electrumClient, helia)
+// scanBlockchainForNameOps(electrumClient, helia)
