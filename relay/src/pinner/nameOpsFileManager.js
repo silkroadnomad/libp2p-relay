@@ -61,3 +61,28 @@ export async function updateDailyNameOpsFile(nameOpUtxos, helia, blockDate, bloc
 
     return cid.toString()
 }
+export async function getLastNameOps(helia, limit = 100) {
+  const files = await fs.readdir(CID_STORAGE_DIR)
+  files.reverse() // To process the most recent files first
+
+  let nameOps = []
+  const heliaFs = unixfs(helia)
+
+  for (const file of files) {
+    if (nameOps.length >= limit) break
+
+    const cidContent = await fs.readFile(path.join(CID_STORAGE_DIR, file), 'utf-8')
+    const cid = CID.parse(cidContent)
+
+    const chunks = []
+    for await (const chunk of heliaFs.cat(cid)) {
+      chunks.push(chunk)
+    }
+    const content = new TextDecoder().decode(Buffer.concat(chunks))
+    const parsedOps = JSON.parse(content)
+    
+    nameOps = [...nameOps, ...parsedOps].slice(0, limit)
+  }
+
+  return nameOps
+}

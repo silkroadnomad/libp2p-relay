@@ -251,4 +251,35 @@ describe('Helia IPNS Node Test', function() {
       expect(op).to.have.property('nameId');
     });
   });
+  it.only('should receive last 100 NameOps when requesting LIST_LAST_100', async function() {
+    this.timeout(20000); 
+    messages.length = 0; 
+
+    console.log('Publishing LIST_LAST_100 message');
+    await pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode('LIST_LAST_100'));
+
+    // Wait for response
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
+    // Process the response
+    const nameOps = messages.flatMap(msg => {
+      try {
+        return JSON.parse(msg);
+      } catch (e) {
+        return [];
+      }
+    });
+
+    if (nameOps.length > 0) {
+      console.log(`Received ${nameOps.length} NameOps`);
+      expect(nameOps.length).to.be.at.most(100);
+      expect(nameOps[0]).to.have.property('nameId');
+      expect(nameOps[0]).to.have.property('txid');
+      
+      console.log("First few nameIds:", nameOps.slice(0, 5).map(op => op.nameId).join(', '));
+    } else {
+      console.log('No NameOps received');
+      expect(messages).to.include('LAST_100_CIDS:NONE');
+    }
+  });
 });

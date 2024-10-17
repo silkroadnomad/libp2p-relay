@@ -4,7 +4,7 @@
 	"private": true,
 	"scripts": {
 		"start": "node src/relay.js",
-		"test": "mpx mocha 'tests/**/*.js'"
+		"test": "npx mocha 'tests/**/*.js'"
 	},
 	"type": "module",
 	"dependencies": {
