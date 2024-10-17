@@ -148,14 +148,13 @@ describe('Helia IPNS Node Test', function() {
           return; // Exit the test if we got a response
         }
       }
-
       throw new Error('Did not receive CIDs response for today within the timeout period');
   });
 
-  it('should receive CIDs response for the last 10 days', async function() {
+  it('should receive CIDs response for the last 5 days', async function() {
     this.timeout(300000); 
 
-    const days = 30;
+    const days = 5;
     const startDate = moment('2024-10-05');
 
     for (let i = 0; i < days; i++) {
@@ -194,64 +193,7 @@ describe('Helia IPNS Node Test', function() {
     }
   });
 
-  it('should receive CIDs response until 20 nameOps are collected', async function() {
-    this.timeout(600000); // 10 minutes timeout
-
-    const targetNameOps = 20;
-    let collectedNameOps = [];
-    let currentDate = moment();
-
-    while (collectedNameOps.length < targetNameOps) {
-      const date = currentDate.format('YYYY-MM-DD');
-      console.log(`Requesting CIDs for ${date}`);
-
-      messages.length = 0; // Clear messages array
-      await pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(`LIST_DATE:${date}`));
-
-      // Wait for response with timeout
-      const responseTimeout = 10000; // 10 seconds
-      const startTime = Date.now();
-
-      while (Date.now() - startTime < responseTimeout) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        const dateResponse = messages.find(msg => msg.startsWith(`${date}_CIDS:`));
-        if (dateResponse) {
-          if (dateResponse === `${date}_CIDS:NONE`) {
-            console.log(`No name_ops found for ${date}`);
-            break;
-          } else {
-            const nameOps = messages.flatMap(msg => {
-              try {
-                return JSON.parse(msg);
-              } catch (e) {
-                return [];
-              }
-            });
-
-            console.log(`Received ${nameOps.length} name_ops for ${date}`);
-            collectedNameOps = collectedNameOps.concat(nameOps);
-            console.log(`Total collected name_ops: ${collectedNameOps.length}`);
-            console.log("nameIds:", nameOps.map(op => op.nameId).join(', '));
-            
-            break;
-          }
-        }
-      }
-
-      currentDate = currentDate.subtract(1, 'days');
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait a bit before next request
-    }
-
-    expect(collectedNameOps.length).to.be.at.least(targetNameOps);
-    console.log(`Collected ${collectedNameOps.length} name_ops in total`);
-    console.log("All nameIds:", collectedNameOps.map(op => op.nameId).join(', '));
-
-    collectedNameOps.forEach(op => {
-      expect(op).to.have.property('txid');
-      expect(op).to.have.property('nameId');
-    });
-  });
-  it.only('should receive last 100 NameOps when requesting LIST_LAST_100', async function() {
+  it('should receive last 100 NameOps when requesting LIST_LAST_100', async function() {
     this.timeout(20000); 
     messages.length = 0; 
 

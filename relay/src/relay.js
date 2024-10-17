@@ -199,7 +199,7 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
 						console.log("Invalid date format received");
 						helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("INVALID_DATE_FORMAT"));
 					} else {
-						const foundNameOps = await getLastNameOps(helia, date);
+						const foundNameOps = await getNameOpsCidsForDate(helia, date);
 						const formattedDate = date.toISOString().split('T')[0]; // Format as YYYY-MM-DD
 						if (foundNameOps.length > 0) {
 							console.log(`Publishing NameOps for ${formattedDate}:`, foundNameOps);
