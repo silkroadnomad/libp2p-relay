@@ -3,7 +3,10 @@ relay/node_modules
 data/
 .env
 .idea
+helia-blocks/
+helia-data/
 relay/helia-blocks
 relay/helia-data
 /relay/ipns-keys/
 /relay/scanning_state.json
+scanning_state.json
