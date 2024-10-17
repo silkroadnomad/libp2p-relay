@@ -52,6 +52,13 @@ export async function scanBlockchainForNameOps(electrumClient, _helia) {
             if (nameOpUtxos.length > 0) {
                 logger.debug(`Found ${nameOpUtxos.length} name operations in block ${height}`);
                 await updateDailyNameOpsFile(nameOpUtxos, helia, blockDay, height);
+                
+                // New code: Check and pin IPFS content
+                for (const nameOp of nameOpUtxos) {
+                    if (nameOp.nameValue && nameOp.nameValue.startsWith('ipfs://')) {
+                        await pinIpfsContent(nameOp.nameValue);
+                    }
+                }
             } else {
                 logger.debug(`No name operations found in block ${height}`);
             }
@@ -184,5 +191,17 @@ async function getCidFromStorage(formattedDate) {
         }
         console.error(`Error reading CID file: ${error.message}`)
         throw error
+    }
+}
+
+// New function to pin IPFS content
+async function pinIpfsContent(ipfsUrl) {
+    try {
+        const cid = ipfsUrl.replace('ipfs://', '');
+        logger.info(`Pinning IPFS content with CID: ${cid}`);
+        await helia.pin.add(CID.parse(cid));
+        logger.info(`Successfully pinned IPFS content: ${cid}`);
+    } catch (error) {
+        logger.error(`Error pinning IPFS content: ${ipfsUrl}`, { error: error.message });
     }
 }

@@ -188,6 +188,7 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
 						helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("LAST_100_CIDS:NONE"));
 					}
 				} else {
+					
 					let date;
 					if (dateString === "TODAY") {
 						date = moment.utc().toDate();
@@ -216,4 +217,4 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
 		console.log("exception during message handling",ex)
 		}
 })
-//scanBlockchainForNameOps(electrumClient, helia)
+scanBlockchainForNameOps(electrumClient, helia)
