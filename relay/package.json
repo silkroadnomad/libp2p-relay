@@ -4,6 +4,7 @@
 	"private": true,
 	"scripts": {
 		"start": "node src/relay.js",
+		"start:no-scan": "node src/relay.js --disable-scanning",
 		"test": "npx mocha 'tests/**/*.js'"
 	},
 	"type": "module",

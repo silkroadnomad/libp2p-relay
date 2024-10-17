@@ -1,4 +1,6 @@
 import 'dotenv/config'
+import yargs from 'yargs'
+import { hideBin } from 'yargs/helpers'
 
 // External libraries
 import moment from 'moment'
@@ -217,4 +219,21 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
 		console.log("exception during message handling",ex)
 		}
 })
-scanBlockchainForNameOps(electrumClient, helia)
+// Parse command line arguments
+const argv = yargs(hideBin(process.argv))
+  .option('disable-scanning', {
+    alias: 'd',
+    type: 'boolean',
+    description: 'Disable blockchain scanning'
+  })
+  .help()
+  .alias('help', 'h')
+  .argv
+
+// Near the end of the file, replace the scanBlockchainForNameOps call with:
+if (!argv['disable-scanning']) {
+  logger.info('Starting blockchain scanning...')
+  scanBlockchainForNameOps(electrumClient, helia)
+} else {
+  logger.info('Blockchain scanning is disabled')
+}
