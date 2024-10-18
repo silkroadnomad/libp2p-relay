@@ -82,7 +82,7 @@ async function createNode () {
 			// webTransport(), /* webtransport does not allow listening to webtransport https://github.com/libp2p/js-libp2p/blob/c5bbb2596273d2503e1996169bab2411546fe674/packages/transport-webtransport/README.md?plain=1#L31C1-L33C197*/
 			/*webRTCDirect(),*/
 			/*webRTC(),*/
-			circuitRelayTransport({ discoverRelays:1 }) ,   
+			circuitRelayTransport({ discoverRelays: 1 }) ,   
 			webSockets({
 				filter: filters.all,
 				listener: (socket) => {
@@ -142,6 +142,7 @@ async function createNode () {
 
 const { helia } = await createNode()
 logger.info('Helia is running')
+const fs = unixfs(helia)
 const network = { name: 'doichain-mainnet' }; // Replace with actual network object
 const electrumClient = await connectElectrum(network, (x,y)=>{})
 
@@ -151,6 +152,7 @@ helia.libp2p.addEventListener('peer:connect', async event => {
 
 helia.libp2p.services.pubsub.subscribe(CONTENT_TOPIC)
 helia.libp2p.services.pubsub.addEventListener('message', async event => {
+	logger.info(`Received pubsub message from ${event.detail.from} on topic ${event.detail.topic}`, { message: new TextDecoder().decode(event.detail.data) })
 	const topic = event.detail.topic
 	if(!topic.startsWith(CONTENT_TOPIC)) return
 
@@ -165,7 +167,7 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
 		helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addingMsg))
 		console.log("querying published")
 
-		for await (const buf of fs2.cat(cid)) { console. info(buf) }
+		for await (const buf of fs.cat(cid)) { console. info(buf) }
 		const addedMsg = "ADDED-CID:"+cid
 		console.log("publishing", addedMsg)
 		helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addedMsg))
@@ -247,3 +249,4 @@ if (!argv['disable-scanning']) {
 } else {
   logger.info('Blockchain scanning is disabled')
 }
+
