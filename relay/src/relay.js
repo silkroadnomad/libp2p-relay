@@ -220,8 +220,6 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
 				}
 			}
 		}
-	} catch(ex){
-	console.log("exception during message handling",ex)
 	}
 })
 
