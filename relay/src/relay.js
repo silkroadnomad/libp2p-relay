@@ -40,6 +40,8 @@ import { getLastNameOps } from "./pinner/nameOpsFileManager.js"
 import { getNameOpsCidsForDate } from "./pinner/scanBlockchainForNameOps.js"
 import { scanBlockchainForNameOps } from '../src/pinner/scanBlockchainForNameOps.js'
 
+import { multiaddr } from '@multiformats/multiaddr'
+
 export const CONTENT_TOPIC = process.env.CONTENT_TOPIC || "/doichain-nfc/1/message/proto"
 
 const privKeyHex = process.env.RELAY_PRIVATE_KEY
@@ -82,8 +84,12 @@ async function createNode () {
 			/*webRTC(),*/
 			circuitRelayTransport({ discoverRelays:1 }) ,   
 			webSockets({
-				filter: filters.all
-			  })
+				filter: filters.all,
+				listener: (socket) => {
+					const remoteAddr = multiaddr(socket.remoteAddress).toString()
+					logger.info(`WebSocket connection established with: ${remoteAddr}`)
+				}
+			})
 			//   webSockets({
 			// 	server: httpServer,
 			// 	websocket: {
@@ -145,80 +151,86 @@ helia.libp2p.addEventListener('peer:connect', async event => {
 
 helia.libp2p.services.pubsub.subscribe(CONTENT_TOPIC)
 helia.libp2p.services.pubsub.addEventListener('message', async event => {
-		const topic = event.detail.topic
-		if(!topic.startsWith(CONTENT_TOPIC)) return
+	const topic = event.detail.topic
+	if(!topic.startsWith(CONTENT_TOPIC)) return
 
-		const message = new TextDecoder().decode(event.detail.data)
-		logger.info("message detail", { message })
-		const fs2 = unixfs(helia)
-		try {
-			if(message.startsWith("NEW-CID")){
-				const cid  = message.substring(8)
-				const addingMsg = "ADDING-CID:"+cid
-				console.log("publishing query in ipfs:", addingMsg)
-				helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addingMsg))
-				console.log("querying published")
+	const message = new TextDecoder().decode(event.detail.data)
+	const from = event.detail.from
+	logger.info(`Received pubsub message from ${from} on topic ${topic}`, { message })
 
-				for await (const buf of fs2.cat(cid)) { console. info(buf) }
-				const addedMsg = "ADDED-CID:"+cid
-				console.log("publishing", addedMsg)
-				helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addedMsg))
+	if(message.startsWith("NEW-CID")){
+		const cid  = message.substring(8)
+		const addingMsg = "ADDING-CID:"+cid
+		console.log("publishing query in ipfs:", addingMsg)
+		helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addingMsg))
+		console.log("querying published")
 
-				const pinCid = CID.parse(cid)
-				console.log('publishing pinning ', pinCid)
-				helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNING-CID:"+cid))
-				const pin = await helia.pins.add(pinCid, {
-					onProgress: (evt) => console.log('pin event', evt)
-				});
-				console.log("pinning done - publishing pinning",pinCid)
-				helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNED-CID:"+cid))
-				console.log("pinning published")
+		for await (const buf of fs2.cat(cid)) { console. info(buf) }
+		const addedMsg = "ADDED-CID:"+cid
+		console.log("publishing", addedMsg)
+		helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addedMsg))
 
-			} else if (message.startsWith("LIST_")) {
-				console.log("Received LIST request:", message);
-				const dateString = message.substring(5); // Extract the date part
-				
-				if (dateString === "LAST_100") {
-					console.log("Fetching last 100 name_ops");
-					const lastNameOps = await getLastNameOps(helia, 100);
-					if (lastNameOps.length > 0) {
-						console.log(`Publishing last ${lastNameOps.length} NameOps`);
-						const jsonString = JSON.stringify(lastNameOps);
-						helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(jsonString));
-					} else {
-						console.log("No NameOps found");
-						helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("LAST_100_CIDS:NONE"));
-					}
+		const pinCid = CID.parse(cid)
+		console.log('publishing pinning ', pinCid)
+		helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNING-CID:"+cid))
+		const pin = await helia.pins.add(pinCid, {
+			onProgress: (evt) => console.log('pin event', evt)
+		});
+		console.log("pinning done - publishing pinning",pinCid)
+		helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNED-CID:"+cid))
+		console.log("pinning published")
+
+	} else if (message.startsWith("LIST_")) {
+		console.log("Received LIST request:", message);
+		const dateString = message.substring(5); // Extract the date part
+		
+		if (dateString === "LAST_100") {
+			console.log("Fetching last 100 name_ops");
+			const lastNameOps = await getLastNameOps(helia, 100);
+			if (lastNameOps.length > 0) {
+				console.log(`Publishing last ${lastNameOps.length} NameOps`);
+				const jsonString = JSON.stringify(lastNameOps);
+				helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(jsonString));
+			} else {
+				console.log("No NameOps found");
+				helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("LAST_100_CIDS:NONE"));
+			}
+		} else {
+			
+			let date;
+			if (dateString === "TODAY") {
+				date = moment.utc().toDate();
+			} else {
+				date = moment.utc(dateString, 'YYYY-MM-DD').startOf('day').toDate();
+			}
+
+			if (isNaN(date.getTime())) {
+				console.log("Invalid date format received");
+				helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("INVALID_DATE_FORMAT"));
+			} else {
+				const foundNameOps = await getNameOpsCidsForDate(helia, date);
+				const formattedDate = date.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+				if (foundNameOps.length > 0) {
+					console.log(`Publishing NameOps for ${formattedDate}:`, foundNameOps);
+					const jsonString = JSON.stringify(foundNameOps);
+					helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(jsonString));
 				} else {
-					
-					let date;
-					if (dateString === "TODAY") {
-						date = moment.utc().toDate();
-					} else {
-						date = moment.utc(dateString, 'YYYY-MM-DD').startOf('day').toDate();
-					}
-
-					if (isNaN(date.getTime())) {
-						console.log("Invalid date format received");
-						helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("INVALID_DATE_FORMAT"));
-					} else {
-						const foundNameOps = await getNameOpsCidsForDate(helia, date);
-						const formattedDate = date.toISOString().split('T')[0]; // Format as YYYY-MM-DD
-						if (foundNameOps.length > 0) {
-							console.log(`Publishing NameOps for ${formattedDate}:`, foundNameOps);
-							const jsonString = JSON.stringify(foundNameOps);
-							helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(jsonString));
-						} else {
-							console.log(`No NameOps found for ${formattedDate}`);
-							helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(`${formattedDate}_CIDS:NONE`));
-						}
-					}
+					console.log(`No NameOps found for ${formattedDate}`);
+					helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(`${formattedDate}_CIDS:NONE`));
 				}
 			}
-		} catch(ex){
-		console.log("exception during message handling",ex)
 		}
+	} catch(ex){
+	console.log("exception during message handling",ex)
+	}
 })
+
+// Add this after creating the libp2p node
+helia.libp2p.services.pubsub.addEventListener('gossipsub:message', (evt) => {
+	const { from, topic, data } = evt.detail
+	logger.info(`Outgoing pubsub message to ${from} on topic ${topic}`, { message: new TextDecoder().decode(data) })
+})
+
 // Parse command line arguments
 const argv = yargs(hideBin(process.argv))
   .option('disable-scanning', {
