@@ -39,6 +39,7 @@ import { connectElectrum } from "./doichain/connectElectrum.js"
 import { getLastNameOps } from "./pinner/nameOpsFileManager.js"
 import { getNameOpsCidsForDate } from "./pinner/scanBlockchainForNameOps.js"
 import { scanBlockchainForNameOps } from '../src/pinner/scanBlockchainForNameOps.js'
+import { retryFailedCIDs } from './pinner/scanBlockchainForNameOps.js'
 
 import { multiaddr } from '@multiformats/multiaddr'
 
@@ -159,6 +160,9 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
 	const message = new TextDecoder().decode(event.detail.data)
 	const from = event.detail.from
 	logger.info(`Received pubsub message from ${from} on topic ${topic}`, { message })
+
+	// Call retryFailedCIDs at the beginning of the event listener
+	await retryFailedCIDs(helia)
 
 	if(message.startsWith("NEW-CID")){
 		const cid  = message.substring(8)
