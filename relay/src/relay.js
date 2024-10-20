@@ -20,6 +20,7 @@ import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 import { pubsubPeerDiscovery } from "@libp2p/pubsub-peer-discovery"
 import { privateKeyFromProtobuf } from '@libp2p/crypto/keys'
 import { webSockets } from '@libp2p/websockets'
+import { webRTCDirect, webRTC } from '@libp2p/webrtc'
 import * as filters from '@libp2p/websockets/filters'
 
 import { circuitRelayServer, circuitRelayTransport } from '@libp2p/circuit-relay-v2'
@@ -42,6 +43,10 @@ import { scanBlockchainForNameOps } from '../src/pinner/scanBlockchainForNameOps
 import { retryFailedCIDs } from './pinner/scanBlockchainForNameOps.js'
 
 import { multiaddr } from '@multiformats/multiaddr'
+import http from 'http'
+import url from 'url'
+import fs from 'fs/promises'
+import { setTimeout } from 'timers/promises'
 
 export const CONTENT_TOPIC = process.env.CONTENT_TOPIC || "/doichain-nfc/1/message/proto"
 
@@ -65,11 +70,6 @@ if(relayDevMode) scoreThresholds = {
 	graylistThreshold: -Infinity,
 }
 
-/*const httpServer = https.createServer({
-	cert: fs.readFileSync('./test_certs/cert.pem'),
-	key: fs.readFileSync('./test_certs/key.pem')
-})*/
-/*console.log("httpServer created",httpServer)*/
 async function createNode () {
 	const libp2p = await createLibp2p({
 		privateKey: keyPair,
@@ -80,9 +80,9 @@ async function createNode () {
 		},
 		transports: [
 			tcp(),
-			// webTransport(), /* webtransport does not allow listening to webtransport https://github.com/libp2p/js-libp2p/blob/c5bbb2596273d2503e1996169bab2411546fe674/packages/transport-webtransport/README.md?plain=1#L31C1-L33C197*/
-			/*webRTCDirect(),*/
-			/*webRTC(),*/
+			//webTransport(), /* webtransport does not allow listening to webtransport https://github.com/libp2p/js-libp2p/blob/c5bbb2596273d2503e1996169bab2411546fe674/packages/transport-webtransport/README.md?plain=1#L31C1-L33C197*/
+			webRTCDirect(),
+			webRTC(),
 			circuitRelayTransport({ discoverRelays: 1 }) ,   
 			webSockets({
 				filter: filters.all,
@@ -137,19 +137,24 @@ async function createNode () {
 	console.log('Helia peerId:', helia.libp2p.peerId.toString())
 	console.log('Configured listen addresses:', listenAddresses)
 	console.log('Actual listen addresses:', helia.libp2p.getMultiaddrs().map(ma => ma.toString()))
+	console.log('Helia blockstore:', helia.blockstore)
 
 	return { helia }
 }
 
 const { helia } = await createNode()
 logger.info('Helia is running')
-const fs = unixfs(helia)
+//when a peer connecs we need to update the peer list
+helia.libp2p.addEventListener('peer:connect', async event => {
+	console.log('peer:connect', event.detail)
+	await retryFailedCIDs(helia)
+	helia.libp2p.getPeers().forEach(peer => {
+		console.log('Peer connected:', peer.toString())
+	})
+})
+const fsHelia = unixfs(helia)
 const network = { name: 'doichain-mainnet' }; // Replace with actual network object
 const electrumClient = await connectElectrum(network, (x,y)=>{})
-
-helia.libp2p.addEventListener('peer:connect', async event => {
-/*	console.log('peer:connect', event.detail)*/
-})
 
 helia.libp2p.services.pubsub.subscribe(CONTENT_TOPIC)
 helia.libp2p.services.pubsub.addEventListener('message', async event => {
@@ -161,8 +166,6 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
 	const from = event.detail.from
 	logger.info(`Received pubsub message from ${from} on topic ${topic}`, { message })
 
-	// Call retryFailedCIDs at the beginning of the event listener
-	await retryFailedCIDs(helia)
 
 	if(message.startsWith("NEW-CID")){
 		const cid  = message.substring(8)
@@ -171,7 +174,7 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
 		helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addingMsg))
 		console.log("querying published")
 
-		for await (const buf of fs.cat(cid)) { console. info(buf) }
+		for await (const buf of fsHelia.cat(cid)) { console. info(buf) }
 		const addedMsg = "ADDED-CID:"+cid
 		console.log("publishing", addedMsg)
 		helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addedMsg))
@@ -253,4 +256,59 @@ if (!argv['disable-scanning']) {
 } else {
   logger.info('Blockchain scanning is disabled')
 }
+
+async function getNameOpCount() {
+    const nameOpDir = './data/nameops_cids' 
+    try {
+        const files = await fs.readdir(nameOpDir)
+        return files.filter(file => file.endsWith('.json')).length
+    } catch (error) {
+        console.error('Error reading nameOp directory:', error)
+        return 0
+    }
+}
+
+function createHttpServer(helia) {
+    const server = http.createServer(async (req, res) => {
+        const parsedUrl = url.parse(req.url, true)
+        
+        if (req.method === 'GET' && parsedUrl.pathname === '/status') {
+            const connectedPeers = helia.libp2p.getPeers().length
+            const nameOpCount = await getNameOpCount()
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ connectedPeers, nameOpCount }))
+        } else {
+            res.writeHead(404, { 'Content-Type': 'text/plain' })
+            res.end('Not Found')
+        }
+    })
+
+    const port = process.env.HTTP_PORT || 3000
+    server.listen(port, () => {
+        console.log(`HTTP server running on port ${port}`)
+    })
+}
+
+createHttpServer(helia)  // Add this line
+
+async function retryFailedCIDsWithAttempts(helia, maxAttempts = 3, timeWindow = 5000) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            await retryFailedCIDs(helia);
+            console.log(`Attempt ${attempt}: Successfully retried failed CIDs`);
+            return; // Exit the function if successful
+        } catch (error) {
+            console.error(`Attempt ${attempt}: Failed to retry CIDs`, error);
+            if (attempt < maxAttempts) {
+                const delay = timeWindow;
+                console.log(`Waiting ${delay}ms before next attempt...`);
+                await setTimeout(delay);
+            }
+        }
+    }
+    console.error(`Failed to retry CIDs after ${maxAttempts} attempts`);
+}
+
+// Replace the existing retryFailedCIDs call with this:
+await retryFailedCIDsWithAttempts(helia);
 

@@ -98,10 +98,13 @@ export async function scanBlockchainForNameOps(electrumClient, _helia) {
                 logger.debug(`Found ${nameOpUtxos.length} name operations in block ${height}`);
                 await updateDailyNameOpsFile(nameOpUtxos, helia, blockDay, height);
                 
-                // New code: Check and pin IPFS content
                 for (const nameOp of nameOpUtxos) {
                     if (nameOp.nameValue && nameOp.nameValue.startsWith('ipfs://')) {
-                        await pinIpfsContent(nameOp.nameValue);
+                        pinIpfsContent(nameOp.nameId,nameOp.nameValue).then(() => {
+                            logger.info(`Successfully pinned IPFS content: ${nameOp.nameValue}`);
+                        }).catch(error => {
+                            logger.error(`Failed to pin IPFS content: ${nameOp.nameValue}`, { error });
+                        });
                     }
                 }
             } else {
@@ -240,8 +243,7 @@ async function getCidFromStorage(formattedDate) {
     }
 }
 
-// New function to pin IPFS content
-async function pinIpfsContent(ipfsUrl) {
+async function pinIpfsContent(nameId,ipfsUrl) {
     const cid = ipfsUrl.replace('ipfs://', '');
     try {
         logger.info(`Attempting to retrieve IPFS content with CID: ${cid}`);
@@ -258,16 +260,15 @@ async function pinIpfsContent(ipfsUrl) {
 
         // Now we can pin the content
         logger.info(`Pinning IPFS content with CID: ${cid}`);
-        await helia.pin.add(CID.parse(cid));
+        await helia.pins.add(CID.parse(cid));
         logger.info(`Successfully pinned IPFS content: ${cid}`);
 
-        // Parse and process metadata
         try {
             const metadata = JSON.parse(content);
             logger.info(`Retrieved metadata for CID: ${cid}`);
 
             // Get and pin image from metadata
-            const imageUrl = await getImageUrlFromIPFS(metadata);
+            const imageUrl = await getImageUrlFromIPFS(helia,metadata.image);
             if (imageUrl && imageUrl.startsWith('ipfs://')) {
                 const imageCid = imageUrl.replace('ipfs://', '');
                 try {
@@ -282,21 +283,25 @@ async function pinIpfsContent(ipfsUrl) {
                     await helia.pin.add(CID.parse(imageCid));
                     logger.info(`Successfully pinned image: ${imageCid}`);
                 } catch (imageError) {
-                    logger.error(`Failed to retrieve or pin image: ${imageCid}`, { error: imageError.message });
-                    await addFailedCID({ cid: imageCid, type: 'image', parentCid: cid });
+                    logger.error(`Failed to retrieve or pin image: ${imageCid} for nameId: ${nameId}`, { error: imageError.message, nameId });
+                    await addFailedCID({ cid: imageCid, type: 'image', parentCid: cid, nameId });
+                    throw imageError
                 }
             }
         } catch (metadataError) {
-            logger.error(`Error processing metadata for CID: ${cid}`, { error: metadataError.message });
-            await addFailedCID({ cid, type: 'metadata_processing' });
+            logger.error(`Error processing metadata for CID: ${cid} and nameId: ${nameId}`, { error: metadataError.message, nameId });
+            await addFailedCID({ cid, type: 'metadata_processing', nameId });
+            throw metadataError
         }
     } catch (error) {
-        logger.error(`Error retrieving or processing IPFS content: ${cid}`, { error: error.message });
-        await addFailedCID({ cid, type: 'retrieval_or_pinning' });
+        logger.error(`Error retrieving or processing IPFS content: ${cid} for nameId: ${nameId}`, { error: error.message, nameId });
+        await addFailedCID({ cid, type: 'retrieval_or_pinning', nameId });
+        throw error
     }
 }
 // Function which reads the failed CIDs from the file and tries to get and pin the content again
-export async function retryFailedCIDs() {
+export async function retryFailedCIDs(_helia) {
+    helia = _helia
     logger.info(`
         ██████╗ ███████╗████████╗██████╗ ██╗   ██╗██╗███╗   ██╗ ██████╗     
         ██╔══██╗██╔════╝╚══██╔══╝██╔══██╗╚██╗ ██╔╝██║████╗  ██║██╔════╝     
@@ -319,14 +324,14 @@ export async function retryFailedCIDs() {
 
     for (const failedCID of failedCIDs) {
         logger.info(`Retrying CID: ${failedCID.cid}`);
-        await pinIpfsContent(failedCID.cid);
+        await pinIpfsContent(failedCID.nameId,failedCID.cid);
     }
 
     logger.info(`
 ██████╗ ███████╗████████╗██████╗ ██╗   ██╗     ██████╗ ██████╗ ███╗   ███╗██████╗ ██╗     ███████╗████████╗███████╗
 ██╔══██╗██╔════╝╚══██╔══╝██╔══██╗╚██╗ ██╔╝    ██╔════╝██╔═══██╗████╗ ████║██╔══██╗██║     ██╔════╝╚══██╔══╝██╔════╝
 ██████╔╝█████╗     ██║   ██████╔╝ ╚████╔╝     ██║     ██║   ██║██╔████╔██║██████╔╝██║     █████╗     ██║   █████╗  
-██╔══██╗██╔══╝     ██║   ██╔══██╗  ╚██╔╝      ██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝     ██║   ██╔══╝  
+██╔══██╗██╔══╝     ██║   ██╔══██╗  ╚██╔╝      ██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██║     ██╔���═     ██║   ██╔══╝  
 ██║  ██║███████╗   ██║   ██║  ██║   ██║       ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ███████╗███████╗   ██║   ███████╗
 ╚═╝  ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝        ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝   ╚═╝   ╚══════╝
     `);
@@ -350,3 +355,4 @@ async function logFailedCIDs() {
 
 // Export the new functions
 export { pinIpfsContent, logFailedCIDs, getFailedCIDs };
+
