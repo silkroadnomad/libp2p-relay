@@ -35,7 +35,12 @@ What will it do?
 2. If our node is not yet stored on blockchain and a private key is inside .env it should send a transaction to a blockchain
 
 # Adaptation of this relay
+- [ ]nameop_cids and failed_cids should go into a browser based db (e.g. level db) when in browser and also work in nodejs, so we can use the scanning functions in every peer (e.g. browser and mobile app)
 - [ ] tipWatcher:  when every a new block comes in the scan should be resarted. (Remark: src/pinner/tipWatcher already implemented but functionality not reviewed nor untestet)
+- [x] when a scan is discovering a nameOp it should write it into data/failed_cids.json
+  - [ ] write a test 
+- [x] when a peer connects it retries failed and removes successful loads from data/failed_cids.json
+  - [ ] write a test
 - [x] display also "unconfirmed"
 - [x] the relay is scanning Doichain blockchain for name-ops
 - [x] if a name-ops is being found, it needs to be investigated 
@@ -44,8 +49,9 @@ What will it do?
   - [ ] if name-op contains an ipfs:// url the CID needs to be gathered from the ipfs node (or the network)
     - [ ] if its available marked available? 
     - [ ] or if its not available marked as unavailable
-- [ ] every browser can call LIST-TODAY or LIST-DATE (e.g. LIST-20241014) 
-- [ ] every relay who has the name_ops of today is publishing it (not sure if that is efficient enough)
+- [x] every browser can call LIST-DATE (e.g. LIST-20241014) 
+- [x] every relay who has the name_ops of today is publishing it (not sure if that is efficient enough)
 - [ ] every browser should also index the blockchain for name_ops (like the relay does) and answer for requests
-- [ ] question is: how much should every browser cash
-- [ ] pinner should only pin if a minimum fee is paid
+- [ ] question is: how much should every browser cache
+- [x] pinner should only pin if cid is inside of nameOp transaction 
+- [ ] pinner should only pin if cid is inside of nameOP transaction and a minimum fee per kb is paid to a certain doichain address (tx contains vout)
