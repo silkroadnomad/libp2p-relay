@@ -117,7 +117,8 @@ async function createNode () {
 			identify: identify(),
 			autoNAT: autoNAT(),
 			dcutr: dcutr(),
-			pubsub: gossipsub({ allowPublishToZeroTopicPeers: true, canRelayMessage: true, scoreThresholds}),
+			pubsub: gossipsub({ doPX: true, allowPublishToZeroTopicPeers: true, canRelayMessage: true, scoreThresholds}),
+			
 			relay: circuitRelayServer({
 				reservations: {
 					maxReservations: Infinity
@@ -137,7 +138,6 @@ async function createNode () {
 	console.log('Helia peerId:', helia.libp2p.peerId.toString())
 	console.log('Configured listen addresses:', listenAddresses)
 	console.log('Actual listen addresses:', helia.libp2p.getMultiaddrs().map(ma => ma.toString()))
-	console.log('Helia blockstore:', helia.blockstore)
 
 	return { helia }
 }
@@ -273,10 +273,35 @@ function createHttpServer(helia) {
         const parsedUrl = url.parse(req.url, true)
         
         if (req.method === 'GET' && parsedUrl.pathname === '/status') {
-            const connectedPeers = helia.libp2p.getPeers().length
+            const connectedPeers = helia.libp2p.getPeers()
             const nameOpCount = await getNameOpCount()
+            
+            const peerDetails = await Promise.all(connectedPeers.map(async (peerId) => {
+                const connections = helia.libp2p.getConnections(peerId)
+                return Promise.all(connections.map(async (connection) => {
+                    const remotePeer = connection.remotePeer.toString()
+                    const remoteAddr = connection.remoteAddr.toString()
+                    const direction = connection.direction
+                    const transport = connection.transient ? 'transient' : connection.multiplexer
+                    const protocols = await connection.streams[0].protocol
+                    return {
+                        peerId: remotePeer,
+                        multiaddr: remoteAddr,
+                        direction,
+                        transport,
+                        protocols
+                    }
+                }))
+            }))
+
+            const flatPeerDetails = peerDetails.flat()
+
             res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ connectedPeers, nameOpCount }))
+            res.end(JSON.stringify({
+                connectedPeersCount: connectedPeers.length,
+                nameOpCount,
+                peers: flatPeerDetails
+            }, null, 2))
         } else {
             res.writeHead(404, { 'Content-Type': 'text/plain' })
             res.end('Not Found')
@@ -309,6 +334,4 @@ async function retryFailedCIDsWithAttempts(helia, maxAttempts = 3, timeWindow = 
     console.error(`Failed to retry CIDs after ${maxAttempts} attempts`);
 }
 
-// Replace the existing retryFailedCIDs call with this:
 await retryFailedCIDsWithAttempts(helia);
-

@@ -35,6 +35,8 @@ What will it do?
 2. If our node is not yet stored on blockchain and a private key is inside .env it should send a transaction to a blockchain
 
 # Adaptation of this relay
+- [ ] tipWatcher:  when every a new block comes in the scan should be resarted. (Remark: src/pinner/tipWatcher already implemented but functionality not reviewed nor untestet)
+- [x] display also "unconfirmed"
 - [x] the relay is scanning Doichain blockchain for name-ops
 - [x] if a name-ops is being found, it needs to be investigated 
   - [x] create a file which contains all name-ops of today an ipns name-ops (with the today date e.g. 2024-10-09) and references the files cid

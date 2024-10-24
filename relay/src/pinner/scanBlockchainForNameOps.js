@@ -9,8 +9,11 @@ import fs from 'fs/promises'
 import path from 'path'
 import { getMetadataFromIPFS } from '../doichain/nfc/getMetadataFromIPFS.js'
 import { getImageUrlFromIPFS } from '../doichain/nfc/getImageUrlFromIPFS.js'
+// import TipWatcher from './tipWatcher.js'
 
 let helia
+let tipWatcher
+let isScanning = false
 
 // Global array to store failed CIDs
 const failedCIDs = [];
@@ -317,21 +320,37 @@ export async function retryFailedCIDs(_helia) {
         ██║     ██║  ██║██║███████╗███████╗██████╔╝    ╚██████╗██║██████╔╝███████║
         ╚═╝     ╚═╝  ╚═╝╚═╝╚══════╝╚══════╝╚═════╝      ╚═════╝╚═╝╚═════╝ ╚══════╝
                                                                                  
-            `);
+    `);
 
     const failedCIDs = await getFailedCIDs();
     logger.info(`Retrying ${failedCIDs.length} failed CIDs`);
 
+    const successfulCIDs = [];
+
     for (const failedCID of failedCIDs) {
         logger.info(`Retrying CID: ${failedCID.cid}`);
-        await pinIpfsContent(failedCID.nameId,failedCID.cid);
+        try {
+            await pinIpfsContent(failedCID.nameId, `ipfs://${failedCID.cid}`);
+            successfulCIDs.push(failedCID);
+            logger.info(`Successfully pinned CID: ${failedCID.cid}`);
+        } catch (error) {
+            logger.error(`Failed to pin CID: ${failedCID.cid}`, { error: error.message });
+        }
     }
+
+    // Remove successful CIDs from the failed list
+    const updatedFailedCIDs = failedCIDs.filter(cid => !successfulCIDs.some(successfulCID => successfulCID.cid === cid.cid));
+
+    // Write the updated failed CIDs list back to the file
+    await fs.writeFile(FAILED_CIDS_FILE, JSON.stringify(updatedFailedCIDs, null, 2));
+
+    logger.info(`Removed ${successfulCIDs.length} successfully pinned CIDs from the failed list`);
 
     logger.info(`
 ██████╗ ███████╗████████╗██████╗ ██╗   ██╗     ██████╗ ██████╗ ███╗   ███╗██████╗ ██╗     ███████╗████████╗███████╗
 ██╔══██╗██╔════╝╚══██╔══╝██╔══██╗╚██╗ ██╔╝    ██╔════╝██╔═══██╗████╗ ████║██╔══██╗██║     ██╔════╝╚══██╔══╝██╔════╝
 ██████╔╝█████╗     ██║   ██████╔╝ ╚████╔╝     ██║     ██║   ██║██╔████╔██║██████╔╝██║     █████╗     ██║   █████╗  
-██╔══██╗██╔══╝     ██║   ██╔══██╗  ╚██╔╝      ██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██║     ██╔���═     ██║   ██╔══╝  
+██╔══██╗██╔══╝     ██║   ██╔══██╗  ╚██╔╝      ██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝     ██║   ██╔══╝  
 ██║  ██║███████╗   ██║   ██║  ██║   ██║       ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ███████╗███████╗   ██║   ███████╗
 ╚═╝  ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝        ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝   ╚═╝   ╚══════╝
     `);
@@ -355,4 +374,25 @@ async function logFailedCIDs() {
 
 // Export the new functions
 export { pinIpfsContent, logFailedCIDs, getFailedCIDs };
+
+export async function initializeScanningProcess(electrumClient, _helia) {
+    helia = _helia;
+    tipWatcher = new TipWatcher(electrumClient);
+
+    tipWatcher.on('newTip', (tip) => {
+        logger.info("New tip received, queueing scan restart", { height: tip.height });
+        queueScanRestart(electrumClient);
+    });
+
+    await tipWatcher.start();
+    await scanBlockchainForNameOps(electrumClient);
+}
+
+function queueScanRestart(electrumClient) {
+    if (!isScanning) {
+        scanBlockchainForNameOps(electrumClient);
+    } else {
+        logger.info("Scan already in progress, will restart after current scan completes");
+    }
+}
 
