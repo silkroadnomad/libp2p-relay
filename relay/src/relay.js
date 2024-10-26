@@ -70,54 +70,9 @@ if(relayDevMode) scoreThresholds = {
 	publishThreshold: -Infinity,
 	graylistThreshold: -Infinity,
 }
+const network = { name: 'doichain-mainnet' }; // Replace with actual network object
+const electrumClient = await connectElectrum(network, (x,y)=>{})
 
-// Parse command line arguments
-const argv = yargs(hideBin(process.argv))
-  .option('disable-scanning', {
-    alias: 'd',
-    type: 'boolean',
-    description: 'Disable blockchain scanning'
-  })
-  .option('generate-keypair', {
-    alias: 'g',
-    type: 'boolean',
-    description: 'Generate a new Ed25519 keypair'
-  })
-  .help()
-  .alias('help', 'h')
-  .argv
-
-if (argv['generate-keypair']) {
-  try {
-    const newKeyPair = await generateKeyPair('Ed25519')
-    const protobufKey = privateKeyToProtobuf(newKeyPair)
-    const privateKeyHex = uint8ArrayToString(protobufKey, 'hex')
-    
-    console.log('New private key generated. Add this to your .env file:')
-    console.log(`RELAY_PRIVATE_KEY=${privateKeyHex}`)
-    
-    // Optionally, write to a file
-    await fs.writeFile('./.env.privateKey', `RELAY_PRIVATE_KEY=${privateKeyHex}`, 'utf8')
-    console.log('Private key has been saved to .env.privateKey')
-    
-    // Verify the key can be correctly parsed back
-    const parsedKey = privateKeyFromProtobuf(uint8ArrayFromString(privateKeyHex, 'hex'))
-    console.log('Verified: Key can be correctly parsed back from hex format')
-    
-    process.exit(0) // Exit after generating the keypair
-  } catch (error) {
-    console.error('Error generating keypair:', error)
-    process.exit(1)
-  }
-}
-
-// Near the end of the file, replace the scanBlockchainForNameOps call with:
-if (!argv['disable-scanning']) {
-  logger.info('Starting blockchain scanning...')
-  scanBlockchainForNameOps(electrumClient, helia)
-} else {
-  logger.info('Blockchain scanning is disabled')
-}
 
 async function createNode () {
 	// Convert the raw private key to a key object
@@ -208,8 +163,6 @@ helia.libp2p.addEventListener('peer:connect', async event => {
 	})
 })
 const fsHelia = unixfs(helia)
-const network = { name: 'doichain-mainnet' }; // Replace with actual network object
-const electrumClient = await connectElectrum(network, (x,y)=>{})
 
 helia.libp2p.services.pubsub.subscribe(CONTENT_TOPIC)
 
@@ -442,4 +395,53 @@ async function retryFailedCIDsWithAttempts(helia, maxAttempts = 3, timeWindow = 
 }
 
 await retryFailedCIDsWithAttempts(helia);
+
+
+// Parse command line arguments
+const argv = yargs(hideBin(process.argv))
+  .option('disable-scanning', {
+    alias: 'd',
+    type: 'boolean',
+    description: 'Disable blockchain scanning'
+  })
+  .option('generate-keypair', {
+    alias: 'g',
+    type: 'boolean',
+    description: 'Generate a new Ed25519 keypair'
+  })
+  .help()
+  .alias('help', 'h')
+  .argv
+
+if (argv['generate-keypair']) {
+  try {
+    const newKeyPair = await generateKeyPair('Ed25519')
+    const protobufKey = privateKeyToProtobuf(newKeyPair)
+    const privateKeyHex = uint8ArrayToString(protobufKey, 'hex')
+    
+    console.log('New private key generated. Add this to your .env file:')
+    console.log(`RELAY_PRIVATE_KEY=${privateKeyHex}`)
+    
+    // Optionally, write to a file
+    await fs.writeFile('./.env.privateKey', `RELAY_PRIVATE_KEY=${privateKeyHex}`, 'utf8')
+    console.log('Private key has been saved to .env.privateKey')
+    
+    // Verify the key can be correctly parsed back
+    const parsedKey = privateKeyFromProtobuf(uint8ArrayFromString(privateKeyHex, 'hex'))
+    console.log('Verified: Key can be correctly parsed back from hex format')
+    
+    process.exit(0) // Exit after generating the keypair
+  } catch (error) {
+    console.error('Error generating keypair:', error)
+    process.exit(1)
+  }
+}
+
+// Near the end of the file, replace the scanBlockchainForNameOps call with:
+if (!argv['disable-scanning']) {
+  logger.info('Starting blockchain scanning...')
+  scanBlockchainForNameOps(electrumClient, helia)
+} else {
+  logger.info('Blockchain scanning is disabled')
+}
 
