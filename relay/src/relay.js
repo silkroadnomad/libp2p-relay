@@ -1,12 +1,12 @@
 import 'dotenv/config'
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
-
 // External libraries
 import moment from 'moment'
 import { CID } from "multiformats/cid"
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
-
+import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
+import { generateKeyPair, privateKeyFromRaw } from '@libp2p/crypto/keys'
 // Libp2p and related modules
 import { createLibp2p } from 'libp2p'
 import { tcp } from '@libp2p/tcp'
@@ -61,7 +61,7 @@ let blockstore = new LevelBlockstore("./helia-blocks")
 let datastore = new LevelDatastore("./helia-data")
 
 const privKeyBuffer = uint8ArrayFromString(privKeyHex, 'hex')
-const keyPair = privateKeyFromProtobuf(privKeyBuffer)
+const keyPair = privateKeyFromRaw(privKeyBuffer)
 
 let scoreThresholds = {}
 if(relayDevMode) scoreThresholds = {
@@ -245,9 +245,32 @@ const argv = yargs(hideBin(process.argv))
     type: 'boolean',
     description: 'Disable blockchain scanning'
   })
+  .option('generate-keypair', {
+    alias: 'g',
+    type: 'boolean',
+    description: 'Generate a new Ed25519 keypair'
+  })
   .help()
   .alias('help', 'h')
   .argv
+
+if (argv['generate-keypair']) {
+  try {
+    const newKeyPair = await generateKeyPair('Ed25519')
+    const privateKeyHex = uint8ArrayToString(newKeyPair.raw, 'hex')
+    console.log('New private key generated. Add this to your .env file:')
+    console.log(`RELAY_PRIVATE_KEY=${privateKeyHex}`)
+    
+    // Optionally, write to a file
+    await fs.writeFile('./.env.privateKey', `RELAY_PRIVATE_KEY=${privateKeyHex}`, 'utf8')
+    console.log('Private key has been saved to .env.privateKey')
+    
+    process.exit(0) // Exit after generating the keypair
+  } catch (error) {
+    console.error('Error generating keypair:', error)
+    process.exit(1)
+  }
+}
 
 // Near the end of the file, replace the scanBlockchainForNameOps call with:
 if (!argv['disable-scanning']) {
@@ -335,3 +358,4 @@ async function retryFailedCIDsWithAttempts(helia, maxAttempts = 3, timeWindow = 
 }
 
 await retryFailedCIDsWithAttempts(helia);
+
