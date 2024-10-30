@@ -156,7 +156,7 @@ const { helia } = await createNode()
 logger.info('Helia is running')
 //when a peer connecs we need to update the peer list
 helia.libp2p.addEventListener('peer:connect', async event => {
-	console.log('peer:connect', event.detail.peerId.toString())
+	console.log('peer:connect', event.detail)
 	await retryFailedCIDs(helia)
 })
 const fsHelia = unixfs(helia)
