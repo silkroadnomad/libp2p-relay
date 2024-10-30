@@ -338,7 +338,17 @@ function createHttpServer(helia) {
                     const remoteAddr = connection.remoteAddr.toString()
                     const direction = connection.direction
                     const transport = connection.transient ? 'transient' : connection.multiplexer
-                    const protocols = await connection.streams[0].protocol
+                    
+                    // Add safe protocol checking
+                    let protocols = null
+                    try {
+                        if (connection.streams && connection.streams.length > 0 && connection.streams[0]) {
+                            protocols = await connection.streams[0].protocol
+                        }
+                    } catch (error) {
+                        console.error(`Error getting protocol for peer ${remotePeer}:`, error)
+                    }
+
                     return {
                         peerId: remotePeer,
                         multiaddrs: peer?.addresses?.map(addr => addr.multiaddr.toString()) || [],
@@ -346,7 +356,7 @@ function createHttpServer(helia) {
                         currentConnection: remoteAddr,
                         direction,
                         transport,
-                        protocols
+                        protocols: protocols || 'unknown'
                     }
                 }))
             }))
