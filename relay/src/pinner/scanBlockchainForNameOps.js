@@ -305,6 +305,10 @@ async function pinIpfsContent(nameId,ipfsUrl) {
 // Function which reads the failed CIDs from the file and tries to get and pin the content again
 export async function retryFailedCIDs(_helia) {
     helia = _helia
+    const failedCIDs = await getFailedCIDs();
+    if (failedCIDs.length === 0) {
+        return
+    }
     logger.info(`
         ██████╗ ███████╗████████╗██████╗ ██╗   ██╗██╗███╗   ██╗ ██████╗     
         ██╔══██╗██╔════╝╚══██╔══╝██╔══██╗╚██╗ ██╔╝██║████╗  ██║██╔════╝     
@@ -322,7 +326,6 @@ export async function retryFailedCIDs(_helia) {
                                                                                  
     `);
 
-    const failedCIDs = await getFailedCIDs();
     logger.info(`Retrying ${failedCIDs.length} failed CIDs`);
 
     const successfulCIDs = [];
