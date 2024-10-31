@@ -50,6 +50,7 @@ import { setTimeout } from 'timers/promises'
 
 // At the top of your file, add these imports:
 import { decodeMessage } from 'protons-runtime'
+import { createHttpServer } from './httpServer.js'
 
 export const CONTENT_TOPIC = process.env.CONTENT_TOPIC || "/doichain-nfc/1/message/proto"
 
@@ -107,7 +108,48 @@ async function createNode () {
 			// })
 		],
 		connectionGater: {
-			denyDialMultiaddr: async () => false
+			denyDialMultiaddr: async () => false,
+			denyInbound: async (maConn) => {
+				try {
+					const peerId = maConn.remotePeer
+					const peer = await libp2p.peerStore.get(peerId)
+					
+					// Check if peer is discovered through pubsub peer discovery
+					const topics = peer?.tags?.map(tag => tag.name) || []
+					
+					// Allow inbound connections only from peers in the Doichain discovery topic
+					if (topics.includes('doichain._peer-discovery._p2p._pubsub')) {
+						return false // allow connection
+					}
+					
+					// Deny inbound connections from peers only in the general discovery topic
+					if (topics.includes('_peer-discovery._p2p._pubsub')) {
+						return true // deny connection
+					}
+					
+					return true // deny by default
+				} catch (error) {
+					logger.error('Error in connection gater:', error)
+					return true // deny on error
+				}
+			},
+			denyOutbound: async (peerId) => {
+				try {
+					const peer = await libp2p.peerStore.get(peerId)
+					const topics = peer?.tags?.map(tag => tag.name) || []
+					
+					// Allow outbound connections to peers in either discovery topic
+					if (topics.includes('doichain._peer-discovery._p2p._pubsub') ||
+						topics.includes('_peer-discovery._p2p._pubsub')) {
+						return false // allow connection
+					}
+					
+					return true // deny by default
+				} catch (error) {
+					logger.error('Error in connection gater:', error)
+					return true // deny on error
+				}
+			}
 		},
 		connectionEncrypters: [noise()],
 		streamMuxers: [yamux(),tls()],
@@ -163,69 +205,12 @@ const fsHelia = unixfs(helia)
 
 helia.libp2p.services.pubsub.subscribe(CONTENT_TOPIC)
 
-// Define a simple codec for the Peer structure
-const peerCodec = {
-  encode: () => {
-    throw new Error('Encoding not implemented')
-  },
-  decode: (reader) => {
-    const obj = {
-      publicKey: new Uint8Array(0),
-      addrs: []
-    }
-
-    while (reader.pos < reader.len) {
-      const tag = reader.uint32()
-
-      switch (tag >>> 3) {
-        case 1:
-          obj.publicKey = reader.bytes()
-          break
-        case 2:
-          obj.addrs.push(reader.bytes())
-          break
-        default:
-          reader.skipType(tag & 7)
-          break
-      }
-    }
-
-    return obj
-  }
-}
-
 helia.libp2p.services.pubsub.addEventListener('message', async event => {
     logger.info(`Received pubsub message from ${event.detail.from} on topic ${event.detail.topic}`)
     const topic = event.detail.topic
     const from = event.detail.from
 
-    if (topic === 'doichain._peer-discovery._p2p._pubsub') {
-        try {
-            const peer = decodeMessage(event.detail.data, peerCodec)
-            
-            // Format the public key as a hex string
-            const publicKeyHex = Buffer.from(peer.publicKey).toString('hex')
-            
-            // Format the addresses
-            const formattedAddrs = peer.addrs.map(addr => {
-                try {
-                    return multiaddr(addr).toString()
-                } catch (err) {
-                    return `<invalid multiaddr: ${Buffer.from(addr).toString('hex')}>`
-                }
-            })
-
-            logger.info('Discovered peer on %s:', topic)
-            logger.info('  Public Key: %s', publicKeyHex)
-            logger.info('  Addresses:')
-            formattedAddrs.forEach((addr, index) => {
-                logger.info(`    ${index + 1}. ${addr}`)
-            })
-
-        } catch(err) {
-            logger.error('Error processing peer discovery message:', err)
-        }
-    } else if (topic.startsWith(CONTENT_TOPIC)) {
+    if (topic.startsWith(CONTENT_TOPIC)) {
         const message = new TextDecoder().decode(event.detail.data)
         logger.info(`Received pubsub message from ${from} on topic ${topic}`)
 
@@ -302,87 +287,6 @@ helia.libp2p.services.pubsub.addEventListener('gossipsub:message', (evt) => {
 })
 
 
-async function getNameOpCount() {
-    const nameOpDir = './data/nameops_cids' 
-    try {
-        const files = await fs.readdir(nameOpDir)
-        return files.filter(file => file.endsWith('.json')).length
-    } catch (error) {
-        console.error('Error reading nameOp directory:', error)
-        return 0
-    }
-}
-
-function createHttpServer(helia) {
-    const server = http.createServer(async (req, res) => {
-        const parsedUrl = url.parse(req.url, true)
-        
-        if (req.method === 'GET' && parsedUrl.pathname === '/status') {
-            const connectedPeers = helia.libp2p.getPeers()
-            const nameOpCount = await getNameOpCount()
-            
-            const peerDetails = await Promise.all(connectedPeers.map(async (peerId) => {
-                const connections = helia.libp2p.getConnections(peerId)
-                let peer
-                let peerInfo
-                try {
-                    peer = await helia.libp2p.peerStore.get(peerId)
-                    peerInfo = await helia.libp2p.peerRouting.findPeer(peerId)
-                    console.log('Peer info from routing:', peerInfo)
-                } catch (error) {
-                    console.error(`Error fetching info for peer ${peerId}:`, error)
-                }
-
-                return Promise.all(connections.map(async (connection) => {
-                    const remotePeer = connection.remotePeer.toString()
-                    const remoteAddr = connection.remoteAddr.toString()
-                    const direction = connection.direction
-                    const transport = connection.transient ? 'transient' : connection.multiplexer
-                    
-                    // Add safe protocol checking
-                    let protocols = null
-                    try {
-                        if (connection.streams && connection.streams.length > 0 && connection.streams[0]) {
-                            protocols = await connection.streams[0].protocol
-                        }
-                    } catch (error) {
-                        console.error(`Error getting protocol for peer ${remotePeer}:`, error)
-                    }
-
-                    return {
-                        peerId: remotePeer,
-                        multiaddrs: peer?.addresses?.map(addr => addr.multiaddr.toString()) || [],
-                        routedMultiaddrs: peerInfo?.multiaddrs?.map(ma => ma.toString()) || [],
-                        currentConnection: remoteAddr,
-                        direction,
-                        transport,
-                        protocols: protocols || 'unknown'
-                    }
-                }))
-            }))
-
-            const flatPeerDetails = peerDetails.flat()
-
-            res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({
-                connectedPeersCount: connectedPeers.length,
-                nameOpCount,
-                peers: flatPeerDetails
-            }, null, 2))
-        } else {
-            res.writeHead(404, { 'Content-Type': 'text/plain' })
-            res.end('Not Found')
-        }
-    })
-
-    const port = process.env.HTTP_PORT || 3000
-    server.listen(port, () => {
-        console.log(`HTTP server running on port ${port}`)
-    })
-}
-
-createHttpServer(helia)  // Add this line
-
 async function retryFailedCIDsWithAttempts(helia, maxAttempts = 3, timeWindow = 5000) {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
@@ -451,4 +355,6 @@ if (!argv['disable-scanning']) {
 } else {
   logger.info('Blockchain scanning is disabled')
 }
+
+createHttpServer(helia)
 
