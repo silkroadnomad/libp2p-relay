@@ -87,6 +87,13 @@ async function createNode () {
 			listen: listenAddresses,
 			announce: announceAddresses
 		},
+		connectionManager: {
+			maxConnections: 1000, // Set max total connections
+			minConnections: 10,   // Maintain at least this many connections
+			maxIncomingPendingConnections: 100, // Max pending incoming connection requests
+			maxOutgoingPendingConnections: 100, // Max pending outgoing connection requests
+			pollInterval: 2000,   // How often to poll for connection updates (ms)
+		},
 		transports: [
 			tcp(),
 			//webTransport(), /* webtransport does not allow listening to webtransport https://github.com/libp2p/js-libp2p/blob/c5bbb2596273d2503e1996169bab2411546fe674/packages/transport-webtransport/README.md?plain=1#L31C1-L33C197*/
@@ -107,50 +114,50 @@ async function createNode () {
 			// 	}
 			// })
 		],
-		connectionGater: {
-			denyDialMultiaddr: async () => false,
-			denyInbound: async (maConn) => {
-				try {
-					const peerId = maConn.remotePeer
-					const peer = await libp2p.peerStore.get(peerId)
+		// connectionGater: {
+		// 	denyDialMultiaddr: async () => false,
+		// 	denyInbound: async (maConn) => {
+		// 		try {
+		// 			const peerId = maConn.remotePeer
+		// 			const peer = await libp2p.peerStore.get(peerId)
 					
-					// Check if peer is discovered through pubsub peer discovery
-					const topics = peer?.tags?.map(tag => tag.name) || []
+		// 			// Check if peer is discovered through pubsub peer discovery
+		// 			const topics = peer?.tags?.map(tag => tag.name) || []
 					
-					// Allow inbound connections only from peers in the Doichain discovery topic
-					if (topics.includes('doichain._peer-discovery._p2p._pubsub')) {
-						return false // allow connection
-					}
+		// 			// Allow inbound connections only from peers in the Doichain discovery topic
+		// 			if (topics.includes('doichain._peer-discovery._p2p._pubsub')) {
+		// 				return false // allow connection
+		// 			}
 					
-					// Deny inbound connections from peers only in the general discovery topic
-					if (topics.includes('_peer-discovery._p2p._pubsub')) {
-						return true // deny connection
-					}
+		// 			// Deny inbound connections from peers only in the general discovery topic
+		// 			if (topics.includes('_peer-discovery._p2p._pubsub')) {
+		// 				return true // deny connection
+		// 			}
 					
-					return true // deny by default
-				} catch (error) {
-					logger.error('Error in connection gater:', error)
-					return true // deny on error
-				}
-			},
-			denyOutbound: async (peerId) => {
-				try {
-					const peer = await libp2p.peerStore.get(peerId)
-					const topics = peer?.tags?.map(tag => tag.name) || []
+		// 			return true // deny by default
+		// 		} catch (error) {
+		// 			logger.error('Error in connection gater:', error)
+		// 			return true // deny on error
+		// 		}
+		// 	},
+		// 	denyOutbound: async (peerId) => {
+		// 		try {
+		// 			const peer = await libp2p.peerStore.get(peerId)
+		// 			const topics = peer?.tags?.map(tag => tag.name) || []
 					
-					// Allow outbound connections to peers in either discovery topic
-					if (topics.includes('doichain._peer-discovery._p2p._pubsub') ||
-						topics.includes('_peer-discovery._p2p._pubsub')) {
-						return false // allow connection
-					}
+		// 			// Allow outbound connections to peers in either discovery topic
+		// 			if (topics.includes('doichain._peer-discovery._p2p._pubsub') ||
+		// 				topics.includes('_peer-discovery._p2p._pubsub')) {
+		// 				return false // allow connection
+		// 			}
 					
-					return true // deny by default
-				} catch (error) {
-					logger.error('Error in connection gater:', error)
-					return true // deny on error
-				}
-			}
-		},
+		// 			return true // deny by default
+		// 		} catch (error) {
+		// 			logger.error('Error in connection gater:', error)
+		// 			return true // deny on error
+		// 		}
+		// 	}
+		// },
 		connectionEncrypters: [noise()],
 		streamMuxers: [yamux(),tls()],
 		peerDiscovery: [
@@ -198,7 +205,7 @@ const { helia } = await createNode()
 logger.info('Helia is running')
 //when a peer connecs we need to update the peer list
 helia.libp2p.addEventListener('peer:connect', async event => {
-	console.log('peer:connect', event.detail)
+	// console.log('peer:connect', event.detail)
 	await retryFailedCIDs(helia)
 })
 const fsHelia = unixfs(helia)
