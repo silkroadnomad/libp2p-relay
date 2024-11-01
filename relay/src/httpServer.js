@@ -7,11 +7,22 @@ import { unixfs } from "@helia/unixfs"
 import { getOrCreateDB } from './pinner/nameOpsFileManager.js'
 import { getScanningState } from './pinner/scanningStateManager.js'
 
+/**
+ * Retrieves the total count of unique name operations across all documents in OrbitDB
+ * @param {Object} orbitdb - The OrbitDB instance
+ * @returns {Promise<number>} The total count of unique name operations, or 0 if there's an error
+ */
 async function getNameOpCount(orbitdb) {
     try {
         const db = await getOrCreateDB(orbitdb)
-        const count = (await db.all()).length
-        return count
+        const allDocs = await db.all()
+        
+        // Sum up all nameOps from each document
+        const totalCount = allDocs.reduce((sum, doc) => {
+            return sum + (doc.value.nameOps?.length || 0)
+        }, 0)
+        
+        return totalCount
     } catch (error) {
         console.error('Error counting nameOps from OrbitDB:', error)
         return 0
