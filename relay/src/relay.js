@@ -107,57 +107,7 @@ async function createNode () {
 					logger.info(`WebSocket connection established with: ${remoteAddr}`)
 				}
 			})
-			//   webSockets({
-			// 	server: httpServer,
-			// 	websocket: {
-			// 		rejectUnauthorized: false
-			// 	}
-			// })
 		],
-		// connectionGater: {
-		// 	denyDialMultiaddr: async () => false,
-		// 	denyInbound: async (maConn) => {
-		// 		try {
-		// 			const peerId = maConn.remotePeer
-		// 			const peer = await libp2p.peerStore.get(peerId)
-					
-		// 			// Check if peer is discovered through pubsub peer discovery
-		// 			const topics = peer?.tags?.map(tag => tag.name) || []
-					
-		// 			// Allow inbound connections only from peers in the Doichain discovery topic
-		// 			if (topics.includes('doichain._peer-discovery._p2p._pubsub')) {
-		// 				return false // allow connection
-		// 			}
-					
-		// 			// Deny inbound connections from peers only in the general discovery topic
-		// 			if (topics.includes('_peer-discovery._p2p._pubsub')) {
-		// 				return true // deny connection
-		// 			}
-					
-		// 			return true // deny by default
-		// 		} catch (error) {
-		// 			logger.error('Error in connection gater:', error)
-		// 			return true // deny on error
-		// 		}
-		// 	},
-		// 	denyOutbound: async (peerId) => {
-		// 		try {
-		// 			const peer = await libp2p.peerStore.get(peerId)
-		// 			const topics = peer?.tags?.map(tag => tag.name) || []
-					
-		// 			// Allow outbound connections to peers in either discovery topic
-		// 			if (topics.includes('doichain._peer-discovery._p2p._pubsub') ||
-		// 				topics.includes('_peer-discovery._p2p._pubsub')) {
-		// 				return false // allow connection
-		// 			}
-					
-		// 			return true // deny by default
-		// 		} catch (error) {
-		// 			logger.error('Error in connection gater:', error)
-		// 			return true // deny on error
-		// 		}
-		// 	}
-		// },
 		connectionEncrypters: [noise()],
 		streamMuxers: [yamux(),tls()],
 		peerDiscovery: [
