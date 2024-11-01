@@ -34,7 +34,6 @@ export function createHttpServer(helia, orbitdb) {
                     address: connection.remoteAddr.toString(),
                     direction: connection.direction,
                     status: connection.status,
-                    scanningState: scanningState?.value || null
                 }))
             }))
 
@@ -44,7 +43,8 @@ export function createHttpServer(helia, orbitdb) {
             res.end(JSON.stringify({
                 connectedPeersCount: connectedPeers.length,
                 nameOpCount,
-                peers: flatPeerDetails
+                peers: flatPeerDetails,
+                scanningState: scanningState?.value || null
             }, null, 2))
         } else if (req.method === 'GET' && parsedUrl.pathname === '/failed-cids') {
             try {
