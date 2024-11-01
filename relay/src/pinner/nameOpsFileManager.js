@@ -42,7 +42,18 @@ export async function updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDate, bl
         logger.info("existingNameOps", existingNameOps)
 
         const allNameOps = [...existingNameOps, ...nameOpUtxos]
-        const uniqueNameOps = Array.from(new Set(allNameOps.map(JSON.stringify))).map(JSON.parse)
+        
+        // Create a map using a composite key of relevant fields
+        const uniqueMap = new Map()
+        allNameOps.forEach(nameOp => {
+            const key = `${nameOp.nameId}-${nameOp.nameValue}`
+            // Keep the most recent operation (highest blocktime)
+            if (!uniqueMap.has(key) || uniqueMap.get(key).blocktime < nameOp.blocktime) {
+                uniqueMap.set(key, nameOp)
+            }
+        })
+        
+        const uniqueNameOps = Array.from(uniqueMap.values())
 
         await db.put({
             _id: docId,
