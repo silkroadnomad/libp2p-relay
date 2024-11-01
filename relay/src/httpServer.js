@@ -28,7 +28,6 @@ export function createHttpServer(helia, orbitdb) {
             
             const peerDetails = await Promise.all(connectedPeers.map(async (peerId) => {
                 const connections = helia.libp2p.getConnections(peerId)
-                const scanningState = await getScanningState(orbitdb)
                 return connections.map(connection => ({
                     peerId: peerId.toString(),
                     address: connection.remoteAddr.toString(),
@@ -38,13 +37,13 @@ export function createHttpServer(helia, orbitdb) {
             }))
 
             const flatPeerDetails = peerDetails.flat()
-
+            const scanningState = await getScanningState(orbitdb)
             res.writeHead(200, { 'Content-Type': 'application/json' })
             res.end(JSON.stringify({
                 connectedPeersCount: connectedPeers.length,
                 nameOpCount,
-                peers: flatPeerDetails,
-                scanningState: scanningState?.value || null
+                peers: flatPeerDetails
+                scanningState: scanningState?.value || null         
             }, null, 2))
         } else if (req.method === 'GET' && parsedUrl.pathname === '/failed-cids') {
             try {
