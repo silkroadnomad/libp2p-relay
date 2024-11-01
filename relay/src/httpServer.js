@@ -29,6 +29,48 @@ async function getNameOpCount(orbitdb) {
     }
 }
 
+/**
+ * Gets name operations with their history based on a key strategy
+ * @param {Object} db - The OrbitDB instance
+ * @param {Function} getKey - Function that returns the key for grouping operations
+ * @returns {Object} Object containing duplicates and total count
+ */
+async function getNameOpsHistory(db, getKey) {
+    const allDocs = await db.all()
+    const nameOpsMap = new Map()
+    const duplicates = []
+
+    // Flatten all nameOps from all documents and track duplicates
+    allDocs.forEach(doc => {
+        const nameOps = doc.value.nameOps || []
+        nameOps.forEach(nameOp => {
+            const key = getKey(nameOp)
+            if (!nameOpsMap.has(key)) {
+                nameOpsMap.set(key, [nameOp])
+            } else {
+                nameOpsMap.get(key).push(nameOp)
+            }
+        })
+    })
+
+    // Filter and sort entries
+    nameOpsMap.forEach((ops, key) => {
+        if (ops.length > 1) {
+            duplicates.push({
+                nameId: ops[0].nameId,
+                nameValue: ops[0].nameValue,
+                count: ops.length,
+                operations: ops.sort((a, b) => b.blocktime - a.blocktime)
+            })
+        }
+    })
+
+    return {
+        totalCount: duplicates.length,
+        duplicates
+    }
+}
+
 export function createHttpServer(helia, orbitdb) {
     const server = http.createServer(async (req, res) => {
         const parsedUrl = url.parse(req.url, true)
@@ -75,46 +117,38 @@ export function createHttpServer(helia, orbitdb) {
         } else if (req.method === 'GET' && parsedUrl.pathname === '/duplicate-nameops') {
             try {
                 const db = await getOrCreateDB(orbitdb)
-                const allDocs = await db.all()
+                const result = await getNameOpsHistory(db, 
+                    nameOp => `${nameOp.nameId}-${nameOp.nameValue}`
+                )
                 
-                // Create a map to track duplicates
-                const nameOpsMap = new Map()
-                const duplicates = []
-
-                // Flatten all nameOps from all documents and track duplicates
-                allDocs.forEach(doc => {
-                    const nameOps = doc.value.nameOps || []
-                    nameOps.forEach(nameOp => {
-                        const key = `${nameOp.nameId}-${nameOp.nameValue}` // Unique key combination
-                        if (!nameOpsMap.has(key)) {
-                            nameOpsMap.set(key, [nameOp])
-                        } else {
-                            nameOpsMap.get(key).push(nameOp)
-                        }
-                    })
-                })
-
-                // Filter only the entries with actual duplicates
-                nameOpsMap.forEach((ops, key) => {
-                    if (ops.length > 1) {
-                        duplicates.push({
-                            nameId: ops[0].nameId,
-                            nameValue: ops[0].nameValue,
-                            count: ops.length,
-                            operations: ops.sort((a, b) => b.blocktime - a.blocktime) // Sort by most recent first
-                        })
-                    }
-                })
-
                 res.writeHead(200, { 'Content-Type': 'application/json' })
                 res.end(JSON.stringify({
-                    totalDuplicates: duplicates.length,
-                    duplicates
+                    totalDuplicates: result.totalCount,
+                    duplicates: result.duplicates
                 }, null, 2))
             } catch (error) {
                 res.writeHead(500, { 'Content-Type': 'application/json' })
                 res.end(JSON.stringify({
                     error: 'Failed to retrieve duplicate nameOps',
+                    message: error.message
+                }))
+            }
+        } else if (req.method === 'GET' && parsedUrl.pathname === '/with-history') {
+            try {
+                const db = await getOrCreateDB(orbitdb)
+                const result = await getNameOpsHistory(db, 
+                    nameOp => nameOp.nameId
+                )
+                
+                res.writeHead(200, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({
+                    totalWithHistory: result.totalCount,
+                    nameOpsWithHistory: result.duplicates
+                }, null, 2))
+            } catch (error) {
+                res.writeHead(500, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({
+                    error: 'Failed to retrieve nameOps history',
                     message: error.message
                 }))
             }
