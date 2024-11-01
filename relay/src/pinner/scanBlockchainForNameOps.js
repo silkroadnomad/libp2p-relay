@@ -10,71 +10,28 @@ import path from 'path'
 import { getMetadataFromIPFS } from '../doichain/nfc/getMetadataFromIPFS.js'
 import { getImageUrlFromIPFS } from '../doichain/nfc/getImageUrlFromIPFS.js'
 // import TipWatcher from './tipWatcher.js'
+import { addFailedCID, getFailedCIDs, removeSuccessfulCIDs, logFailedCIDs } from './failedCidsManager.js'
 
 let helia
 let tipWatcher
 let isScanning = false
 
-// Global array to store failed CIDs
-const failedCIDs = [];
-
-const FAILED_CIDS_FILE = path.join(process.cwd(), 'data', 'failed_cids.json')
-
-// Function to add a failed CID to the JSON file
-async function addFailedCID(failedCID) {
-    try {
-        let failedCIDs = []
-        try {
-            const data = await fs.readFile(FAILED_CIDS_FILE, 'utf8')
-            failedCIDs = JSON.parse(data)
-        } catch (error) {
-            // File doesn't exist or is empty, start with an empty array
-        }
-
-        // Convert array to Set to remove duplicates, then back to array
-        const uniqueFailedCIDs = Array.from(new Set(failedCIDs.map(cid => JSON.stringify(cid))))
-            .map(jsonString => JSON.parse(jsonString));
-
-        // Add the new failedCID if it's not already in the array
-        if (!uniqueFailedCIDs.some(cid => cid.cid === failedCID.cid)) {
-            uniqueFailedCIDs.push(failedCID)
-        }
-
-        await fs.writeFile(FAILED_CIDS_FILE, JSON.stringify(uniqueFailedCIDs, null, 2))
-        logger.info(`Updated failed CIDs file. Total unique CIDs: ${uniqueFailedCIDs.length}`)
-    } catch (error) {
-        logger.error(`Error updating failed CIDs file: ${error.message}`)
-    }
-}
-
-// Function to read failed CIDs from the JSON file
-async function getFailedCIDs() {
-    try {
-        const data = await fs.readFile(FAILED_CIDS_FILE, 'utf8')
-        return JSON.parse(data)
-    } catch (error) {
-        logger.error(`Error reading failed CIDs from file: ${error.message}`)
-        return []
-    }
-}
-
-export async function scanBlockchainForNameOps(electrumClient, _helia) {
+export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb) {
     logger.info("scanBlockchainForNameOps")
-    helia = _helia
+    helia = helia
 
     const tip = await electrumClient.request('blockchain.headers.subscribe');
     logger.info("Blockchain tip", { height: tip.height });
 
-    let state = await getScanningState()
+    let state = await getScanningState(orbitdb)
     let startHeight;
     let currentDay = null;
-
-    if (state && state.tipHeight) {
-        if (tip.height > state.tipHeight) {
+    if (state && state.value && state.value.tipHeight) {
+        if (tip.height > state.value.tipHeight) {
             startHeight = tip.height;
-            logger.info("New blocks detected, starting from current tip", { startHeight, storedTip: state.tipHeight });
+            logger.info("New blocks detected, starting from current tip", { startHeight, storedTip: state.value.tipHeight });
         } else {
-            startHeight = state.lastBlockHeight;
+            startHeight = state.value.lastBlockHeight;
             logger.info("Continuing from last scanned block", { startHeight });
         }
     } else {
@@ -99,11 +56,11 @@ export async function scanBlockchainForNameOps(electrumClient, _helia) {
 
             if (nameOpUtxos.length > 0) {
                 logger.debug(`Found ${nameOpUtxos.length} name operations in block ${height}`);
-                await updateDailyNameOpsFile(nameOpUtxos, helia, blockDay, height);
+                await updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDay, height);
                 
                 for (const nameOp of nameOpUtxos) {
                     if (nameOp.nameValue && nameOp.nameValue.startsWith('ipfs://')) {
-                        pinIpfsContent(nameOp.nameId,nameOp.nameValue).then(() => {
+                        pinIpfsContent(helia, orbitdb, nameOp.nameId, nameOp.nameValue).then(() => {
                             logger.info(`Successfully pinned IPFS content: ${nameOp.nameValue}`);
                         }).catch(error => {
                             logger.error(`Failed to pin IPFS content: ${nameOp.nameValue}`, { error });
@@ -114,7 +71,7 @@ export async function scanBlockchainForNameOps(electrumClient, _helia) {
                 logger.debug(`No name operations found in block ${height}`);
             }
             
-            await updateScanningState({ lastBlockHeight: height, tipHeight: tip.height })
+            await updateScanningState(orbitdb, { lastBlockHeight: height, tipHeight: tip.height })
 
             if (state && state.tipHeight && height === state.tipHeight) {
                 height = state.lastBlockHeight + 1;
@@ -132,7 +89,7 @@ export async function scanBlockchainForNameOps(electrumClient, _helia) {
             await new Promise(resolve => setTimeout(resolve, 5000));
         }
     }
-    logFailedCIDs();
+    logFailedCIDs(helia, orbitdb);
 }
 
 export async function getTodayNameOpsCids(helia) {
@@ -246,8 +203,8 @@ async function getCidFromStorage(formattedDate) {
     }
 }
 
-async function pinIpfsContent(nameId,ipfsUrl) {
-    const cid = ipfsUrl.replace('ipfs://', '');
+async function pinIpfsContent(helia, orbitdb, nameId, ipfsUrl) {
+    const cid = ipfsUrl.replace('ipfs://', '')
     try {
         logger.info(`Attempting to retrieve IPFS content with CID: ${cid}`);
         const fs = unixfs(helia)
@@ -265,17 +222,33 @@ async function pinIpfsContent(nameId,ipfsUrl) {
         logger.info(`Pinning IPFS content with CID: ${cid}`);
         await helia.pins.add(CID.parse(cid));
         logger.info(`Successfully pinned IPFS content: ${cid}`);
-
         try {
             const metadata = JSON.parse(content);
             logger.info(`Retrieved metadata for CID: ${cid}`);
 
             // Get and pin image from metadata
-            const imageUrl = await getImageUrlFromIPFS(helia,metadata.image);
+            const imageUrl = await getImageUrlFromIPFS(helia, metadata.image);
             if (imageUrl && imageUrl.startsWith('ipfs://')) {
                 const imageCid = imageUrl.replace('ipfs://', '');
                 try {
-                    // First, try to retrieve the image
+                    // First, get existing pins before adding image
+                    const existingImagePins = []
+                    for await (const pin of helia.pins.ls()) {
+                        try {
+                            const chunks = []
+                            for await (const chunk of fs.cat(pin.cid)) {
+                                chunks.push(chunk)
+                            }
+                            existingImagePins.push({
+                                cid: pin.cid.toString(),
+                                content: new TextDecoder().decode(Buffer.concat(chunks))
+                            })
+                        } catch (error) {
+                            logger.warn(`Could not read content for existing image pin ${pin.cid.toString()}:`, error)
+                        }
+                    }
+
+                    // Try to retrieve the image
                     logger.info(`Attempting to retrieve image with CID: ${imageCid}`);
                     for await (const chunk of fs.cat(CID.parse(imageCid))) {
                         // We don't need to store the image content, just verify we can retrieve it
@@ -287,96 +260,50 @@ async function pinIpfsContent(nameId,ipfsUrl) {
                     logger.info(`Successfully pinned image: ${imageCid}`);
                 } catch (imageError) {
                     logger.error(`Failed to retrieve or pin image: ${imageCid} for nameId: ${nameId}`, { error: imageError.message, nameId });
-                    await addFailedCID({ cid: imageCid, type: 'image', parentCid: cid, nameId });
+                    await addFailedCID({ cid: imageCid, type: 'image', parentCid: cid, nameId }, orbitdb);
                     throw imageError
                 }
             }
         } catch (metadataError) {
             logger.error(`Error processing metadata for CID: ${cid} and nameId: ${nameId}`, { error: metadataError.message, nameId });
-            await addFailedCID({ cid, type: 'metadata_processing', nameId });
+            await addFailedCID({ cid, type: 'metadata_processing', nameId }, orbitdb);
             throw metadataError
         }
     } catch (error) {
         logger.error(`Error retrieving or processing IPFS content: ${cid} for nameId: ${nameId}`, { error: error.message, nameId });
-        await addFailedCID({ cid, type: 'retrieval_or_pinning', nameId });
+        await addFailedCID({ cid, type: 'retrieval_or_pinning', nameId }, orbitdb);
         throw error
     }
 }
-// Function which reads the failed CIDs from the file and tries to get and pin the content again
-export async function retryFailedCIDs(_helia) {
-    helia = _helia
-    const failedCIDs = await getFailedCIDs();
+
+export async function retryFailedCIDs(helia, orbitdb) {
+    const failedCIDs = await getFailedCIDs(orbitdb)
+    console.log("failedCIDs", failedCIDs)
     if (failedCIDs.length === 0) {
         return
     }
-    logger.info(`
-        ██████╗ ███████╗████████╗██████╗ ██╗   ██╗██╗███╗   ██╗ ██████╗     
-        ██╔══██╗██╔════╝╚══██╔══╝██╔══██╗╚██╗ ██╔╝██║████╗  ██║██╔════╝     
-        ██████╔╝█████╗     ██║   ██████╔╝ ╚████╔╝ ██║██╔██╗ ██║██║  ███╗    
-        ██╔══██╗██╔══╝     ██║   ██╔══██╗  ╚██╔╝  ██║██║╚██╗██║██║   ██║    
-        ██║  ██║███████╗   ██║   ██║  ██║   ██║   ██║██║ ╚████║╚██████╔╝    
-        ╚═╝  ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝   ╚═╝╚═╝  ╚═══╝ ╚═════╝     
-                                                                            
-        ███████╗ █████╗ ██╗██╗     ███████╗██████╗      ██████╗██╗██████╗ ███████╗
-        ██╔════╝██╔══██╗██║██║     ██╔════╝██╔══██╗    ██╔════╝██║██╔══██╗██╔════╝
-        █████╗  ███████║██║██║     █████╗  ██║  ██║    ██║     ██║██║  ██║███████╗
-        ██╔══╝  ██╔══██║██║██║     ██╔══╝  ██║  ██║    ██║     ██║██║  ██║╚════██║
-        ██║     ██║  ██║██║███████╗███████╗██████╔╝    ╚██████╗██║██████╔╝███████║
-        ╚═╝     ╚═╝  ╚═╝╚═╝╚══════╝╚══════╝╚═════╝      ╚═════╝╚═╝╚═════╝ ╚══════╝
-                                                                                 
-    `);
-
-    logger.info(`Retrying ${failedCIDs.length} failed CIDs`);
-
-    const successfulCIDs = [];
+    
+    logger.info(`Retrying ${failedCIDs.length} failed CIDs`)
+    const successfulCIDs = []
 
     for (const failedCID of failedCIDs) {
-        logger.info(`Retrying CID: ${failedCID.cid}`);
+        logger.info(`Retrying CID: ${failedCID.cid}`)
         try {
-            await pinIpfsContent(failedCID.nameId, `ipfs://${failedCID.cid}`);
-            successfulCIDs.push(failedCID);
-            logger.info(`Successfully pinned CID: ${failedCID.cid}`);
+            await pinIpfsContent(helia, orbitdb, failedCID.nameId, `ipfs://${failedCID.cid}`, orbitdb)
+            successfulCIDs.push(failedCID)
+            logger.info(`Successfully pinned CID: ${failedCID.cid}`)
         } catch (error) {
-            logger.error(`Failed to pin CID: ${failedCID.cid}`, { error: error.message });
+            logger.error(`Failed to pin CID: ${failedCID.cid}`, { error: error.message })
         }
     }
 
-    // Remove successful CIDs from the failed list
-    const updatedFailedCIDs = failedCIDs.filter(cid => !successfulCIDs.some(successfulCID => successfulCID.cid === cid.cid));
-
-    // Write the updated failed CIDs list back to the file
-    await fs.writeFile(FAILED_CIDS_FILE, JSON.stringify(updatedFailedCIDs, null, 2));
-
-    logger.info(`Removed ${successfulCIDs.length} successfully pinned CIDs from the failed list`);
-
-    logger.info(`
-██████╗ ███████╗████████╗██████╗ ██╗   ██╗     ██████╗ ██████╗ ███╗   ███╗██████╗ ██╗     ███████╗████████╗███████╗
-██╔══██╗██╔════╝╚══██╔══╝██╔══██╗╚██╗ ██╔╝    ██╔════╝██╔═══██╗████╗ ████║██╔══██╗██║     ██╔════╝╚══██╔══╝██╔════╝
-██████╔╝█████╗     ██║   ██████╔╝ ╚████╔╝     ██║     ██║   ██║██╔████╔██║██████╔╝██║     █████╗     ██║   █████╗  
-██╔══██╗██╔══╝     ██║   ██╔══██╗  ╚██╔╝      ██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝     ██║   ██╔══╝  
-██║  ██║███████╗   ██║   ██║  ██║   ██║       ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ███████╗███████╗   ██║   ███████╗
-╚═╝  ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝        ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝   ╚═╝   ╚══════╝
-    `);
-}
-// Function to log failed CIDs
-async function logFailedCIDs() {
-    const failedCIDs = await getFailedCIDs();
-    if (failedCIDs.length > 0) {
-        logger.warn(`Failed to pin ${failedCIDs.length} CIDs:`);
-        failedCIDs.forEach(({ cid, type, parentCid }) => {
-            if (type === 'metadata_processing' || type === 'retrieval_or_pinning') {
-                logger.warn(`- Metadata CID: ${cid} (${type})`);
-            } else if (type === 'image') {
-                logger.warn(`- Image CID: ${cid} (from metadata ${parentCid})`);
-            }
-        });
-    } else {
-        logger.info('All CIDs were successfully pinned.');
+    // Remove successful CIDs from the database
+    if (successfulCIDs.length > 0) {
+        await removeSuccessfulCIDs(successfulCIDs, orbitdb)
     }
-}
 
-// Export the new functions
-export { pinIpfsContent, logFailedCIDs, getFailedCIDs };
+    logger.info(`Removed ${successfulCIDs.length} successfully pinned CIDs from the database`)
+}
 
 export async function initializeScanningProcess(electrumClient, _helia) {
     helia = _helia;

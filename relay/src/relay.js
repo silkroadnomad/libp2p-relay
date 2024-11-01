@@ -43,14 +43,11 @@ import { getNameOpsCidsForDate } from "./pinner/scanBlockchainForNameOps.js"
 import { scanBlockchainForNameOps } from '../src/pinner/scanBlockchainForNameOps.js'
 import { retryFailedCIDs } from './pinner/scanBlockchainForNameOps.js'
 
-import http from 'http'
-import url from 'url'
 import fs from 'fs/promises'
 import { setTimeout } from 'timers/promises'
 
-// At the top of your file, add these imports:
-import { decodeMessage } from 'protons-runtime'
 import { createHttpServer } from './httpServer.js'
+import { createOrbitDB } from '@orbitdb/core'
 
 export const CONTENT_TOPIC = process.env.CONTENT_TOPIC || "/doichain-nfc/1/message/proto"
 
@@ -144,19 +141,22 @@ async function createNode () {
 		blockstore,
 	})
 
+	// Create OrbitDB instance
+	const orbitdb = await createOrbitDB({ ipfs: helia })
+	logger.info('OrbitDB initialized')
+
 	console.log('Helia peerId:', helia.libp2p.peerId.toString())
 	console.log('Configured listen addresses:', listenAddresses)
 	console.log('Actual listen addresses:', helia.libp2p.getMultiaddrs().map(ma => ma.toString()))
 
-	return { helia }
+	return { helia, orbitdb }
 }
 
-const { helia } = await createNode()
-logger.info('Helia is running')
+const { helia, orbitdb } = await createNode()
+logger.info('Helia and OrbitDB are running')
 //when a peer connecs we need to update the peer list
 helia.libp2p.addEventListener('peer:connect', async event => {
-	// console.log('peer:connect', event.detail)
-	await retryFailedCIDs(helia)
+    await retryFailedCIDs(helia, orbitdb)
 })
 const fsHelia = unixfs(helia)
 
@@ -199,7 +199,7 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
             
             if (dateString === "LAST_100") {
                 console.log("Fetching last 100 name_ops");
-                const lastNameOps = await getLastNameOps(helia, 100);
+                const lastNameOps = await getLastNameOps(orbitdb, 100);
                 if (lastNameOps.length > 0) {
                     console.log(`Publishing last ${lastNameOps.length} NameOps`);
                     const jsonString = JSON.stringify(lastNameOps);
@@ -247,7 +247,7 @@ helia.libp2p.services.pubsub.addEventListener('gossipsub:message', (evt) => {
 async function retryFailedCIDsWithAttempts(helia, maxAttempts = 3, timeWindow = 5000) {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
-            await retryFailedCIDs(helia);
+            await retryFailedCIDs(helia, orbitdb);
             console.log(`Attempt ${attempt}: Successfully retried failed CIDs`);
             return; // Exit the function if successful
         } catch (error) {
@@ -262,7 +262,7 @@ async function retryFailedCIDsWithAttempts(helia, maxAttempts = 3, timeWindow = 
     console.error(`Failed to retry CIDs after ${maxAttempts} attempts`);
 }
 
-await retryFailedCIDsWithAttempts(helia);
+await retryFailedCIDsWithAttempts(helia, orbitdb);
 
 
 // Parse command line arguments
@@ -308,10 +308,27 @@ if (argv['generate-keypair']) {
 // Near the end of the file, replace the scanBlockchainForNameOps call with:
 if (!argv['disable-scanning']) {
   logger.info('Starting blockchain scanning...')
-  scanBlockchainForNameOps(electrumClient, helia)
+  scanBlockchainForNameOps(electrumClient, helia, orbitdb)
 } else {
   logger.info('Blockchain scanning is disabled')
 }
 
-createHttpServer(helia)
+// Add cleanup for OrbitDB
+process.on('SIGINT', async () => {
+    logger.info('Shutting down...')
+    if (orbitdb) {
+        await orbitdb.stop()
+    }
+    process.exit(0)
+})
+
+process.on('SIGTERM', async () => {
+    logger.info('Shutting down...')
+    if (orbitdb) {
+        await orbitdb.stop()
+    }
+    process.exit(0)
+})
+
+createHttpServer(helia, orbitdb)
 

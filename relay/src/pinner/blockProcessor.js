@@ -1,4 +1,5 @@
 import moment from 'moment/moment.js'
+import logger from '../logger.js'
 
 export async function processBlockAtHeight(height, electrumClient) {
     let counter = 0;
@@ -15,8 +16,8 @@ export async function processBlockAtHeight(height, electrumClient) {
                 const asm = vout.scriptPubKey.asm
                 const asmParts = asm.split(" ")
                 if (asmParts[0] === 'OP_10' || asmParts[0] === 'OP_NAME_DOI') {
-                    console.log("nameOp found",vout.scriptPubKey.nameOp.name)
-                    console.log("value value",vout.scriptPubKey.nameOp.value)
+                    logger.info(`nameOp found: ${vout.scriptPubKey.nameOp.name}`)
+                    logger.info(`value: ${vout.scriptPubKey.nameOp.value}`)
                     nameOpUtxos.push({
                         txid: txDetails.txid,
                         blocktime: txDetails.blocktime,
@@ -34,7 +35,7 @@ export async function processBlockAtHeight(height, electrumClient) {
             if (ex.message.includes('no tx at position') || ex.message.includes('No such transaction')) {
                 break;
             }
-            console.warn(`Warning: Error processing transaction at height ${height}, position ${counter}:`, ex.message);
+            logger.warn(`Warning: Error processing transaction at height ${height}, position ${counter}: ${ex.message}`);
             await new Promise(resolve => setTimeout(resolve, 500));
             counter++;
         }

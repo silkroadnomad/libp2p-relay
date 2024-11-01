@@ -1,88 +1,87 @@
-import fs from 'fs/promises'
-import path from 'path'
-import { unixfs } from '@helia/unixfs'
+import { IPFSAccessController } from '@orbitdb/core'
 import logger from '../logger.js'
-import { CID } from 'multiformats/cid'
 
-const CID_STORAGE_DIR = path.join(process.cwd(), 'data', 'nameops_cids')
+let db = null
 
 /**
- * Updates the daily name operations file in IPFS.
- * 
- * @async
- * @function updateDailyNameOpsFile
- * @param {Array<Object>} nameOpUtxos - Array of name operation UTXOs to be added.
- * @param {Helia} helia - The Helia IPFS client instance.
- * @param {string} blockDate - The date of the block in YYYY-MM-DD format.
- * @param {number} blockHeight - The height of the block.
- * @returns {Promise<string>} A promise that resolves with the CID of the updated file.
- * @throws {Error} If there's an issue with IPFS operations.
+ * Initialize or get the single OrbitDB instance
  */
-export async function updateDailyNameOpsFile(nameOpUtxos, helia, blockDate, blockHeight) {
-    console.log("updateDailyNameOpsFile", nameOpUtxos.length, helia !== undefined, blockDate, blockHeight)
-    console.log("blockDate", blockDate)
-    const fileName = `nameops-${blockDate}.json`
-    const filePath = path.join(CID_STORAGE_DIR, fileName)
-
-    const heliaFs = unixfs(helia)
-    const encoder = new TextEncoder()
-    const decoder = new TextDecoder()
-
-    let existingNameOps = []
-    try {
-        await fs.mkdir(CID_STORAGE_DIR, { recursive: true })
-        const existingCid = await fs.readFile(filePath, 'utf-8')
-        if (existingCid) {
-            const chunks = []
-            for await (const chunk of heliaFs.cat(CID.parse(existingCid))) {
-                chunks.push(chunk)
-            }
-            const existingContent = decoder.decode(Buffer.concat(chunks))
-            existingNameOps = JSON.parse(existingContent)
-        }
-    } catch (error) {
-        logger.info(`No existing file found or error reading file: ${error.message}`)
+export async function getOrCreateDB(orbitdb) {
+    // If we already have the DB open, return it
+    if (db) {
+        return db
     }
 
-    const allNameOps = [...existingNameOps, ...nameOpUtxos]
-    const uniqueNameOps = Array.from(new Set(allNameOps.map(JSON.stringify))).map(JSON.parse)
+    // Open new DB
+    const dbName = 'nameops'
+    db = await orbitdb.open(dbName, {
+        type: 'documents',
+        create: true,
+        overwrite: false,
+        directory: './orbitdb/nameops',
+        AccessController: IPFSAccessController({ write: ['*'] })
+    })
 
-    const content = JSON.stringify(uniqueNameOps, null, 2)
-
-    const cid = await heliaFs.addBytes(encoder.encode(content))
-    logger.info(`File added to IPFS with CID: ${cid}`,allNameOps)
-
-    try {
-        await fs.writeFile(filePath, cid.toString())
-        logger.info(`CID written to local file: ${filePath}`)
-    } catch (error) {
-        logger.error(`Error writing CID to local file: ${error.message}`)
-    }
-
-    return cid.toString()
+    logger.info(`Opened OrbitDB: ${dbName}`)
+    return db
 }
-export async function getLastNameOps(helia, limit = 100) {
-  const files = await fs.readdir(CID_STORAGE_DIR)
-  files.reverse() // To process the most recent files first
 
-  let nameOps = []
-  const heliaFs = unixfs(helia)
-
-  for (const file of files) {
-    if (nameOps.length >= limit) break
-
-    const cidContent = await fs.readFile(path.join(CID_STORAGE_DIR, file), 'utf-8')
-    const cid = CID.parse(cidContent)
-
-    const chunks = []
-    for await (const chunk of heliaFs.cat(cid)) {
-      chunks.push(chunk)
-    }
-    const content = new TextDecoder().decode(Buffer.concat(chunks))
-    const parsedOps = JSON.parse(content)
+/**
+ * Updates the name operations in OrbitDB.
+ */
+export async function updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDate, blockHeight) {
+    logger.info("updateDailyNameOpsFile", nameOpUtxos.length, blockDate, blockHeight)
     
-    nameOps = [...nameOps, ...parsedOps].slice(0, limit)
-  }
+    try {
+        const db = await getOrCreateDB(orbitdb)
+        const docId = `nameops-${blockDate}`
+        
+        const existingDoc = await db.get(docId)
 
-  return nameOps
+        const existingNameOps = existingDoc?.value?.nameOps || []
+        logger.info("existingNameOps", existingNameOps)
+
+        const allNameOps = [...existingNameOps, ...nameOpUtxos]
+        const uniqueNameOps = Array.from(new Set(allNameOps.map(JSON.stringify))).map(JSON.parse)
+
+        await db.put({
+            _id: docId,
+            nameOps: uniqueNameOps,
+            blockHeight,
+            blockDate
+        })
+
+        logger.info(`Document updated in OrbitDB: ${docId}`,uniqueNameOps)
+        return docId
+
+    } catch (error) {
+        logger.error(`Error updating OrbitDB: ${error.message}`)
+        throw error
+    }
+}
+
+export async function getLastNameOps(orbitdb, limit = 100) {
+    try {
+        const db = await getOrCreateDB(orbitdb)
+        const allDocs = await db.all()
+        
+        // Sort documents by date (newest first)
+        const sortedDocs = allDocs.sort((a, b) => b.value.blockDate.localeCompare(a.value.blockDate))
+        
+        // Collect nameOps until we reach the limit
+        let nameOps = []
+        for (const doc of sortedDocs) {
+            nameOps = [...nameOps, ...doc.value.nameOps]
+            if (nameOps.length >= limit) {
+                nameOps = nameOps.slice(0, limit)
+                break
+            }
+        }
+
+        return nameOps
+
+    } catch (error) {
+        logger.error(`Error getting nameOps from OrbitDB: ${error.message}`)
+        throw error
+    }
 }
