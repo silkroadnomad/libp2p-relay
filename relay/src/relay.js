@@ -90,13 +90,34 @@ async function createNode () {
 			maxIncomingPendingConnections: 100, // Max pending incoming connection requests
 			maxOutgoingPendingConnections: 100, // Max pending outgoing connection requests
 			pollInterval: 2000,   // How often to poll for connection updates (ms)
+			maxDialTimeout: 30000, // 30 seconds
+			inboundUpgradeTimeout: 30000,
 		},
 		transports: [
 			tcp(),
-			//webTransport(), /* webtransport does not allow listening to webtransport https://github.com/libp2p/js-libp2p/blob/c5bbb2596273d2503e1996169bab2411546fe674/packages/transport-webtransport/README.md?plain=1#L31C1-L33C197*/
-			webRTCDirect(),
-			webRTC(),
-			circuitRelayTransport({ discoverRelays: 1 }) ,   
+			webRTCDirect({
+				rtcConfiguration: {
+					iceServers: [
+						{ urls: ['stun:stun.l.google.com:19302'] },
+						{ urls: ['stun:global.stun.twilio.com:3478'] }
+					],
+					iceTransportPolicy: 'all',
+					rtcpMuxPolicy: 'require'
+				},
+				maxStreamWindowSize: 512 * 1024
+			}),
+			webRTC({
+				rtcConfiguration: {
+					iceServers: [
+						{ urls: ['stun:stun.l.google.com:19302'] },
+						{ urls: ['stun:global.stun.twilio.com:3478'] }
+					],
+					iceTransportPolicy: 'all',
+					rtcpMuxPolicy: 'require'
+				},
+				maxStreamWindowSize: 512 * 1024
+			}),
+			circuitRelayTransport({ discoverRelays: 1 }),
 			webSockets({
 				filter: filters.all,
 				listener: (socket) => {
@@ -130,6 +151,10 @@ async function createNode () {
 					bootDelay: 15 * 60 * 1000 // how long to wait after startup before re-advertising
 				}
 			})
+		},
+		// Add error handling for connection events
+		connectionGater: {
+			denyDialMultiaddr: async () => false,
 		}
 	})
 
@@ -243,6 +268,10 @@ helia.libp2p.services.pubsub.addEventListener('gossipsub:message', (evt) => {
 	logger.info(`Outgoing pubsub message to ${from} on topic ${topic}`, { message: new TextDecoder().decode(data) })
 })
 
+// Add error handling for WebRTC connections
+helia.libp2p.addEventListener('connection:error', (evt) => {
+	logger.warn(`Connection error: ${evt.detail.error.message}`)
+})
 
 async function retryFailedCIDsWithAttempts(helia, maxAttempts = 3, timeWindow = 5000) {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
