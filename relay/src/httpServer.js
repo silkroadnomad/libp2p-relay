@@ -75,29 +75,33 @@ export function createHttpServer(helia, orbitdb) {
         } else if (req.method === 'GET' && parsedUrl.pathname === '/duplicate-nameops') {
             try {
                 const db = await getOrCreateDB(orbitdb)
-                const allNameOps = await db.all()
+                const allDocs = await db.all()
                 
                 // Create a map to track duplicates
                 const nameOpsMap = new Map()
                 const duplicates = []
 
-                // Find duplicates by name
-                allNameOps.forEach(nameOp => {
-                    const key = nameOp.value.name
-                    if (!nameOpsMap.has(key)) {
-                        nameOpsMap.set(key, [nameOp])
-                    } else {
-                        nameOpsMap.get(key).push(nameOp)
-                    }
+                // Flatten all nameOps from all documents and track duplicates
+                allDocs.forEach(doc => {
+                    const nameOps = doc.value.nameOps || []
+                    nameOps.forEach(nameOp => {
+                        const key = `${nameOp.nameId}-${nameOp.nameValue}` // Unique key combination
+                        if (!nameOpsMap.has(key)) {
+                            nameOpsMap.set(key, [nameOp])
+                        } else {
+                            nameOpsMap.get(key).push(nameOp)
+                        }
+                    })
                 })
 
-                // Filter only the entries with duplicates
-                nameOpsMap.forEach((ops, name) => {
+                // Filter only the entries with actual duplicates
+                nameOpsMap.forEach((ops, key) => {
                     if (ops.length > 1) {
                         duplicates.push({
-                            name,
+                            nameId: ops[0].nameId,
+                            nameValue: ops[0].nameValue,
                             count: ops.length,
-                            operations: ops
+                            operations: ops.sort((a, b) => b.blocktime - a.blocktime) // Sort by most recent first
                         })
                     }
                 })
