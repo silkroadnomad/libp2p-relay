@@ -61,6 +61,48 @@ export function createHttpServer(helia, orbitdb) {
                     message: error.message
                 }))
             }
+        } else if (req.method === 'GET' && parsedUrl.pathname === '/duplicate-nameops') {
+            try {
+                const db = await getOrCreateDB(orbitdb)
+                const allNameOps = await db.all()
+                
+                // Create a map to track duplicates
+                const nameOpsMap = new Map()
+                const duplicates = []
+
+                // Find duplicates by name
+                allNameOps.forEach(nameOp => {
+                    const key = nameOp.value.name
+                    if (!nameOpsMap.has(key)) {
+                        nameOpsMap.set(key, [nameOp])
+                    } else {
+                        nameOpsMap.get(key).push(nameOp)
+                    }
+                })
+
+                // Filter only the entries with duplicates
+                nameOpsMap.forEach((ops, name) => {
+                    if (ops.length > 1) {
+                        duplicates.push({
+                            name,
+                            count: ops.length,
+                            operations: ops
+                        })
+                    }
+                })
+
+                res.writeHead(200, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({
+                    totalDuplicates: duplicates.length,
+                    duplicates
+                }, null, 2))
+            } catch (error) {
+                res.writeHead(500, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({
+                    error: 'Failed to retrieve duplicate nameOps',
+                    message: error.message
+                }))
+            }
         } else if (req.method === 'GET' && parsedUrl.pathname === '/pinned-cids') {
             try {
                 const pinnedCids = []
