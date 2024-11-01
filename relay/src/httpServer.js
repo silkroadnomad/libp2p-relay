@@ -5,6 +5,7 @@ import { CID } from 'multiformats/cid'
 import { base64 } from "multiformats/bases/base64"
 import { unixfs } from "@helia/unixfs"
 import { getOrCreateDB } from './pinner/nameOpsFileManager.js'
+import { getScanningState } from './pinner/scanningStateManager.js'
 
 async function getNameOpCount(orbitdb) {
     try {
@@ -27,11 +28,13 @@ export function createHttpServer(helia, orbitdb) {
             
             const peerDetails = await Promise.all(connectedPeers.map(async (peerId) => {
                 const connections = helia.libp2p.getConnections(peerId)
+                const scanningState = await getScanningState(orbitdb)
                 return connections.map(connection => ({
                     peerId: peerId.toString(),
                     address: connection.remoteAddr.toString(),
                     direction: connection.direction,
-                    status: connection.status
+                    status: connection.status,
+                    scanningState: scanningState?.value || null
                 }))
             }))
 
