@@ -35,7 +35,8 @@ What will it do?
 2. If our node is not yet stored on blockchain and a private key is inside .env it should send a transaction to a blockchain
 
 # Adaptation of this relay
-- [ ]nameop_cids and failed_cids should go into a browser based db (e.g. level db) when in browser and also work in nodejs, so we can use the scanning functions in every peer (e.g. browser and mobile app)
+- [ ] install on a RaspberryPI
+- [x] nameop_cids and failed_cids should go into a OrbitDB. So we can use the scanning functions also in every peer (e.g. browser and mobile app)
 - [ ] tipWatcher:  when every a new block comes in the scan should be resarted. (Remark: src/pinner/tipWatcher already implemented but functionality not reviewed nor untestet)
 - [x] when a scan is discovering a nameOp it should write it into data/failed_cids.json
   - [ ] write a test 
