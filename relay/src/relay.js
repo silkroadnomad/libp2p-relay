@@ -164,6 +164,14 @@ async function createNode () {
 		libp2p,
 		datastore,
 		blockstore,
+		// Configure GC options
+		config: {
+			gc: {
+				enabled: true,          // Enable automatic GC
+				interval: 1000 * 60 * 60, // Run GC every hour
+				gracePeriod: '48h',     // Keep blocks for at least 48 hours after last access
+			}
+		}
 	})
 
 	// Create OrbitDB instance
@@ -197,27 +205,17 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
         logger.info(`Received pubsub message from ${from} on topic ${topic}`)
 
         if(message.startsWith("NEW-CID")){
-            const cid  = message.substring(8)
+            const cid = message.substring(8)
             const addingMsg = "ADDING-CID:"+cid
             console.log("publishing query in ipfs:", addingMsg)
             helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addingMsg))
             console.log("querying published")
 
-            for await (const buf of fsHelia.cat(cid)) { console. info(buf) }
+            // Just verify we can retrieve the content
+            for await (const buf of fsHelia.cat(cid)) { console.info(buf) }
             const addedMsg = "ADDED-CID:"+cid
             console.log("publishing", addedMsg)
             helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addedMsg))
-
-            const pinCid = CID.parse(cid)
-            console.log('publishing pinning ', pinCid)
-            helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNING-CID:"+cid))
-            const pin = await helia.pins.add(pinCid, {
-                onProgress: (evt) => console.log('pin event', evt)
-            });
-            console.log("pinning done - publishing pinning",pinCid)
-            helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNED-CID:"+cid))
-            console.log("pinning published")
-
         } else if (message.startsWith("LIST_")) {
             console.log("Received LIST request:");
             const dateString = message.substring(5); // Extract the date part

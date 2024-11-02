@@ -16,6 +16,9 @@ let helia
 let tipWatcher
 let isScanning = false
 
+// Add this constant at the top of the file
+const CONTENT_TOPIC = '/doichain/nft/1.0.0'
+
 export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb) {
     logger.info("scanBlockchainForNameOps")
     helia = helia
@@ -206,7 +209,11 @@ async function getCidFromStorage(formattedDate) {
 async function pinIpfsContent(helia, orbitdb, nameId, ipfsUrl) {
     const cid = ipfsUrl.replace('ipfs://', '')
     try {
-        logger.info(`Attempting to retrieve IPFS content with CID: ${cid}`);
+        logger.info(`Attempting to retrieve IPFS metadata content with CID: ${cid}`);
+        
+        // Notify network that we're starting to pin
+        helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNING-CID:" + cid))
+        
         const fs = unixfs(helia)
         
         // Try to retrieve the content
@@ -216,12 +223,14 @@ async function pinIpfsContent(helia, orbitdb, nameId, ipfsUrl) {
         }
         
         // If we've reached here, content retrieval was successful
-        logger.info(`Successfully retrieved IPFS content: ${cid}`);
+        logger.info(`Successfully retrieved IPFS metadata content: ${cid}`);
 
         // Now we can pin the content
-        logger.info(`Pinning IPFS content with CID: ${cid}`);
+        logger.info(`Pinning IPFS metadata content with CID: ${cid}`);
         await helia.pins.add(CID.parse(cid));
-        logger.info(`Successfully pinned IPFS content: ${cid}`);
+        logger.info(`Successfully pinned IPFS metadata content: ${cid}`);
+        helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNED-CID:" + cid))
+
         try {
             const metadata = JSON.parse(content);
             logger.info(`Retrieved metadata for CID: ${cid}`);
@@ -258,6 +267,7 @@ async function pinIpfsContent(helia, orbitdb, nameId, ipfsUrl) {
                     logger.info(`Pinning image with CID: ${imageCid}`);
                     await helia.pin.add(CID.parse(imageCid));
                     logger.info(`Successfully pinned image: ${imageCid}`);
+                    helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNED-CID:" + imageCid))
                 } catch (imageError) {
                     logger.error(`Failed to retrieve or pin image: ${imageCid} for nameId: ${nameId}`, { error: imageError.message, nameId });
                     await addFailedCID({ cid: imageCid, type: 'image', parentCid: cid, nameId }, orbitdb);
@@ -270,6 +280,8 @@ async function pinIpfsContent(helia, orbitdb, nameId, ipfsUrl) {
             throw metadataError
         }
     } catch (error) {
+        // Optionally notify about failed pinning
+        helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("FAILED-PIN:" + cid))
         logger.error(`Error retrieving or processing IPFS content: ${cid} for nameId: ${nameId}`, { error: error.message, nameId });
         await addFailedCID({ cid, type: 'retrieval_or_pinning', nameId }, orbitdb);
         throw error

@@ -35,6 +35,7 @@ What will it do?
 2. If our node is not yet stored on blockchain and a private key is inside .env it should send a transaction to a blockchain
 
 # Adaptation of this relay
+- [x] pin only when nameOps arrive and inform network by pubusb  
 - [ ] install on a RaspberryPI
 - [x] nameop_cids and failed_cids should go into a OrbitDB. So we can use the scanning functions also in every peer (e.g. browser and mobile app)
 - [ ] tipWatcher:  when every a new block comes in the scan should be resarted. (Remark: src/pinner/tipWatcher already implemented but functionality not reviewed nor untestet)
@@ -47,9 +48,9 @@ What will it do?
 - [x] if a name-ops is being found, it needs to be investigated 
   - [x] create a file which contains all name-ops of today an ipns name-ops (with the today date e.g. 2024-10-09) and references the files cid
   - [x] everytime a new name-ops is found this file is being added again and the new resulting cid updated to the ipns name-ops
-  - [ ] if name-op contains an ipfs:// url the CID needs to be gathered from the ipfs node (or the network)
-    - [ ] if its available marked available? 
-    - [ ] or if its not available marked as unavailable
+  - [x] if name-op contains an ipfs:// url the CID needs to be gathered from the ipfs node (or the network)
+    - [x] if its available wie pin it  
+    - [x] or if its not we store the cid in failed-cids 
 - [x] every browser can call LIST-DATE (e.g. LIST-20241014) 
 - [x] every relay who has the name_ops of today is publishing it (not sure if that is efficient enough)
 - [ ] every browser should also index the blockchain for name_ops (like the relay does) and answer for requests
