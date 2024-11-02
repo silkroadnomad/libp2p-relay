@@ -6,6 +6,7 @@ import { base64 } from "multiformats/bases/base64"
 import { unixfs } from "@helia/unixfs"
 import { getOrCreateDB } from './pinner/nameOpsFileManager.js'
 import { getScanningState } from './pinner/scanningStateManager.js'
+import os from 'os'
 
 /**
  * Retrieves the total count of unique name operations across all documents in OrbitDB
@@ -79,6 +80,12 @@ export function createHttpServer(helia, orbitdb) {
             const connectedPeers = helia.libp2p.getPeers()
             const nameOpCount = await getNameOpCount(orbitdb)
             
+            // Get memory information
+            const totalMemory = os.totalmem()
+            const freeMemory = os.freemem()
+            const usedMemory = totalMemory - freeMemory
+            const processMemory = process.memoryUsage()
+
             const peerDetails = await Promise.all(connectedPeers.map(async (peerId) => {
                 const connections = helia.libp2p.getConnections(peerId)
                 return connections.map(connection => ({
@@ -96,7 +103,17 @@ export function createHttpServer(helia, orbitdb) {
                 connectedPeersCount: connectedPeers.length,
                 nameOpCount,
                 peers: flatPeerDetails,
-                scanningState: scanningState?.value || null         
+                scanningState: scanningState?.value || null,
+                memory: {
+                    total: Math.round(totalMemory / 1024 / 1024),    // MB
+                    free: Math.round(freeMemory / 1024 / 1024),      // MB
+                    used: Math.round(usedMemory / 1024 / 1024),      // MB
+                    process: {
+                        heapUsed: Math.round(processMemory.heapUsed / 1024 / 1024),      // MB
+                        heapTotal: Math.round(processMemory.heapTotal / 1024 / 1024),      // MB
+                        rss: Math.round(processMemory.rss / 1024 / 1024),      // MB
+                    }
+                }
             }, null, 2))
         } else if (req.method === 'GET' && parsedUrl.pathname === '/failed-cids') {
             try {
