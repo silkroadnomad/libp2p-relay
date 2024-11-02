@@ -3,9 +3,10 @@
 	"version": "0.1.1",
 	"private": true,
 	"scripts": {
-		"start": "node src/relay.js",
+		"start:no-restart": "node src/relay.js",
+		"start": "node src/start-relay.js",
 		"start:no-scan": "node src/relay.js --disable-scanning",
-		"start:generate-keypair": "node src/relay.js --generate-keypair",
+		"generate-keypair": "node src/relay.js --generate-keypair",
 		"test": "npx mocha 'tests/**/*.js'"
 	},
 	"type": "module",
