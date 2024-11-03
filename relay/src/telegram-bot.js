@@ -31,7 +31,7 @@ export class TelegramBotService {
                     timeout: 30
                 },
                 interval: 5000,
-                autoStart: false
+                autoStart: true
             }
         });
 
