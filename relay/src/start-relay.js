@@ -4,8 +4,15 @@ import { dirname, resolve } from 'path';
 import logger from './logger.js';
 import os from 'os';
 import dotenv from 'dotenv';
-import fetch from 'node-fetch';
-import TelegramBot from 'node-telegram-bot-api';
+import telegramBot from './telegram-bot.js';
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
 
 // Initialize dotenv
 dotenv.config();
@@ -13,43 +20,21 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const DEFAULT_MAX_RESTARTS = 5;
-const MAX_RESTARTS = Math.min(
-    parseInt(process.env.MAX_RESTARTS || DEFAULT_MAX_RESTARTS, 10),
-    10  // Hard upper limit
+// Make these global so telegram bot can access them
+global.DEFAULT_MAX_RESTARTS = 5;
+global.MAX_RESTARTS = Math.min(
+    parseInt(process.env.MAX_RESTARTS || global.DEFAULT_MAX_RESTARTS, 10),
+    10
 );
+global.restartCount = 0;
 
-if (isNaN(MAX_RESTARTS)) {
-    logger.error('Invalid MAX_RESTARTS value. Using default:', DEFAULT_MAX_RESTARTS);
-    MAX_RESTARTS = DEFAULT_MAX_RESTARTS;
+if (isNaN(global.MAX_RESTARTS)) {
+    logger.error('Invalid MAX_RESTARTS value. Using default:', global.DEFAULT_MAX_RESTARTS);
+    global.MAX_RESTARTS = global.DEFAULT_MAX_RESTARTS;
 }
 
-const RESTART_DELAY = 5000; // 5 seconds
-let restartCount = 0;
+const RESTART_DELAY = 5000;
 let lastCrashTime = 0;
-
-// Initialize the bot with connection logging
-const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
-
-// Add connection status logging
-bot.getMe().then((botInfo) => {
-    logger.info('Telegram bot connected successfully:', {
-        username: botInfo.username,
-        firstName: botInfo.first_name,
-        id: botInfo.id
-    });
-}).catch((error) => {
-    logger.error('Failed to connect Telegram bot:', error.message);
-});
-
-// Add polling start logging
-bot.on('polling_error', (error) => {
-    logger.error('Telegram polling error:', error);
-});
-
-function formatBytes(bytes) {
-    return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
-}
 
 function logSystemMemory() {
     const totalMemory = os.totalmem();
@@ -84,7 +69,7 @@ async function sendTelegramMessage(message) {
     }
 
     try {
-        await bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
+        await telegramBot.sendMessage(chatId, message, { parse_mode: 'HTML' });
     } catch (error) {
         logger.error('Failed to send Telegram notification:', error.message);
     }
@@ -133,32 +118,32 @@ function startRelay() {
             logProcessMemory('Wrapper');
             
             if (currentTime - lastCrashTime > 3600000) {
-                restartCount = 0;
+                global.restartCount = 0;
             }
             
-            if (restartCount < MAX_RESTARTS) {
+            if (global.restartCount < global.MAX_RESTARTS) {
                 const message = `⚠️ Relay process crashed and is restarting...\n` +
-                    `Attempt: ${restartCount + 1}/${MAX_RESTARTS}\n` +
+                    `Attempt: ${global.restartCount + 1}/${global.MAX_RESTARTS}\n` +
                     `Exit Code: ${code}\n` +
                     `Signal: ${signal || 'none'}\n` +
                     `Next restart in: ${RESTART_DELAY/1000} seconds`;
                 
-                sendTelegramMessage(message);
+                await telegramBot.sendMessage(message);
                 
-                logger.info(`Attempting restart in ${RESTART_DELAY/1000} seconds... (Attempt ${restartCount + 1}/${MAX_RESTARTS})`);
+                logger.info(`Attempting restart in ${RESTART_DELAY/1000} seconds... (Attempt ${global.restartCount + 1}/${global.MAX_RESTARTS})`);
                 setTimeout(() => {
-                    restartCount++;
+                    global.restartCount++;
                     lastCrashTime = currentTime;
                     startRelay();
                 }, RESTART_DELAY);
             } else {
-                const message = `🚫 Relay process has crashed ${MAX_RESTARTS} times.\n` +
+                const message = `🚫 Relay process has crashed ${global.MAX_RESTARTS} times.\n` +
                     `Maximum restart attempts reached.\n` +
                     `Manual intervention required!`;
                 
-                sendTelegramMessage(message);
+                await telegramBot.sendMessage(message);
                 
-                logger.error(`Maximum restart attempts (${MAX_RESTARTS}) reached. Please check the logs and restart manually.`);
+                logger.error(`Maximum restart attempts (${global.MAX_RESTARTS}) reached. Please check the logs and restart manually.`);
                 process.exit(1);
             }
         }
@@ -171,69 +156,16 @@ function startRelay() {
     });
 }
 
-// Add message handlers
-bot.onText(/\/status/, async (msg) => {
-    const chatId = msg.chat.id;
-    try {
-        // Gather status information
-        const statusMessage = '🤖 Relay Status:\n' +
-            `Uptime: ${process.uptime().toFixed(0)} seconds\n` +
-            `Restart Count: ${restartCount}/${MAX_RESTARTS}\n\n` +
-            '📊 Memory Usage:';
-            
-        await bot.sendMessage(chatId, statusMessage, { parse_mode: 'HTML' });
-        
-        // Send memory status as a separate message
-        const memoryStatus = [];
-        const used = process.memoryUsage();
-        memoryStatus.push('💾 Process Memory:');
-        memoryStatus.push(`RSS: ${formatBytes(used.rss)}`);
-        memoryStatus.push(`Heap Total: ${formatBytes(used.heapTotal)}`);
-        memoryStatus.push(`Heap Used: ${formatBytes(used.heapUsed)}`);
-        
-        const totalMem = os.totalmem();
-        const freeMem = os.freemem();
-        memoryStatus.push('\n💻 System Memory:');
-        memoryStatus.push(`Total: ${formatBytes(totalMem)}`);
-        memoryStatus.push(`Free: ${formatBytes(freeMem)}`);
-        memoryStatus.push(`Used: ${formatBytes(totalMem - freeMem)}`);
-        
-        await bot.sendMessage(chatId, memoryStatus.join('\n'), { parse_mode: 'HTML' });
-    } catch (error) {
-        logger.error('Error sending status:', error);
-        await bot.sendMessage(chatId, '❌ Error getting status information');
-    }
-});
-
-bot.onText(/\/help/, (msg) => {
-    const chatId = msg.chat.id;
-    const helpMessage = 'Available commands:\n' +
-        '/status - Show relay status and memory usage\n' +
-        '/help - Show this help message';
-    
-    bot.sendMessage(chatId, helpMessage);
-});
-
-// Add error handler for bot
-bot.on('error', (error) => {
-    logger.error('Telegram bot error:', error);
-});
-
-// Add polling_error handler
-bot.on('polling_error', (error) => {
-    logger.error('Telegram polling error:', error);
-});
-
-// Update the process termination handlers to also stop the bot
+// Update shutdown handlers
 process.on('SIGINT', async () => {
     logger.info('Received SIGINT. Shutting down...');
-    await bot.stopPolling();
+    await telegramBot.shutdown();
     process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
     logger.info('Received SIGTERM. Shutting down...');
-    await bot.stopPolling();
+    await telegramBot.shutdown();
     process.exit(0);
 });
 
