@@ -35,6 +35,10 @@ What will it do?
 2. If our node is not yet stored on blockchain and a private key is inside .env it should send a transaction to a blockchain
 
 # Adaptation of this relay
+- [x] adding a Telegram bot to send certain messages e.g. status, minted nameOps etc
+- [ ] telegram bot send message when somebody adds / added a file (including name, description, filename, filetype and size)
+- [ ] http status messages should be available on telegram bot 
+- [ ] size of pinned files and not pinned files in http status and telegram bot 
 - [x] pin only when nameOps arrive and inform network by pubusb  
 - [ ] install on a RaspberryPI
 - [x] nameop_cids and failed_cids should go into a OrbitDB. So we can use the scanning functions also in every peer (e.g. browser and mobile app)

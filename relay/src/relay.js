@@ -48,6 +48,7 @@ import { setTimeout } from 'timers/promises'
 
 import { createHttpServer } from './httpServer.js'
 import { createOrbitDB } from '@orbitdb/core'
+import telegramBot from './telegram-bot.js';
 
 export const CONTENT_TOPIC = process.env.CONTENT_TOPIC || "/doichain-nfc/1/message/proto"
 
@@ -211,8 +212,42 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
             helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addingMsg))
             console.log("querying published")
 
-            // Just verify we can retrieve the content
-            for await (const buf of fsHelia.cat(cid)) { console.info(buf) }
+            try {
+                // Get file info
+                let fileContent = '';
+                let fileSize = 0;
+                for await (const buf of fsHelia.cat(cid)) {
+                    fileContent += new TextDecoder().decode(buf);
+                    fileSize += buf.length;
+                }
+
+                // Parse the content to get metadata (assuming JSON format)
+                let metadata;
+                try {
+                    metadata = JSON.parse(fileContent);
+                } catch (e) {
+                    metadata = { name: 'Unknown', description: 'No description available' };
+                }
+
+                // Format file size
+                const formattedSize = formatFileSize(fileSize);
+
+                // Send Telegram notification
+                const telegramMessage = `📄 New File Added to IPFS\n\n` +
+                    `🔗 CID: ${cid}\n` +
+                    `📝 Name: ${metadata.name || 'Unknown'}\n` +
+                    `📋 Description: ${metadata.description || 'No description'}\n` +
+                    `📦 Size: ${formattedSize}\n` +
+                    `🕒 Added: ${new Date().toISOString()}\n` +
+                    `👤 Added by: ${from}`;
+
+                await telegramBot.sendMessage(telegramMessage);
+
+            } catch (error) {
+                logger.error('Error processing file or sending notification:', error);
+                await telegramBot.sendMessage(`⚠️ Error processing new file with CID: ${cid}\nError: ${error.message}`);
+            }
+
             const addedMsg = "ADDED-CID:"+cid
             console.log("publishing", addedMsg)
             helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addedMsg))
@@ -259,6 +294,15 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
         }
     }
 })
+
+// Helper function to format file size
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
 
 // Add this after creating the libp2p node
 helia.libp2p.services.pubsub.addEventListener('gossipsub:message', (evt) => {
