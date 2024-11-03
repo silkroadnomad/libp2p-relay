@@ -60,22 +60,7 @@ function logProcessMemory(prefix = 'Process') {
     });
 }
 
-async function sendTelegramMessage(message) {
-    const chatId = process.env.TELEGRAM_CHAT_ID;
-    
-    if (!process.env.TELEGRAM_BOT_TOKEN || !chatId) {
-        logger.warn('Telegram configuration missing. Skipping notification.');
-        return;
-    }
-
-    try {
-        await telegramBot.sendMessage(chatId, message, { parse_mode: 'HTML' });
-    } catch (error) {
-        logger.error('Failed to send Telegram notification:', error.message);
-    }
-}
-
-function getLatestCommitInfo() {
+async function senfunction getLatestCommitInfo() {
     try {
         const commitHash = execSync('git rev-parse --short HEAD').toString().trim();
         const commitMessage = execSync('git log -1 --pretty=%B').toString().trim();

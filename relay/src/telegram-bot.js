@@ -7,11 +7,23 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export class TelegramBotService {
+    static instance = null;
+
     constructor() {
+        // Ensure singleton pattern
+        if (TelegramBotService.instance) {
+            console.warn('TelegramBotService instance already exists! Returning existing instance.');
+            return TelegramBotService.instance;
+        }
+
         if (process.env.TELEGRAM_BOT_TOKEN === 'disabled') {
             console.log('Telegram bot is disabled');
+            TelegramBotService.instance = this;
             return;
         }
+
+        this.instanceId = `${process.pid}-${Date.now()}`;
+        console.log(`Initializing new TelegramBotService instance ${this.instanceId}`);
         
         this.bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, {
             polling: {
@@ -25,6 +37,15 @@ export class TelegramBotService {
 
         this.isPolling = false;
         this.setupBot();
+        
+        TelegramBotService.instance = this;
+    }
+
+    static getInstance() {
+        if (!TelegramBotService.instance) {
+            TelegramBotService.instance = new TelegramBotService();
+        }
+        return TelegramBotService.instance;
     }
 
     async checkBotStatus() {
@@ -221,4 +242,5 @@ export class TelegramBotService {
     }
 }
 
-export default new TelegramBotService(); 
+// Export a singleton instance instead of creating a new one each time
+export default TelegramBotService.getInstance(); 
