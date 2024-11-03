@@ -290,7 +290,6 @@ async function pinIpfsContent(helia, orbitdb, nameId, ipfsUrl) {
 
 export async function retryFailedCIDs(helia, orbitdb) {
     const failedCIDs = await getFailedCIDs(orbitdb)
-    console.log("failedCIDs", failedCIDs)
     if (failedCIDs.length === 0) {
         return
     }

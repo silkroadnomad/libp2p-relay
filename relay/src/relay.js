@@ -190,7 +190,7 @@ const { helia, orbitdb } = await createNode()
 logger.info('Helia and OrbitDB are running')
 //when a peer connecs we need to update the peer list
 helia.libp2p.addEventListener('peer:connect', async event => {
-    await retryFailedCIDs(helia, orbitdb)
+    //await retryFailedCIDs(helia, orbitdb)
 })
 const fsHelia = unixfs(helia)
 
@@ -333,7 +333,7 @@ async function retryFailedCIDsWithAttempts(helia, maxAttempts = 3, timeWindow = 
     console.error(`Failed to retry CIDs after ${maxAttempts} attempts`);
 }
 
-await retryFailedCIDsWithAttempts(helia, orbitdb);
+//await retryFailedCIDsWithAttempts(helia, orbitdb);
 
 
 // Parse command line arguments
