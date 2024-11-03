@@ -36,7 +36,15 @@ export class TelegramBotService {
         });
 
         this.isPolling = false;
-        this.setupBot();
+        this.isInitialized = false;
+        this.initializationPromise = null;
+        
+        if (process.env.TELEGRAM_BOT_TOKEN !== 'disabled') {
+            logger.info('Starting Telegram bot initialization...');
+            this.initializationPromise = this.initialize();
+        } else {
+            logger.info('Telegram bot is disabled');
+        }
         
         TelegramBotService.instance = this;
     }
@@ -48,10 +56,115 @@ export class TelegramBotService {
         return TelegramBotService.instance;
     }
 
+    async initialize() {
+        try {
+            logger.info('Attempting to connect to Telegram...');
+            const botInfo = await this.bot.getMe();
+            logger.info('Telegram bot connected successfully:', {
+                username: botInfo.username,
+                firstName: botInfo.first_name,
+                id: botInfo.id
+            });
+            this.isInitialized = true;
+            await this.startPolling();
+        } catch (error) {
+            logger.error('Failed to initialize Telegram bot:', error);
+            throw error;
+        }
+    }
+
+    async waitForInitialization() {
+        if (process.env.TELEGRAM_BOT_TOKEN === 'disabled') return;
+        
+        logger.debug('Waiting for Telegram bot initialization...');
+        if (this.isInitialized) {
+            logger.debug('Telegram bot already initialized');
+            return;
+        }
+        
+        if (this.initializationPromise) {
+            logger.debug('Waiting for initialization promise...');
+            await this.initializationPromise;
+            logger.debug('Initialization promise resolved');
+        }
+    }
+
+    async sendMessage(message) {
+        if (process.env.TELEGRAM_BOT_TOKEN === 'disabled') {
+            logger.debug('Telegram bot disabled, skipping message');
+            return;
+        }
+
+        const chatId = process.env.TELEGRAM_CHAT_ID;
+        if (!chatId) {
+            logger.warn('Telegram chat ID missing. Skipping notification.');
+            return;
+        }
+
+        try {
+            logger.debug('Attempting to send Telegram message...');
+            await this.waitForInitialization();
+            await this.bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
+            logger.debug('Telegram message sent successfully');
+        } catch (error) {
+            logger.error('Failed to send Telegram notification:', error);
+        }
+    }
+
+    async shutdown() {
+        if (this.bot) {
+            this.isPolling = false;
+            await this.bot.stopPolling();
+        }
+    }
+
+    async setupBot() {
+        const status = await this.checkBotStatus();
+       console.log(status);
+        if (status?.isConflicting) {
+            console.error('Another instance is already polling. Waiting 30 seconds before retry...');
+            await new Promise(resolve => setTimeout(resolve, 30000));
+            await this.setupBot();
+            return;
+        }
+
+        if (!status?.canPoll) {
+            console.error(`Cannot start polling: ${status?.error}`);
+            return;
+        }
+
+        await this.startPolling();
+        this.setupErrorHandlers();
+        this.setupCommandHandlers();
+    }
+
+    async startPolling() {
+        if (this.isPolling) return;
+        
+        try {
+            this.isPolling = true;
+            await this.bot.startPolling({ restart: false });
+        } catch (error) {
+            console.error('Failed to start polling:', error);
+            this.isPolling = false;
+        }
+    }
+
+    async restartPolling() {
+        try {
+            await this.bot.stopPolling();
+            this.isPolling = false;
+            console.log('Waiting 5 seconds before restarting polling...');
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            await this.startPolling();
+        } catch (error) {
+            console.error('Failed to restart polling:', error);
+            this.isPolling = false;
+        }
+    }
+
     async checkBotStatus() {
         try {
-            // Try to get updates with minimal timeout
-            // If another instance is polling, this will fail with a conflict error
             const updates = await this.bot.getUpdates({ 
                 limit: 1, 
                 timeout: 1,
@@ -85,98 +198,12 @@ export class TelegramBotService {
         }
     }
 
-    async setupBot() {
-        // Check bot status before starting
-        const status = await this.checkBotStatus();
-        
-        if (status?.isConflicting) {
-            console.error('Another instance is already polling. Waiting 30 seconds before retry...');
-            await new Promise(resolve => setTimeout(resolve, 30000));
-            await this.setupBot(); // Retry setup
-            return;
-        }
-
-        if (!status?.canPoll) {
-            console.error(`Cannot start polling: ${status?.error}`);
-            return;
-        }
-
-        // Start polling if status check passed
-        await this.startPolling();
-
-        this.bot.on('polling_error', async (error) => {
-            if (error.code === 'ETELEGRAM' && error.message.includes('Conflict')) {
-                console.warn('Telegram polling conflict detected, checking status...');
-                const status = await this.checkBotStatus();
-                
-                if (status?.isConflicting) {
-                    console.error('Confirmed: Another bot instance is actively polling');
-                    // Optional: implement a maximum retry count here
-                } else {
-                    console.warn('No active conflict detected, restarting polling in 5 seconds...');
-                    await this.restartPolling();
-                }
-            } else if (error.code === 'ETELEGRAM') {
-                console.error(`Telegram polling error: ${error.code} - ${error.response?.body?.description || error.message}`);
-            } else {
-                console.error(`Telegram polling error: ${error.message}`);
-            }
-        });
-
-        // Connection status logging
-        this.bot.getMe().then((botInfo) => {
-            logger.info('Telegram bot connected successfully:', {
-                username: botInfo.username,
-                firstName: botInfo.first_name,
-                id: botInfo.id
-            });
-        }).catch((error) => {
-            console.error('Failed to connect Telegram bot:', error.message);
-        });
-
-        // Error handlers
-        this.bot.on('error', (error) => {
-            console.error('Telegram bot error:', error.message);
-        });
-
-        // Command handlers
-        this.setupCommandHandlers();
-    }
-
-    async startPolling() {
-        if (this.isPolling) return;
-        
-        try {
-            this.isPolling = true;
-            await this.bot.startPolling({ restart: false });
-        } catch (error) {
-            console.error('Failed to start polling:', error.message);
-            this.isPolling = false;
-        }
-    }
-
-    async restartPolling() {
-        try {
-            await this.bot.stopPolling();
-            this.isPolling = false;
-            // Increase wait time before restart from 1s to 5s
-            console.log('Waiting 5 seconds before restarting polling...');
-            await new Promise(resolve => setTimeout(resolve, 5000));
-            await this.startPolling();
-        } catch (error) {
-            console.error('Failed to restart polling:', error.message);
-            this.isPolling = false;
-        }
-    }
-
-    async shutdown() {
-        if (this.bot) {
-            this.isPolling = false;
-            await this.bot.stopPolling();
-        }
-    }
-
     setupCommandHandlers() {
+        this.setupStatusCommand();
+        this.setupHelpCommand();
+    }
+
+    setupStatusCommand() {
         this.bot.onText(/\/status/, async (msg) => {
             const chatId = msg.chat.id;
             try {
@@ -186,28 +213,15 @@ export class TelegramBotService {
                     '📊 Memory Usage:';
                 
                 await this.bot.sendMessage(chatId, statusMessage, { parse_mode: 'HTML' });
-                
-                const memoryStatus = [];
-                const used = process.memoryUsage();
-                memoryStatus.push('💾 Process Memory:');
-                memoryStatus.push(`RSS: ${this.formatBytes(used.rss)}`);
-                memoryStatus.push(`Heap Total: ${this.formatBytes(used.heapTotal)}`);
-                memoryStatus.push(`Heap Used: ${this.formatBytes(used.heapUsed)}`);
-                
-                const totalMem = os.totalmem();
-                const freeMem = os.freemem();
-                memoryStatus.push('\n💻 System Memory:');
-                memoryStatus.push(`Total: ${this.formatBytes(totalMem)}`);
-                memoryStatus.push(`Free: ${this.formatBytes(freeMem)}`);
-                memoryStatus.push(`Used: ${this.formatBytes(totalMem - freeMem)}`);
-                
-                await this.bot.sendMessage(chatId, memoryStatus.join('\n'), { parse_mode: 'HTML' });
+                await this.sendMemoryStatus(chatId);
             } catch (error) {
                 console.error('Error sending status:', error);
                 await this.bot.sendMessage(chatId, '❌ Error getting status information');
             }
         });
+    }
 
+    setupHelpCommand() {
         this.bot.onText(/\/help/, (msg) => {
             const chatId = msg.chat.id;
             const helpMessage = 'Available commands:\n' +
@@ -218,23 +232,47 @@ export class TelegramBotService {
         });
     }
 
-    async sendMessage(message) {
-        // Skip if bot is disabled or not initialized
-        if (process.env.TELEGRAM_BOT_TOKEN === 'disabled' || !this.bot) {
-            return;
-        }
+    setupErrorHandlers() {
+        this.bot.on('polling_error', async (error) => {
+            console.error('Telegram polling error:', error);
+            if (error.code === 'ETELEGRAM' && error.message.includes('Conflict')) {
+                console.warn('Telegram polling conflict detected, checking status...');
+                const status = await this.checkBotStatus();
+                
+                if (status?.isConflicting) {
+                    console.error('Confirmed: Another bot instance is actively polling');
+                } else {
+                    console.warn('No active conflict detected, restarting polling in 5 seconds...');
+                    await this.restartPolling();
+                }
+            } else {
+                console.error(`Telegram polling error: ${error.code === 'ETELEGRAM' ? 
+                    `${error.code} - ${error.response?.body?.description || error.message}` : 
+                    error.message}`);
+            }
+        });
 
-        const chatId = process.env.TELEGRAM_CHAT_ID;
-        if (!chatId) {
-            console.warn('Telegram chat ID missing. Skipping notification.');
-            return;
-        }
+        this.bot.on('error', (error) => {
+            console.error('Telegram bot error:', error.message);
+        });
+    }
 
-        try {
-            await this.bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
-        } catch (error) {
-            console.error('Failed to send Telegram notification:', error.message);
-        }
+    async sendMemoryStatus(chatId) {
+        const memoryStatus = [];
+        const used = process.memoryUsage();
+        memoryStatus.push('💾 Process Memory:');
+        memoryStatus.push(`RSS: ${this.formatBytes(used.rss)}`);
+        memoryStatus.push(`Heap Total: ${this.formatBytes(used.heapTotal)}`);
+        memoryStatus.push(`Heap Used: ${this.formatBytes(used.heapUsed)}`);
+        
+        const totalMem = os.totalmem();
+        const freeMem = os.freemem();
+        memoryStatus.push('\n💻 System Memory:');
+        memoryStatus.push(`Total: ${this.formatBytes(totalMem)}`);
+        memoryStatus.push(`Free: ${this.formatBytes(freeMem)}`);
+        memoryStatus.push(`Used: ${this.formatBytes(totalMem - freeMem)}`);
+        
+        await this.bot.sendMessage(chatId, memoryStatus.join('\n'), { parse_mode: 'HTML' });
     }
 
     formatBytes(bytes) {
@@ -242,5 +280,4 @@ export class TelegramBotService {
     }
 }
 
-// Export a singleton instance instead of creating a new one each time
 export default TelegramBotService.getInstance(); 

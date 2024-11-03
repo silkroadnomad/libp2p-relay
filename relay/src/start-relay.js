@@ -35,22 +35,30 @@ async function startRelay() {
     logSystemMemory();
     logProcessMemory('Wrapper');
     
-    // Get git commit info
-    const commitInfo = await getLatestCommitInfo();
+    // Get git commit info and prepare startup notification
+    try {
+        await (async () => {
+            const commitInfo = await getLatestCommitInfo();
+            await telegramBot.waitForInitialization();
+            
+            const startupMessage = `🚀 LibP2P Relay Starting...\n` +
+                `System Memory: ${formatBytes(os.totalmem())}\n` +
+                `Max Restarts: ${global.MAX_RESTARTS}\n` +
+                `Node Memory Limit: 4 GB\n` +
+                (commitInfo ? `\n📝 Latest Commit:\n` +
+                    `${commitInfo.message}\n` +
+                    `By: ${commitInfo.author}\n` +
+                    `Hash: ${commitInfo.hash}\n` +
+                    `${commitInfo.date}` : '');
+                    console.log(startupMessage);
+            
+            await telegramBot.sendMessage(startupMessage);
+        })();
+    } catch (error) {
+        logger.error('Failed to send startup notification:', error);
+    }
     
-    // Add startup notification with commit info
-    const startupMessage = `🚀 LibP2P Relay Starting...\n` +
-        `System Memory: ${formatBytes(os.totalmem())}\n` +
-        `Max Restarts: ${global.MAX_RESTARTS}\n` +
-        `Node Memory Limit: 4 GB\n` +
-        (commitInfo ? `\n📝 Latest Commit:\n` +
-            `${commitInfo.message}\n` +
-            `By: ${commitInfo.author}\n` +
-            `Hash: ${commitInfo.hash}\n` +
-            `${commitInfo.date}` : '');
-    
-    telegramBot.sendMessage(startupMessage);
-    
+    // Start the relay process immediately without waiting for Telegram
     const relayPath = resolve(__dirname, 'relay.js');
     logger.info('Starting relay process...');
     
@@ -58,12 +66,11 @@ async function startRelay() {
         '--max-old-space-size=4096',
         '--expose-gc',
         '--optimize-for-size',
-        relayPath
+        relayPath,
+        ...process.argv.slice(2)
     ];
     
-    logger.info('Node.js Memory Configuration:', {
-        maxOldSpaceSize: '4 GB'
-    });
+    logger.info('Starting relay process with args:', nodeArgs);
     
     const relay = spawn('node', nodeArgs, {
         stdio: 'inherit',
@@ -93,26 +100,43 @@ async function startRelay() {
             }
             
             if (global.restartCount < global.MAX_RESTARTS) {
-                const message = `⚠️ Relay process crashed and is restarting...\n` +
-                    `Attempt: ${global.restartCount + 1}/${global.MAX_RESTARTS}\n` +
-                    `Exit Code: ${code}\n` +
-                    `Signal: ${signal || 'none'}\n` +
-                    `Next restart in: ${RESTART_DELAY/1000} seconds`;
+                // Send notification and wait for it
+                try {
+                    await (async () => {
+                        await telegramBot.waitForInitialization();
+                        const message = `⚠️ Relay process crashed and is restarting...\n` +
+                            `Attempt: ${global.restartCount + 1}/${global.MAX_RESTARTS}\n` +
+                            `Exit Code: ${code}\n` +
+                            `Signal: ${signal || 'none'}\n` +
+                            `Next restart in: ${RESTART_DELAY/1000} seconds`;
+                        
+                        await telegramBot.sendMessage(message);
+                    })();
+                } catch (error) {
+                    logger.error('Failed to send crash notification:', error);
+                }
                 
-                await telegramBot.sendMessage(message);
-                
-                logger.info(`Attempting restart in ${RESTART_DELAY/1000} seconds... (Attempt ${global.restartCount + 1}/${global.MAX_RESTARTS})`);
+                // Continue with restart
+                logger.info(`Attempting restart in ${RESTART_DELAY/1000} seconds...`);
                 setTimeout(() => {
                     global.restartCount++;
                     lastCrashTime = currentTime;
                     startRelay();
                 }, RESTART_DELAY);
             } else {
-                const message = `🚫 Relay process has crashed ${global.MAX_RESTARTS} times.\n` +
-                    `Maximum restart attempts reached.\n` +
-                    `Manual intervention required!`;
-                
-                await telegramBot.sendMessage(message);
+                // Send final error notification and wait for it
+                try {
+                    await (async () => {
+                        await telegramBot.waitForInitialization();
+                        const message = `🚫 Relay process has crashed ${global.MAX_RESTARTS} times.\n` +
+                            `Maximum restart attempts reached.\n` +
+                            `Manual intervention required!`;
+                        
+                        await telegramBot.sendMessage(message);
+                    })();
+                } catch (error) {
+                    logger.error('Failed to send final error notification:', error);
+                }
                 
                 logger.error(`Maximum restart attempts (${global.MAX_RESTARTS}) reached. Please check the logs and restart manually.`);
                 process.exit(1);

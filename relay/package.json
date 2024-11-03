@@ -5,7 +5,7 @@
 	"scripts": {
 		"start:no-restart": "node src/relay.js",
 		"start": "node src/start-relay.js",
-		"start:no-scan": "node src/relay.js --disable-scanning",
+		"start:no-scan": "node src/start-relay.js --disable-scanning",
 		"generate-keypair": "node src/relay.js --generate-keypair",
 		"test": "npx mocha 'tests/**/*.js'"
 	},
