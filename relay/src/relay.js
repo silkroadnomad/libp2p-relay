@@ -163,8 +163,20 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
                 // Format file size
                 const formattedSize = formatFileSize(fileSize);
 
-                // Send Telegram notification
-                const telegramMessage = `📄 New File Added to IPFS\n\n` +
+                // Determine file type from content or metadata
+                const isImage = fileContent.startsWith('\xFF\xD8') || // JPEG
+                              fileContent.startsWith('\x89PNG') ||    // PNG
+                              fileContent.startsWith('GIF8') ||       // GIF
+                              metadata.type === 'image';              // Check metadata
+                
+                const isText = !isImage && (
+                    metadata.type === 'text' || 
+                    metadata.type === 'json' ||
+                    (fileContent.length < 5000 && /^[\x00-\x7F]*$/.test(fileContent)) // Basic ASCII check
+                );
+
+                // Prepare telegram message
+                let telegramMessage = `📄 New File Added to IPFS\n\n` +
                     `🔗 CID: ${cid}\n` +
                     `📝 Name: ${metadata.name || 'Unknown'}\n` +
                     `📋 Description: ${metadata.description || 'No description'}\n` +
@@ -172,7 +184,30 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
                     `🕒 Added: ${new Date().toISOString()}\n` +
                     `👤 Added by: ${from}`;
 
-                await telegramBot.sendMessage(telegramMessage);
+                if (isText) {
+                    // For text files, append content (truncate if too long)
+                    const maxLength = 1000; // Telegram has message length limits
+                    let contentPreview = fileContent;
+                    if (contentPreview.length > maxLength) {
+                        contentPreview = contentPreview.substring(0, maxLength) + '...(truncated)';
+                    }
+                    telegramMessage += `\n\n📝 Content:\n\`\`\`\n${contentPreview}\n\`\`\``;
+                    await telegramBot.sendMessage(telegramMessage, { parse_mode: 'Markdown' });
+                } else if (isImage) {
+                    // For images, first send the image, then send the info
+                    try {
+                        // Convert buffer to format suitable for Telegram
+                        const imageBuffer = Buffer.from(fileContent);
+                        await telegramBot.sendPhoto({ source: imageBuffer }, { caption: telegramMessage });
+                    } catch (error) {
+                        logger.error('Error sending image to Telegram:', error);
+                        // Fallback to sending just the message if image send fails
+                        await telegramBot.sendMessage(telegramMessage);
+                    }
+                } else {
+                    // For other file types, just send the message
+                    await telegramBot.sendMessage(telegramMessage);
+                }
 
             } catch (error) {
                 logger.error('Error processing file or sending notification:', error);
