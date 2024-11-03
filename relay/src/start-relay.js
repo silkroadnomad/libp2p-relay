@@ -14,78 +14,29 @@ function formatBytes(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-// Initialize dotenv
+// Initialize dotenv and dirname setup
 dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Make these global so telegram bot can access them
+// Global configurations
 global.DEFAULT_MAX_RESTARTS = 5;
 global.MAX_RESTARTS = Math.min(
     parseInt(process.env.MAX_RESTARTS || global.DEFAULT_MAX_RESTARTS, 10),
     10
 );
 global.restartCount = 0;
-
-if (isNaN(global.MAX_RESTARTS)) {
-    logger.error('Invalid MAX_RESTARTS value. Using default:', global.DEFAULT_MAX_RESTARTS);
-    global.MAX_RESTARTS = global.DEFAULT_MAX_RESTARTS;
-}
-
 const RESTART_DELAY = 5000;
 let lastCrashTime = 0;
 
-function logSystemMemory() {
-    const totalMemory = os.totalmem();
-    const freeMemory = os.freemem();
-    const usedMemory = totalMemory - freeMemory;
-    
-    logger.info('System Memory Status:', {
-        total: formatBytes(totalMemory),
-        used: formatBytes(usedMemory),
-        free: formatBytes(freeMemory),
-        percentUsed: ((usedMemory / totalMemory) * 100).toFixed(1) + '%'
-    });
-}
-
-function logProcessMemory(prefix = 'Process') {
-    const used = process.memoryUsage();
-    logger.info(`${prefix} Memory Usage:`, {
-        rss: formatBytes(used.rss),         // Resident Set Size - total memory allocated
-        heapTotal: formatBytes(used.heapTotal), // V8's memory usage
-        heapUsed: formatBytes(used.heapUsed),   // V8's memory usage
-        external: formatBytes(used.external),    // C++ objects bound to JavaScript
-        arrayBuffers: formatBytes(used.arrayBuffers || 0) // ArrayBuffers and SharedArrayBuffers
-    });
-}
-
-async function getLatestCommitInfo() {
-    try {
-        const commitHash = execSync('git rev-parse --short HEAD').toString().trim();
-        const commitMessage = execSync('git log -1 --pretty=%B').toString().trim();
-        const commitAuthor = execSync('git log -1 --pretty=%an').toString().trim();
-        const commitDate = execSync('git log -1 --pretty=%cd --date=relative').toString().trim();
-        
-        return {
-            hash: commitHash,
-            message: commitMessage,
-            author: commitAuthor,
-            date: commitDate
-        };
-    } catch (error) {
-        logger.warn('Failed to get git commit info:', error.message);
-        return null;
-    }
-}
-
-function startRelay() {
+// 1. Main relay function
+async function startRelay() {
     logger.info('=== Initial Memory Status ===');
     logSystemMemory();
     logProcessMemory('Wrapper');
     
     // Get git commit info
-    const commitInfo = getLatestCommitInfo();
+    const commitInfo = await getLatestCommitInfo();
     
     // Add startup notification with commit info
     const startupMessage = `🚀 LibP2P Relay Starting...\n` +
@@ -176,7 +127,52 @@ function startRelay() {
     });
 }
 
-// Update shutdown handlers
+// 2. Git commit info function
+async function getLatestCommitInfo() {
+    try {
+        const commitHash = execSync('git rev-parse --short HEAD').toString().trim();
+        const commitMessage = execSync('git log -1 --pretty=%B').toString().trim();
+        const commitAuthor = execSync('git log -1 --pretty=%an').toString().trim();
+        const commitDate = execSync('git log -1 --pretty=%cd --date=relative').toString().trim();
+        
+        return {
+            hash: commitHash,
+            message: commitMessage,
+            author: commitAuthor,
+            date: commitDate
+        };
+    } catch (error) {
+        logger.warn('Failed to get git commit info:', error.message);
+        return null;
+    }
+}
+
+// 3. Memory logging functions
+function logSystemMemory() {
+    const totalMemory = os.totalmem();
+    const freeMemory = os.freemem();
+    const usedMemory = totalMemory - freeMemory;
+    
+    logger.info('System Memory Status:', {
+        total: formatBytes(totalMemory),
+        used: formatBytes(usedMemory),
+        free: formatBytes(freeMemory),
+        percentUsed: ((usedMemory / totalMemory) * 100).toFixed(1) + '%'
+    });
+}
+
+function logProcessMemory(prefix = 'Process') {
+    const used = process.memoryUsage();
+    logger.info(`${prefix} Memory Usage:`, {
+        rss: formatBytes(used.rss),         // Resident Set Size - total memory allocated
+        heapTotal: formatBytes(used.heapTotal), // V8's memory usage
+        heapUsed: formatBytes(used.heapUsed),   // V8's memory usage
+        external: formatBytes(used.external),    // C++ objects bound to JavaScript
+        arrayBuffers: formatBytes(used.arrayBuffers || 0) // ArrayBuffers and SharedArrayBuffers
+    });
+}
+
+// 4. Event handlers
 process.on('SIGINT', async () => {
     logger.info('Received SIGINT. Shutting down...');
     await telegramBot.shutdown();
