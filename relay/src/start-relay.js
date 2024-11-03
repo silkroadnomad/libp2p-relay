@@ -49,7 +49,8 @@ async function startRelay() {
                     `${commitInfo.message}\n` +
                     `By: ${commitInfo.author}\n` +
                     `Hash: ${commitInfo.hash}\n` +
-                    `${commitInfo.date}` : '');
+                    `${commitInfo.date}\n` +
+                    `🔗 ${commitInfo.url}` : '');
                     console.log(startupMessage);
             
             await telegramBot.sendMessage(startupMessage);
@@ -159,11 +160,19 @@ async function getLatestCommitInfo() {
         const commitAuthor = execSync('git log -1 --pretty=%an').toString().trim();
         const commitDate = execSync('git log -1 --pretty=%cd --date=relative').toString().trim();
         
+        // Get the repository URL
+        const remoteUrl = execSync('git config --get remote.origin.url').toString().trim()
+            .replace(/\.git$/, '') // Remove .git suffix if present
+            .replace(/^git@github\.com:/, 'https://github.com/'); // Convert SSH to HTTPS URL
+        
+        const commitUrl = `${remoteUrl}/commit/${commitHash}`;
+        
         return {
             hash: commitHash,
             message: commitMessage,
             author: commitAuthor,
-            date: commitDate
+            date: commitDate,
+            url: commitUrl
         };
     } catch (error) {
         logger.warn('Failed to get git commit info:', error.message);
