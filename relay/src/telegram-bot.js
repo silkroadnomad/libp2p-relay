@@ -66,7 +66,7 @@ export class TelegramBotService {
                 id: botInfo.id
             });
             this.isInitialized = true;
-            await this.startPolling();
+            await this.setupBot();
         } catch (error) {
             logger.error('Failed to initialize Telegram bot:', error);
             throw error;
@@ -119,59 +119,82 @@ export class TelegramBotService {
     }
 
     async setupBot() {
-        const status = await this.checkBotStatus();
-       console.log(status);
-        if (status?.isConflicting) {
-            console.error('Another instance is already polling. Waiting 30 seconds before retry...');
-            await new Promise(resolve => setTimeout(resolve, 30000));
-            await this.setupBot();
-            return;
-        }
-
-        if (!status?.canPoll) {
-            console.error(`Cannot start polling: ${status?.error}`);
-            return;
-        }
-
-        await this.startPolling();
-        this.setupErrorHandlers();
-        this.setupCommandHandlers();
-    }
-
-    async startPolling() {
-        if (this.isPolling) return;
-        
         try {
+            // First, stop any existing polling
+            if (this.isPolling) {
+                await this.bot.stopPolling();
+                this.isPolling = false;
+                await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+            }
+
+            // Check for conflicts
+            const status = await this.checkBotStatus();
+            if (status?.isConflicting) {
+                logger.warn('Another instance is already polling. Waiting 30 seconds before retry...');
+                await new Promise(resolve => setTimeout(resolve, 30000));
+                return this.setupBot(); // Retry setup
+            }
+
+            if (!status?.canPoll) {
+                logger.error(`Cannot start polling: ${status?.error}`);
+                return;
+            }
+
+            // Clear webhook to ensure clean polling
+            await this.bot.deleteWebHook();
+            
+            // Start polling with specific options
             this.isPolling = true;
-            await this.bot.startPolling({ restart: false });
+            await this.bot.startPolling({
+                restart: false,
+                polling: {
+                    params: {
+                        timeout: 30
+                    },
+                    interval: 5000
+                }
+            });
+
+            this.setupErrorHandlers();
+            this.setupCommandHandlers();
+            
+            logger.info('Telegram bot polling started successfully');
         } catch (error) {
-            console.error('Failed to start polling:', error);
+            logger.error('Failed to setup bot:', error);
             this.isPolling = false;
+            // Retry setup after delay
+            setTimeout(() => this.setupBot(), 30000);
         }
     }
 
     async restartPolling() {
         try {
+            this.isPolling = false;
             await this.bot.stopPolling();
-            this.isPolling = false;
-            console.log('Waiting 5 seconds before restarting polling...');
+            logger.info('Waiting 5 seconds before restarting polling...');
             await new Promise(resolve => setTimeout(resolve, 5000));
-            await this.startPolling();
+            await this.setupBot(); // Changed from startPolling to setupBot
         } catch (error) {
-            console.error('Failed to restart polling:', error);
+            logger.error('Failed to restart polling:', error);
             this.isPolling = false;
+            // Retry after delay
+            setTimeout(() => this.setupBot(), 30000);
         }
     }
 
     async checkBotStatus() {
         try {
+            // First try to delete webhook to ensure clean state
+            await this.bot.deleteWebHook();
+            
+            // Then check for updates with minimal timeout
             const updates = await this.bot.getUpdates({ 
                 limit: 1, 
                 timeout: 1,
                 allowed_updates: [] 
             });
             
-            console.log('Bot status check:', {
+            logger.debug('Bot status check:', {
                 canPoll: true,
                 currentlyPolling: this.isPolling,
                 updatesAvailable: updates.length > 0
@@ -183,14 +206,14 @@ export class TelegramBotService {
             };
         } catch (error) {
             if (error.code === 'ETELEGRAM' && error.message.includes('Conflict')) {
-                console.error('Bot status check: Another instance is actively polling');
+                logger.error('Bot status check: Another instance is actively polling');
                 return { 
                     canPoll: false, 
                     isConflicting: true,
                     error: 'Another bot instance is handling updates'
                 };
             }
-            console.error('Bot status check failed:', error.message);
+            logger.error('Bot status check failed:', error.message);
             return { 
                 canPoll: false, 
                 error: error.message 
@@ -234,26 +257,22 @@ export class TelegramBotService {
 
     setupErrorHandlers() {
         this.bot.on('polling_error', async (error) => {
-            console.error('Telegram polling error:', error);
+            logger.error('Telegram polling error:', error);
             if (error.code === 'ETELEGRAM' && error.message.includes('Conflict')) {
-                console.warn('Telegram polling conflict detected, checking status...');
-                const status = await this.checkBotStatus();
-                
-                if (status?.isConflicting) {
-                    console.error('Confirmed: Another bot instance is actively polling');
-                } else {
-                    console.warn('No active conflict detected, restarting polling in 5 seconds...');
-                    await this.restartPolling();
-                }
+                logger.warn('Telegram polling conflict detected, attempting to resolve...');
+                this.isPolling = false;
+                await this.bot.stopPolling();
+                await new Promise(resolve => setTimeout(resolve, 5000));
+                await this.setupBot();
             } else {
-                console.error(`Telegram polling error: ${error.code === 'ETELEGRAM' ? 
+                logger.error(`Telegram polling error: ${error.code === 'ETELEGRAM' ? 
                     `${error.code} - ${error.response?.body?.description || error.message}` : 
                     error.message}`);
             }
         });
 
         this.bot.on('error', (error) => {
-            console.error('Telegram bot error:', error.message);
+            logger.error('Telegram bot error:', error.message);
         });
     }
 
