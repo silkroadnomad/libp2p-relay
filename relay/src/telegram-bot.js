@@ -13,11 +13,24 @@ export class TelegramBotService {
             return;
         }
         
-        this.bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
+        this.bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, {
+            polling: {
+                params: {
+                    timeout: 10
+                },
+                interval: 2000,  // Poll every 2 seconds
+                autoStart: false // Don't start polling automatically
+            }
+        });
+
+        this.isPolling = false;
         this.setupBot();
     }
 
     setupBot() {
+        // Start polling with conflict handling
+        this.startPolling();
+
         // Connection status logging
         this.bot.getMe().then((botInfo) => {
             logger.info('Telegram bot connected successfully:', {
@@ -34,9 +47,12 @@ export class TelegramBotService {
             console.error('Telegram bot error:', error.message);
         });
 
-        this.bot.on('polling_error', (error) => {
-            // Only log the essential error information
-            if (error.code === 'ETELEGRAM') {
+        this.bot.on('polling_error', async (error) => {
+            if (error.code === 'ETELEGRAM' && error.message.includes('Conflict')) {
+                // Handle polling conflict
+                console.warn('Telegram polling conflict detected, restarting polling...');
+                await this.restartPolling();
+            } else if (error.code === 'ETELEGRAM') {
                 console.error(`Telegram polling error: ${error.code} - ${error.response?.body?.description || error.message}`);
             } else {
                 console.error(`Telegram polling error: ${error.message}`);
@@ -45,6 +61,38 @@ export class TelegramBotService {
 
         // Command handlers
         this.setupCommandHandlers();
+    }
+
+    async startPolling() {
+        if (this.isPolling) return;
+        
+        try {
+            this.isPolling = true;
+            await this.bot.startPolling({ restart: false });
+        } catch (error) {
+            console.error('Failed to start polling:', error.message);
+            this.isPolling = false;
+        }
+    }
+
+    async restartPolling() {
+        try {
+            await this.bot.stopPolling();
+            this.isPolling = false;
+            // Wait a bit before restarting
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await this.startPolling();
+        } catch (error) {
+            console.error('Failed to restart polling:', error.message);
+            this.isPolling = false;
+        }
+    }
+
+    async shutdown() {
+        if (this.bot) {
+            this.isPolling = false;
+            await this.bot.stopPolling();
+        }
     }
 
     setupCommandHandlers() {
@@ -105,12 +153,6 @@ export class TelegramBotService {
             await this.bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
         } catch (error) {
             console.error('Failed to send Telegram notification:', error.message);
-        }
-    }
-
-    async shutdown() {
-        if (this.bot) {
-            await this.bot.stopPolling();
         }
     }
 
