@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import logger from './logger.js';
@@ -75,16 +75,43 @@ async function sendTelegramMessage(message) {
     }
 }
 
+function getLatestCommitInfo() {
+    try {
+        const commitHash = execSync('git rev-parse --short HEAD').toString().trim();
+        const commitMessage = execSync('git log -1 --pretty=%B').toString().trim();
+        const commitAuthor = execSync('git log -1 --pretty=%an').toString().trim();
+        const commitDate = execSync('git log -1 --pretty=%cd --date=relative').toString().trim();
+        
+        return {
+            hash: commitHash,
+            message: commitMessage,
+            author: commitAuthor,
+            date: commitDate
+        };
+    } catch (error) {
+        logger.warn('Failed to get git commit info:', error.message);
+        return null;
+    }
+}
+
 function startRelay() {
     logger.info('=== Initial Memory Status ===');
     logSystemMemory();
     logProcessMemory('Wrapper');
     
-    // Add startup notification
+    // Get git commit info
+    const commitInfo = getLatestCommitInfo();
+    
+    // Add startup notification with commit info
     const startupMessage = `🚀 LibP2P Relay Starting...\n` +
         `System Memory: ${formatBytes(os.totalmem())}\n` +
         `Max Restarts: ${global.MAX_RESTARTS}\n` +
-        `Node Memory Limit: 4 GB`;
+        `Node Memory Limit: 4 GB\n` +
+        (commitInfo ? `\n📝 Latest Commit:\n` +
+            `${commitInfo.message}\n` +
+            `By: ${commitInfo.author}\n` +
+            `Hash: ${commitInfo.hash}\n` +
+            `${commitInfo.date}` : '');
     
     telegramBot.sendMessage(startupMessage);
     
