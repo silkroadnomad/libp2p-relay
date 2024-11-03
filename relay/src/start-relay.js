@@ -80,6 +80,14 @@ function startRelay() {
     logSystemMemory();
     logProcessMemory('Wrapper');
     
+    // Add startup notification
+    const startupMessage = `🚀 LibP2P Relay Starting...\n` +
+        `System Memory: ${formatBytes(os.totalmem())}\n` +
+        `Max Restarts: ${global.MAX_RESTARTS}\n` +
+        `Node Memory Limit: 4 GB`;
+    
+    telegramBot.sendMessage(startupMessage);
+    
     const relayPath = resolve(__dirname, 'relay.js');
     logger.info('Starting relay process...');
     
