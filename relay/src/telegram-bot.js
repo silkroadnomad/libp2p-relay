@@ -66,7 +66,7 @@ export class TelegramBotService {
                 id: botInfo.id
             });
             this.isInitialized = true;
-            await this.setupBot();
+            // await this.setupBot();
         } catch (error) {
             logger.error('Failed to initialize Telegram bot:', error);
             throw error;
