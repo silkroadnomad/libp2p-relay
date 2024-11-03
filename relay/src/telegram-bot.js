@@ -8,6 +8,11 @@ dotenv.config();
 
 export class TelegramBotService {
     constructor() {
+        if (process.env.TELEGRAM_BOT_TOKEN === 'disabled') {
+            console.log('Telegram bot is disabled');
+            return;
+        }
+        
         this.bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
         this.setupBot();
     }
@@ -21,16 +26,21 @@ export class TelegramBotService {
                 id: botInfo.id
             });
         }).catch((error) => {
-            logger.error('Failed to connect Telegram bot:', error.message);
+            console.error('Failed to connect Telegram bot:', error.message);
         });
 
         // Error handlers
         this.bot.on('error', (error) => {
-            logger.error('Telegram bot error:', error);
+            console.error('Telegram bot error:', error.message);
         });
 
         this.bot.on('polling_error', (error) => {
-            logger.error('Telegram polling error:', error);
+            // Only log the essential error information
+            if (error.code === 'ETELEGRAM') {
+                console.error(`Telegram polling error: ${error.code} - ${error.response?.body?.description || error.message}`);
+            } else {
+                console.error(`Telegram polling error: ${error.message}`);
+            }
         });
 
         // Command handlers
@@ -64,7 +74,7 @@ export class TelegramBotService {
                 
                 await this.bot.sendMessage(chatId, memoryStatus.join('\n'), { parse_mode: 'HTML' });
             } catch (error) {
-                logger.error('Error sending status:', error);
+                console.error('Error sending status:', error);
                 await this.bot.sendMessage(chatId, '❌ Error getting status information');
             }
         });
@@ -80,22 +90,28 @@ export class TelegramBotService {
     }
 
     async sendMessage(message) {
+        // Skip if bot is disabled or not initialized
+        if (process.env.TELEGRAM_BOT_TOKEN === 'disabled' || !this.bot) {
+            return;
+        }
+
         const chatId = process.env.TELEGRAM_CHAT_ID;
-        
-        if (!process.env.TELEGRAM_BOT_TOKEN || !chatId) {
-            logger.warn('Telegram configuration missing. Skipping notification.');
+        if (!chatId) {
+            console.warn('Telegram chat ID missing. Skipping notification.');
             return;
         }
 
         try {
             await this.bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
         } catch (error) {
-            logger.error('Failed to send Telegram notification:', error.message);
+            console.error('Failed to send Telegram notification:', error.message);
         }
     }
 
     async shutdown() {
-        await this.bot.stopPolling();
+        if (this.bot) {
+            await this.bot.stopPolling();
+        }
     }
 
     formatBytes(bytes) {
