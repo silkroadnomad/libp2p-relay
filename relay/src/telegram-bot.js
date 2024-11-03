@@ -16,10 +16,10 @@ export class TelegramBotService {
         this.bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, {
             polling: {
                 params: {
-                    timeout: 10
+                    timeout: 30
                 },
-                interval: 2000,  // Poll every 2 seconds
-                autoStart: false // Don't start polling automatically
+                interval: 5000,
+                autoStart: false
             }
         });
 
@@ -27,9 +27,80 @@ export class TelegramBotService {
         this.setupBot();
     }
 
-    setupBot() {
-        // Start polling with conflict handling
-        this.startPolling();
+    async checkBotStatus() {
+        try {
+            // Try to get updates with minimal timeout
+            // If another instance is polling, this will fail with a conflict error
+            const updates = await this.bot.getUpdates({ 
+                limit: 1, 
+                timeout: 1,
+                allowed_updates: [] 
+            });
+            
+            console.log('Bot status check:', {
+                canPoll: true,
+                currentlyPolling: this.isPolling,
+                updatesAvailable: updates.length > 0
+            });
+
+            return {
+                canPoll: true,
+                isPolling: this.isPolling
+            };
+        } catch (error) {
+            if (error.code === 'ETELEGRAM' && error.message.includes('Conflict')) {
+                console.error('Bot status check: Another instance is actively polling');
+                return { 
+                    canPoll: false, 
+                    isConflicting: true,
+                    error: 'Another bot instance is handling updates'
+                };
+            }
+            console.error('Bot status check failed:', error.message);
+            return { 
+                canPoll: false, 
+                error: error.message 
+            };
+        }
+    }
+
+    async setupBot() {
+        // Check bot status before starting
+        const status = await this.checkBotStatus();
+        
+        if (status?.isConflicting) {
+            console.error('Another instance is already polling. Waiting 30 seconds before retry...');
+            await new Promise(resolve => setTimeout(resolve, 30000));
+            await this.setupBot(); // Retry setup
+            return;
+        }
+
+        if (!status?.canPoll) {
+            console.error(`Cannot start polling: ${status?.error}`);
+            return;
+        }
+
+        // Start polling if status check passed
+        await this.startPolling();
+
+        this.bot.on('polling_error', async (error) => {
+            if (error.code === 'ETELEGRAM' && error.message.includes('Conflict')) {
+                console.warn('Telegram polling conflict detected, checking status...');
+                const status = await this.checkBotStatus();
+                
+                if (status?.isConflicting) {
+                    console.error('Confirmed: Another bot instance is actively polling');
+                    // Optional: implement a maximum retry count here
+                } else {
+                    console.warn('No active conflict detected, restarting polling in 5 seconds...');
+                    await this.restartPolling();
+                }
+            } else if (error.code === 'ETELEGRAM') {
+                console.error(`Telegram polling error: ${error.code} - ${error.response?.body?.description || error.message}`);
+            } else {
+                console.error(`Telegram polling error: ${error.message}`);
+            }
+        });
 
         // Connection status logging
         this.bot.getMe().then((botInfo) => {
@@ -45,18 +116,6 @@ export class TelegramBotService {
         // Error handlers
         this.bot.on('error', (error) => {
             console.error('Telegram bot error:', error.message);
-        });
-
-        this.bot.on('polling_error', async (error) => {
-            if (error.code === 'ETELEGRAM' && error.message.includes('Conflict')) {
-                // Handle polling conflict
-                console.warn('Telegram polling conflict detected, restarting polling...');
-                await this.restartPolling();
-            } else if (error.code === 'ETELEGRAM') {
-                console.error(`Telegram polling error: ${error.code} - ${error.response?.body?.description || error.message}`);
-            } else {
-                console.error(`Telegram polling error: ${error.message}`);
-            }
         });
 
         // Command handlers
@@ -79,8 +138,9 @@ export class TelegramBotService {
         try {
             await this.bot.stopPolling();
             this.isPolling = false;
-            // Wait a bit before restarting
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Increase wait time before restart from 1s to 5s
+            console.log('Waiting 5 seconds before restarting polling...');
+            await new Promise(resolve => setTimeout(resolve, 5000));
             await this.startPolling();
         } catch (error) {
             console.error('Failed to restart polling:', error.message);
