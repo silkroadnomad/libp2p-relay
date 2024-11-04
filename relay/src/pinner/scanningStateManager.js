@@ -26,8 +26,8 @@ export async function updateScanningState(orbitdb, metadata) {
             _id: 'current_state',
             ...metadata
         })
-        const state = await db.get('current_state')
-        logger.info('Scanning state updated', state)
+        // const state = await db.get('current_state')
+        // logger.info('Scanning state updated', state)
     } catch (error) {
         logger.error('Error updating scanning state', { error: error.message })
         throw error
