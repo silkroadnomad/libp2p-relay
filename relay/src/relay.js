@@ -12,6 +12,8 @@ import { createLibp2p } from 'libp2p'
 // Helia and related modules
 import { createHelia } from 'helia'
 import { unixfs } from "@helia/unixfs"
+import { bitswap } from '@helia/block-brokers'
+import { libp2pRouting } from '@helia/routers'
 
 
 // Storage modules
