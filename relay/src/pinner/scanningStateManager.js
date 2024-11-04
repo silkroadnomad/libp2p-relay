@@ -9,6 +9,7 @@ async function getStateDB(orbitdb) {
         logger.info('Opening scanning state database...')
         stateDB = await orbitdb.open(STATE_DB_NAME, {
             type: 'documents',
+            sync: false,
             create: true,
             overwrite: false,
             directory: './orbitdb/scanning-state',
