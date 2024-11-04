@@ -9,25 +9,8 @@ import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { generateKeyPair, privateKeyToProtobuf, privateKeyFromProtobuf } from '@libp2p/crypto/keys'
 // Libp2p and related modules
 import { createLibp2p } from 'libp2p'
-import { circuitRelayTransport,circuitRelayServer } from '@libp2p/circuit-relay-v2'
-import { kadDHT } from '@libp2p/kad-dht'
-import { uPnPNAT } from '@libp2p/upnp-nat'
-import { tcp } from '@libp2p/tcp'
-import { noise } from '@chainsafe/libp2p-noise'
-import { tls } from '@libp2p/tls'
-import { yamux } from '@chainsafe/libp2p-yamux'
-import { identify } from '@libp2p/identify'
-import { ping } from "@libp2p/ping";
-import { autoNAT } from "@libp2p/autonat";
-import { dcutr } from "@libp2p/dcutr";
-import { gossipsub } from '@chainsafe/libp2p-gossipsub'
-import { pubsubPeerDiscovery } from "@libp2p/pubsub-peer-discovery"
-import { webSockets } from '@libp2p/websockets'
-import { webRTCDirect, webRTC } from '@libp2p/webrtc'
-import * as filters from '@libp2p/websockets/filters'
-import { multiaddr } from '@multiformats/multiaddr'
 // Helia and related modules
-import { createHelia, libp2pDefaults } from 'helia'
+import { createHelia } from 'helia'
 import { unixfs } from "@helia/unixfs"
 
 
@@ -50,7 +33,7 @@ import { createHttpServer } from './httpServer.js'
 import { createOrbitDB } from '@orbitdb/core'
 import telegramBot from './telegram-bot.js';
 import { createLibp2pConfig } from './libp2p-config.js'
-
+import TipWatcher from './pinner/tipWatcher.js'
 export const CONTENT_TOPIC = process.env.CONTENT_TOPIC || "/doichain-nfc/1/message/proto"
 
 const privKeyHex = process.env.RELAY_PRIVATE_KEY
@@ -344,10 +327,26 @@ if (argv['generate-keypair']) {
 
 // Near the end of the file, replace the scanBlockchainForNameOps call with:
 if (!argv['disable-scanning']) {
-  logger.info('Starting blockchain scanning...')
-  scanBlockchainForNameOps(electrumClient, helia, orbitdb)
+    logger.info('Starting blockchain scanning...');
+    
+    // REMOVE this old direct call:
+    // await scanBlockchainForNameOps(electrumClient, helia, orbitdb);
+    
+    // ADD this new TipWatcher logic:
+    const tipWatcher = new TipWatcher(electrumClient);
+    
+    tipWatcher.on('newTip', async () => {
+        try {
+            await scanBlockchainForNameOps(electrumClient, helia, orbitdb);
+        } catch (error) {
+            logger.error('Error scanning blockchain:', error);
+        }
+    });
+    
+    await tipWatcher.start();
+    logger.info('TipWatcher started');
 } else {
-  logger.info('Blockchain scanning is disabled')
+    logger.info('Blockchain scanning is disabled')
 }
 
 // Add cleanup for OrbitDB
