@@ -64,7 +64,7 @@ export class ElectrumxClient {
 
 			this.ws = new wsModule(`${protocol}://${host}:${port}/`);
 			this.ws.onopen = () => {
-				console.log("connected websocket main component");
+				console.log(`[ElectrumX] Connected to ${host}:${port}`);
 				resolve();
 			};
 
@@ -73,7 +73,7 @@ export class ElectrumxClient {
 			}
 
 			this.ws.onclose = e => {
-				console.log('Socket is closed: ' + JSON.stringify(e));
+				console.log(`[ElectrumX] Connection closed: ${e.code ? `Code ${e.code}` : ''} ${e.reason || ''}`);
 				this.status = 0;
 				this.onClose();
 			};
@@ -81,9 +81,7 @@ export class ElectrumxClient {
 			const errorHandler = e => reject(e);
 			this.ws.onerror = err => {
 				console.error(
-					"Socket encountered error: ",
-					err.message,
-					"Closing socket"
+					`[ElectrumX] Connection error: ${err.message || 'Unknown error'}`
 				);
 				this.status = 0;
 				this.ws.close();
@@ -160,7 +158,7 @@ export class ElectrumxClient {
 				callback(null, msg.result || msg);
 			}
 		} else {
-			console.log("Can't get callback"); // can't get callback
+			console.warn('[ElectrumX] Missing callback for message:', msg.id);
 		}
 	}
 
