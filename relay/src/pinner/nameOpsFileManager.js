@@ -19,7 +19,8 @@ export async function getOrCreateDB(orbitdb) {
         create: true,
         overwrite: false,
         directory: './orbitdb/nameops',
-        AccessController: IPFSAccessController({ write: ['*'] })
+        AccessController: IPFSAccessController({ write: [orbitdb.identity.id] })
+        // AccessController: IPFSAccessController({ write: ['*'] })
     })
 
     logger.info(`Opened OrbitDB: ${dbName}`)

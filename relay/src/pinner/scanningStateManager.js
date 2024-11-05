@@ -13,7 +13,7 @@ async function getStateDB(orbitdb) {
             create: true,
             overwrite: false,
             directory: './orbitdb/scanning-state',
-            AccessController: IPFSAccessController({ write: ['*'] })
+            AccessController: IPFSAccessController({ write: [orbitdb.identity.id] })
         })
         logger.info('Database loaded')
     }

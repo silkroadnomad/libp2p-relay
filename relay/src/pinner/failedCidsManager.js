@@ -12,7 +12,7 @@ async function getFailedCidsDB(orbitdb) {
             create: true,
             overwrite: false,
             directory: './orbitdb/failed-cids',
-            AccessController: IPFSAccessController({ write: ['*'] })
+            AccessController: IPFSAccessController({ write: [orbitdb.identity.id] })
         })
     }
     return failedCidsDB

@@ -60,7 +60,6 @@ const electrumClient = await connectElectrum(network, (x,y)=>{})
 
 
 async function createNode () {
-	// Convert the raw private key to a key object
 	const privKeyBuffer = uint8ArrayFromString(privKeyHex, 'hex')
 	const keyPair = await privateKeyFromProtobuf(privKeyBuffer)
 
