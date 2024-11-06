@@ -76,9 +76,9 @@ export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb) {
             
             await updateScanningState(orbitdb, { lastBlockHeight: height, tipHeight: tip.height })
 
-            if (state && state.tipHeight && height === state.tipHeight) {
-                height = state.lastBlockHeight + 1;
-                logger.info(`Reached old tip, jumping to last processed block`, { height: state.lastBlockHeight });
+            if (state && state.value.tipHeight && height === state.value.tipHeight) {
+                height = state.value.lastBlockHeight;
+                logger.info(`Reached old tip, jumping to last processed block`, { height: state.value.lastBlockHeight });
             }
         } catch (error) {
             logger.error(`Error processing block at height ${height}:`, { error });
