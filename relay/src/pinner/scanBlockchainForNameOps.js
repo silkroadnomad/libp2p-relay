@@ -7,7 +7,6 @@ import { CID } from 'multiformats/cid'
 import { unixfs } from '@helia/unixfs'
 import fs from 'fs/promises'
 import path from 'path'
-import { getMetadataFromIPFS } from '../doichain/nfc/getMetadataFromIPFS.js'
 import { getImageUrlFromIPFS } from '../doichain/nfc/getImageUrlFromIPFS.js'
 // import TipWatcher from './tipWatcher.js'
 import { addFailedCID, getFailedCIDs, removeSuccessfulCIDs, logFailedCIDs } from './failedCidsManager.js'
@@ -29,16 +28,17 @@ export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb) {
     let state = await getScanningState(orbitdb)
     let startHeight;
     let currentDay = null;
-    if (state && state.value && state.value.tipHeight) {
-        if (tip.height > state.value.tipHeight) {
+    console.log("state", state)
+    if (state && state && state.tipHeight) {
+        if (tip.height > state.tipHeight) {
             startHeight = tip.height;
-            logger.info("New blocks detected, starting from current tip", { startHeight, storedTip: state.value.tipHeight });
+            logger.info("New blocks detected, starting from current tip", { startHeight, storedTip: state.tipHeight });
         } else {
-            startHeight = state.value.lastBlockHeight;
+            startHeight = state.lastBlockHeight;
             logger.info("Continuing from last scanned block", { startHeight });
         }
     } else {
-        startHeight = tip.height;
+        startHeight = tip.height; //state.value.lastBlockHeight;
         logger.info("No previous state, starting from current tip", { startHeight });
     }
 
@@ -74,9 +74,9 @@ export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb) {
                 logger.debug(`No name operations found in block ${height}`);
             }
             
-            await updateScanningState(orbitdb, { lastBlockHeight: height, tipHeight: tip.height })
-
-            if (state && state.value.tipHeight && height === state.value.tipHeight) {
+            state = await updateScanningState(orbitdb, { lastBlockHeight: height, tipHeight: tip.height })
+            console.log("state", state)
+            if (state && state.value && state.value.tipHeight && height === state.value.tipHeight) {
                 height = state.value.lastBlockHeight;
                 logger.info(`Reached old tip, jumping to last processed block`, { height: state.value.lastBlockHeight });
             }

@@ -45,8 +45,12 @@ const announceAddresses = process.env.RELAY_ANNOUNCE_ADDRESSES?.split(',')
 const pubsubPeerDiscoveryTopics = process.env.RELAY_PUBSUB_PEER_DISCOVERY_TOPICS?.split(',')||['doichain._peer-discovery._p2p._pubsub']
 const relayDevMode = process.env.RELAY_DEV_MODE
 
-let blockstore = new LevelBlockstore("./helia-blocks")
-let datastore = new LevelDatastore("./helia-data")
+let blockstore = new LevelBlockstore("./helia-blocks", {
+    prefix: 'helia-blocks'
+})
+let datastore = new LevelDatastore("./helia-data", {
+    prefix: 'helia-data'
+})
 
 
 let scoreThresholds = {}
@@ -81,10 +85,10 @@ async function createNode () {
 		datastore,
 		blockstore,
         blockBrokers: [
-            //bitswap()  // Only use bitswap, skip gateways
+            bitswap()
         ],
         routers: [
-            libp2pRouting(libp2p)  // Only use libp2p routing
+            libp2pRouting(libp2p)
         ],
 		// Configure GC options
 		config: {
@@ -97,7 +101,11 @@ async function createNode () {
 	})
 
 	// Create OrbitDB instance
-	const orbitdb = await createOrbitDB({ ipfs: helia })
+	const orbitdb = await createOrbitDB({ 
+		ipfs: helia,
+		directory: './orbitdb', // Base directory for OrbitDB data
+		id: 'doichain-relay', // Optional identifier
+	})
 	logger.info('OrbitDB initialized')
 
 	console.log('Helia peerId:', helia.libp2p.peerId.toString())
@@ -209,18 +217,46 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
             helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addedMsg))
         } else if (message.startsWith("LIST_")) {
             console.log("Received LIST request:");
-            const dateString = message.substring(5); // Extract the date part
+            const dateString = message.substring(5);
             
             if (dateString === "LAST_100") {
                 console.log("Fetching last 100 name_ops");
-                const lastNameOps = await getLastNameOps(orbitdb, 100);
-                if (lastNameOps.length > 0) {
-                    console.log(`Publishing last ${lastNameOps.length} NameOps`);
-                    const jsonString = JSON.stringify(lastNameOps);
-                    helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(jsonString));
-                } else {
-                    console.log("No NameOps found");
-                    helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("LAST_100_CIDS:NONE"));
+                try {
+                    // Add timeout to prevent infinite waiting
+                    const timeoutPromise = new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('getLastNameOps timeout')), 30000));
+                    
+                    const lastNameOps = await Promise.race([
+                        getLastNameOps(orbitdb, 100),
+                        timeoutPromise
+                    ]);
+                    
+                    logger.info(`Retrieved ${lastNameOps?.length || 0} NameOps from OrbitDB`);
+                    
+                    if (lastNameOps && lastNameOps.length > 0) {
+                        console.log(`Publishing last ${lastNameOps.length} NameOps`);
+                        const jsonString = JSON.stringify(lastNameOps);
+                        helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(jsonString));
+                    } else {
+                        logger.warn("No NameOps found in OrbitDB");
+                        helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("LAST_100_CIDS:NONE"));
+                    }
+                } catch (error) {
+                    logger.error('Error fetching last NameOps:', error);
+                    // Notify about the error through pubsub
+                    helia.libp2p.services.pubsub.publish(
+                        CONTENT_TOPIC, 
+                        new TextEncoder().encode(`ERROR:Failed to fetch last 100 NameOps: ${error.message}`)
+                    );
+                    
+                    // Try to recover OrbitDB if needed
+                    try {
+                        await orbitdb.stop();
+                        orbitdb = await createOrbitDB({ ipfs: helia });
+                        logger.info('OrbitDB restarted after error');
+                    } catch (recoveryError) {
+                        logger.error('Failed to recover OrbitDB:', recoveryError);
+                    }
                 }
             } else {
                 
@@ -356,19 +392,33 @@ if (!argv['disable-scanning']) {
     logger.info('Blockchain scanning is disabled')
 }
 
-// Add cleanup for OrbitDB
+// Cleanup handlers with current supported methods
 process.on('SIGINT', async () => {
     logger.info('Shutting down...')
-    if (orbitdb) {
-        await orbitdb.stop()
+    try {
+        if (orbitdb) {
+            await orbitdb.stop()
+        }
+        await blockstore.close()
+        await datastore.close()
+        logger.info('Databases closed')
+    } catch (error) {
+        logger.error('Error during shutdown:', error)
     }
     process.exit(0)
 })
 
 process.on('SIGTERM', async () => {
     logger.info('Shutting down...')
-    if (orbitdb) {
-        await orbitdb.stop()
+    try {
+        if (orbitdb) {
+            await orbitdb.stop()
+        }
+        await blockstore.close()
+        await datastore.close()
+        logger.info('Databases closed')
+    } catch (error) {
+        logger.error('Error during shutdown:', error)
     }
     process.exit(0)
 })
