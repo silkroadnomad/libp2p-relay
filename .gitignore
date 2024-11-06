@@ -3,6 +3,7 @@ relay/node_modules
 relay/orbitdb
 data/
 .env
+.env*
 .idea
 helia-blocks/
 helia-data/

@@ -222,9 +222,11 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
             if (dateString === "LAST_100") {
                 console.log("Fetching last 100 name_ops");
                 try {
-                    // Add timeout to prevent infinite waiting
-                    const timeoutPromise = new Promise((_, reject) => 
-                        setTimeout(() => reject(new Error('getLastNameOps timeout')), 30000));
+                    // Fix timeout implementation
+                    const timeoutPromise = new Promise((_, reject) => {
+                        const timeoutMs = 30000; // 30 seconds
+                        setTimeout(() => reject(new Error('getLastNameOps timeout')), timeoutMs);
+                    });
                     
                     const lastNameOps = await Promise.race([
                         getLastNameOps(orbitdb, 100),
