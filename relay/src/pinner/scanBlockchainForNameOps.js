@@ -28,7 +28,6 @@ export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb) {
     let state = await getScanningState(orbitdb)
     let startHeight;
     let currentDay = null;
-    console.log("state", state)
     if (state && state && state.tipHeight) {
         if (tip.height > state.tipHeight) {
             startHeight = tip.height;
@@ -75,7 +74,6 @@ export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb) {
             }
             
             state = await updateScanningState(orbitdb, { lastBlockHeight: height, tipHeight: tip.height })
-            console.log("state", state)
             if (state && state.value && state.value.tipHeight && height === state.value.tipHeight) {
                 height = state.value.lastBlockHeight;
                 logger.info(`Reached old tip, jumping to last processed block`, { height: state.value.lastBlockHeight });

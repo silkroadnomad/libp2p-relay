@@ -222,16 +222,7 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
             if (dateString === "LAST_100") {
                 console.log("Fetching last 100 name_ops");
                 try {
-                    // Fix timeout implementation
-                    const timeoutPromise = new Promise((_, reject) => {
-                        const timeoutMs = 30000; // 30 seconds
-                        setTimeout(() => reject(new Error('getLastNameOps timeout')), timeoutMs);
-                    });
-                    
-                    const lastNameOps = await Promise.race([
-                        getLastNameOps(orbitdb, 100),
-                        timeoutPromise
-                    ]);
+                    const lastNameOps = await getLastNameOps(orbitdb, 100);
                     
                     logger.info(`Retrieved ${lastNameOps?.length || 0} NameOps from OrbitDB`);
                     
@@ -250,15 +241,6 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
                         CONTENT_TOPIC, 
                         new TextEncoder().encode(`ERROR:Failed to fetch last 100 NameOps: ${error.message}`)
                     );
-                    
-                    // Try to recover OrbitDB if needed
-                    try {
-                        await orbitdb.stop();
-                        orbitdb = await createOrbitDB({ ipfs: helia });
-                        logger.info('OrbitDB restarted after error');
-                    } catch (recoveryError) {
-                        logger.error('Failed to recover OrbitDB:', recoveryError);
-                    }
                 }
             } else {
                 
