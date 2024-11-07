@@ -91,7 +91,7 @@ export function createLibp2pConfig({ keyPair, datastore, listenAddresses, announ
             }),
             relay: circuitRelayServer({
                 reservations: {
-                    maxReservations: Infinity
+                    maxReservations: 1000
                 },
                 advertise: {
                     bootDelay: 15 * 60 * 1000
