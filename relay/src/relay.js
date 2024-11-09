@@ -84,12 +84,12 @@ async function createNode () {
 		libp2p,
 		datastore,
 		blockstore,
-        blockBrokers: [
-            bitswap()
-        ],
-        routers: [
-            libp2pRouting(libp2p)
-        ],
+        // blockBrokers: [
+        //     bitswap()
+        // ],
+        // routers: [
+        //     libp2pRouting(libp2p)
+        // ],
 		// Configure GC options
 		config: {
 			gc: {
