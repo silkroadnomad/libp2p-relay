@@ -10,111 +10,41 @@ import os from 'os'
 import * as CBOR from '@ipld/dag-cbor'
 
 /**
- * Retrieves the total count of unique name operations across all documents in OrbitDB
- * @param {Object} orbitdb - The OrbitDB instance
- * @returns {Promise<number>} The total count of unique name operations, or 0 if there's an error
+ * Creates and starts an HTTP server that provides various IPFS and OrbitDB related endpoints
+ * 
+ * @param {import('@helia/interface').Helia} helia - Helia IPFS instance
+ * @param {import('@orbitdb/core').OrbitDB} orbitdb - OrbitDB instance
+ * 
+ * @description
+ * Creates an HTTP server with the following endpoints:
+ * 
+ * GET /status
+ * Returns system status including:
+ * - Connected peers count and details
+ * - NameOp count
+ * - Memory usage statistics
+ * - Helia storage statistics
+ * - Network metrics
+ * 
+ * GET /failed-cids
+ * Returns a list of CIDs that failed to be pinned
+ * 
+ * GET /duplicate-nameops
+ * Returns nameOps that have the same nameId and nameValue
+ * 
+ * GET /with-history
+ * Returns nameOps that have multiple operations for the same nameId
+ * 
+ * GET /pinned-cids
+ * Returns all pinned CIDs and their content (if readable)
+ * 
+ * @returns {http.Server} The created HTTP server instance
+ * 
+ * @example
+ * const helia = await createHelia()
+ * const orbitdb = await createOrbitDB()
+ * createHttpServer(helia, orbitdb)
  */
-async function getNameOpCount(orbitdb) {
-    try {
-        const db = await getOrCreateDB(orbitdb)
-        const allDocs = await db.all()
-        
-        // Sum up all nameOps from each document
-        const totalCount = allDocs.reduce((sum, doc) => {
-            return sum + (doc.value.nameOps?.length || 0)
-        }, 0)
-        
-        return totalCount
-    } catch (error) {
-        console.error('Error counting nameOps from OrbitDB:', error)
-        return 0
-    }
-}
-
-/**
- * Gets name operations with their history based on a key strategy
- * @param {Object} db - The OrbitDB instance
- * @param {Function} getKey - Function that returns the key for grouping operations
- * @returns {Object} Object containing duplicates and total count
- */
-async function getNameOpsHistory(db, getKey) {
-    const allDocs = await db.all()
-    const nameOpsMap = new Map()
-    const duplicates = []
-
-    // Flatten all nameOps from all documents and track duplicates
-    allDocs.forEach(doc => {
-        const nameOps = doc.value.nameOps || []
-        nameOps.forEach(nameOp => {
-            const key = getKey(nameOp)
-            if (!nameOpsMap.has(key)) {
-                nameOpsMap.set(key, [nameOp])
-            } else {
-                nameOpsMap.get(key).push(nameOp)
-            }
-        })
-    })
-
-    // Filter and sort entries
-    nameOpsMap.forEach((ops, key) => {
-        if (ops.length > 1) {
-            duplicates.push({
-                nameId: ops[0].nameId,
-                nameValue: ops[0].nameValue,
-                count: ops.length,
-                operations: ops.sort((a, b) => b.blocktime - a.blocktime)
-            })
-        }
-    })
-
-    return {
-        totalCount: duplicates.length,
-        duplicates
-    }
-}
-
-async function getHeliaStats(helia) {
-    
-    try {
-
-        let pinnedCount = 0;
-        let pinnedBlockSize = 0;
-        let totalBlocks = 0;
-        let totalSize = 0;
-
-        for await (const pin of helia.pins.ls()) {
-            const block = await helia.blockstore.get(pin.cid)
-            pinnedBlockSize += block.length
-            pinnedCount++
-        }
-
-        for await (const block of helia.blockstore.getAll()) {
-            totalBlocks++;
-            const blockSize = block.block?.length || 0;
-            totalSize += blockSize;
-        }
-
-        return {
-            blocks: {
-                total: totalBlocks,
-                totalSize: Math.round(totalSize / 1024), // KB
-            },
-            pins: {
-                count: pinnedCount,
-                totalSize: Math.round(pinnedBlockSize / 1024), // KB
-            },
-            unpinnedSize: Math.round((totalSize - pinnedBlockSize) / 1024), // KB
-        };
-    } catch (error) {
-        console.error('Error getting Helia stats:', error);
-        return {
-            blocks: { total: 0, totalSize: 0 },
-            pins: { count: 0, totalSize: 0 },
-            unpinnedSize: 0
-        };
-    }
-}
-
 export function createHttpServer(helia, orbitdb) {
     const server = http.createServer(async (req, res) => {
         const parsedUrl = url.parse(req.url, true)
@@ -268,4 +198,99 @@ export function createHttpServer(helia, orbitdb) {
     server.listen(port, () => {
         console.log(`HTTP server running on port ${port}`)
     })
+}
+
+async function getHeliaStats(helia) {
+    
+    try {
+
+        let pinnedCount = 0;
+        let pinnedBlockSize = 0;
+        let totalBlocks = 0;
+        let totalSize = 0;
+
+        for await (const pin of helia.pins.ls()) {
+            const block = await helia.blockstore.get(pin.cid)
+            pinnedBlockSize += block.length
+            pinnedCount++
+        }
+
+        for await (const block of helia.blockstore.getAll()) {
+            totalBlocks++;
+            const blockSize = block.block?.length || 0;
+            totalSize += blockSize;
+        }
+
+        return {
+            blocks: {
+                total: totalBlocks,
+                totalSize: Math.round(totalSize / 1024), // KB
+            },
+            pins: {
+                count: pinnedCount,
+                totalSize: Math.round(pinnedBlockSize / 1024), // KB
+            },
+            unpinnedSize: Math.round((totalSize - pinnedBlockSize) / 1024), // KB
+        };
+    } catch (error) {
+        console.error('Error getting Helia stats:', error);
+        return {
+            blocks: { total: 0, totalSize: 0 },
+            pins: { count: 0, totalSize: 0 },
+            unpinnedSize: 0
+        };
+    }
+}
+
+async function getNameOpCount(orbitdb) {
+    try {
+        const db = await getOrCreateDB(orbitdb)
+        const allDocs = await db.all()
+        
+        // Sum up all nameOps from each document
+        const totalCount = allDocs.reduce((sum, doc) => {
+            return sum + (doc.value.nameOps?.length || 0)
+        }, 0)
+        
+        return totalCount
+    } catch (error) {
+        console.error('Error counting nameOps from OrbitDB:', error)
+        return 0
+    }
+}
+
+async function getNameOpsHistory(db, getKey) {
+    const allDocs = await db.all()
+    const nameOpsMap = new Map()
+    const duplicates = []
+
+    // Flatten all nameOps from all documents and track duplicates
+    allDocs.forEach(doc => {
+        const nameOps = doc.value.nameOps || []
+        nameOps.forEach(nameOp => {
+            const key = getKey(nameOp)
+            if (!nameOpsMap.has(key)) {
+                nameOpsMap.set(key, [nameOp])
+            } else {
+                nameOpsMap.get(key).push(nameOp)
+            }
+        })
+    })
+
+    // Filter and sort entries
+    nameOpsMap.forEach((ops, key) => {
+        if (ops.length > 1) {
+            duplicates.push({
+                nameId: ops[0].nameId,
+                nameValue: ops[0].nameValue,
+                count: ops.length,
+                operations: ops.sort((a, b) => b.blocktime - a.blocktime)
+            })
+        }
+    })
+
+    return {
+        totalCount: duplicates.length,
+        duplicates
+    }
 } 
