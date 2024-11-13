@@ -7,7 +7,8 @@ import { unixfs } from "@helia/unixfs"
 import { getOrCreateDB } from './pinner/nameOpsFileManager.js'
 import { getScanningState } from './pinner/scanningStateManager.js'
 import os from 'os'
-import * as CBOR from '@ipld/dag-cbor'
+import 'dotenv/config'
+import { multiaddr } from 'multiaddr'
 
 /**
  * Creates and starts an HTTP server that provides various IPFS and OrbitDB related endpoints
@@ -246,8 +247,8 @@ export function createHttpServer(helia, orbitdb) {
                                     console.log(`❌ CID is not pinned: ${cid.toString()}`)
                                 }
                                 
-                                if (!existsInBlockstore || !isPinned) {
-                                    console.log(`⚠️  Adding to missing items: ${nameOp.nameValue}`)
+                                if (!existsInBlockstore) {
+                                    console.log(`⚠️  Adding to missing items: ${nameOp.nameValue} (blockstore: ${existsInBlockstore}, pinned: ${isPinned})`)
                                     missingItems.push({
                                         nameId: nameOp.nameId,
                                         nameValue: nameOp.nameValue,
@@ -288,6 +289,27 @@ export function createHttpServer(helia, orbitdb) {
             }
         } else if (req.method === 'GET' && parsedUrl.pathname === '/find-missing') {
             try {
+                // Connect to public relay in dev mode
+                const relayDevMode = process.env.RELAY_DEV_MODE === 'true'
+                console.log("🔌 Connecting to public relay...",relayDevMode)
+                if (relayDevMode) {
+                    const publicRelayMultiaddrs = [
+                        '/dns4/istanbul.le-space.de/tcp/1235/p2p/12D3KooWJhsHWfHAapEs8SUeCq71qvxcT58Qca8VtnYSqSaYvuAH',
+                        '/dns4/istanbul.le-space.de/tcp/443/wss/p2p/12D3KooWJhsHWfHAapEs8SUeCq71qvxcT58Qca8VtnYSqSaYvuAH'
+                    ]
+                    
+                    console.log('🔌 Development mode: Connecting to public relay...')
+                    for (const addr of publicRelayMultiaddrs) {
+                        try {
+                            const ma = multiaddr(addr)
+                            await helia.libp2p.dial(ma)
+                            console.log(`✅ Successfully connected to relay: ${addr}`)
+                        } catch (error) {
+                            console.log(`❌ Failed to connect to relay: ${addr} - ${error.message}`)
+                        }
+                    }
+                }
+
                 const db = await getOrCreateDB(orbitdb)
                 const allDocs = await db.all()
                 const missingItems = []
@@ -338,8 +360,8 @@ export function createHttpServer(helia, orbitdb) {
                                     console.log(`❌ CID is not pinned: ${cid.toString()}`)
                                 }
                                 
-                                if (!existsInBlockstore || !isPinned) {
-                                    console.log(`⚠️  CID missing locally, attempting to retrieve from IPFS: ${cid.toString()}`)
+                                if (!existsInBlockstore) {
+                                    console.log(`⚠️  CID missing locally, attempting to retrieve from IPFS: ${cid.toString()} (blockstore: ${existsInBlockstore}, pinned: ${isPinned})`)
                                     
                                     try {
                                         // Add timeout for IPFS retrieval
@@ -364,6 +386,18 @@ export function createHttpServer(helia, orbitdb) {
                                             await helia.pins.add(cid)
                                             console.log(`✅ Successfully pinned CID: ${cid.toString()}`)
                                             isPinned = true
+                                            
+                                            // Remove from failed pins DB since we successfully retrieved and pinned it
+                                            try {
+                                                const failedCIDs = await getFailedCIDs(orbitdb)
+                                                const failedEntry = failedCIDs.find(f => f.cid === cidStr)
+                                                if (failedEntry) {
+                                                    await failedEntry.db.del(failedEntry.key)
+                                                    console.log(`✅ Removed ${cidStr} from failed pins database`)
+                                                }
+                                            } catch (cleanupError) {
+                                                console.log(`⚠️  Failed to remove ${cidStr} from failed pins database: ${cleanupError.message}`)
+                                            }
                                         } catch (pinError) {
                                             console.log(`❌ Failed to pin CID: ${cid.toString()} - ${pinError.message}`)
                                         }

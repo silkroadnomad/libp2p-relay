@@ -3,7 +3,6 @@ import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
 // External libraries
 import moment from 'moment'
-import { CID } from "multiformats/cid"
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { generateKeyPair, privateKeyToProtobuf, privateKeyFromProtobuf } from '@libp2p/crypto/keys'
@@ -12,8 +11,6 @@ import { createLibp2p } from 'libp2p'
 // Helia and related modules
 import { createHelia } from 'helia'
 import { unixfs } from "@helia/unixfs"
-import { bitswap } from '@helia/block-brokers'
-import { libp2pRouting } from '@helia/routers'
 
 
 // Storage modules
@@ -113,9 +110,6 @@ async function createNode () {
 const { helia, orbitdb } = await createNode()
 logger.info('Helia and OrbitDB are running')
 //when a peer connecs we need to update the peer list
-helia.libp2p.addEventListener('peer:connect', async event => {
-    //await retryFailedCIDs(helia, orbitdb)
-})
 const fsHelia = unixfs(helia)
 
 helia.libp2p.services.pubsub.subscribe(CONTENT_TOPIC)
