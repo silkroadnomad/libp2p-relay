@@ -4,6 +4,7 @@ relay/orbitdb
 data/
 .env
 .env*
+relay/relay.lock
 .idea
 helia-blocks/
 helia-data/

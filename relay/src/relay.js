@@ -83,21 +83,16 @@ async function createNode () {
 	const helia = await createHelia({
 		libp2p,
 		datastore,
-		blockstore,
-        // blockBrokers: [
-        //     bitswap()
-        // ],
-        // routers: [
-        //     libp2pRouting(libp2p)
-        // ],
-		// Configure GC options
-		config: {
-			gc: {
-				enabled: true,          // Enable automatic GC
-				interval: 1000 * 60 * 60, // Run GC every hour
-				gracePeriod: '48h',     // Keep blocks for at least 48 hours after last access
-			}
-		}
+        blockstore,
+		// blockstore: {
+		// 	blocks: blockstore,
+		// 	gc: {
+		// 		enabled: true,          // Enable automatic GC
+		// 		interval: 1000 * 60 * 60, // Run GC every hour (in milliseconds)
+		// 		gracePeriod: '48h',     // Keep blocks for at least 48 hours after last access
+		// 	}
+		// },
+		// metrics: libp2p.metrics
 	})
 
 	// Create OrbitDB instance

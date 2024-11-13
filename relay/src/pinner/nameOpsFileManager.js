@@ -31,7 +31,6 @@ export async function getOrCreateDB(orbitdb) {
  * Updates the name operations in OrbitDB.
  */
 export async function updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDate, blockHeight) {
-    logger.info("updateDailyNameOpsFile", nameOpUtxos.length, blockDate, blockHeight)
     
     try {
         const db = await getOrCreateDB(orbitdb)

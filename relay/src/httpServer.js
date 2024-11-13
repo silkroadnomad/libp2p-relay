@@ -74,74 +74,24 @@ async function getNameOpsHistory(db, getKey) {
 }
 
 async function getHeliaStats(helia) {
+    
     try {
-        let pinnedCount = 0;
-        
-        // Get set of pinned CIDs and normalize them
-        const pinnedCids = new Set()
-        console.log('\nCollecting Pinned CIDs:');
-        
-        for await (const pin of helia.pins.ls()) {
-            console.log('Pin CID before:', {
-                original: pin.cid.toString(),
-                code: pin.cid.code,
-                version: pin.cid.version
-            });
-            
-            try {
-                // Get the block directly from blockstore
-                const block = await helia.blockstore.get(pin.cid)
-                if (block) {
-                    try {
-                        // Try to decode as CBOR
-                        const decoded = CBOR.decode(block)
-                        console.log('Decoded CBOR:', decoded);
-                        
-                        // Add any CIDs we find in the decoded data
-                        if (decoded.id) {
-                            console.log('Found OrbitDB ID:', decoded.id);
-                        }
-                    } catch (cborError) {
-                        console.log('CBOR decode error:', cborError.message);
-                    }
-                    
-                    pinnedCids.add(pin.cid.toString());
-                }
-            } catch (error) {
-                console.log('Error getting block:', error.message);
-            }
-            pinnedCount++
-        }
-        console.log('Total pinned CIDs:', pinnedCount);
 
-        // Get total blockstore stats
+        let pinnedCount = 0;
+        let pinnedBlockSize = 0;
         let totalBlocks = 0;
         let totalSize = 0;
-        let pinnedBlockSize = 0;
-        let hasLoggedBlock = false;
-        
+
+        for await (const pin of helia.pins.ls()) {
+            const block = await helia.blockstore.get(pin.cid)
+            pinnedBlockSize += block.length
+            pinnedCount++
+        }
+
         for await (const block of helia.blockstore.getAll()) {
             totalBlocks++;
             const blockSize = block.block?.length || 0;
-            
-            // Only log the first block
-            if (!hasLoggedBlock) {
-                console.log('Example Block CID:', {
-                    original: block.cid.toString(),
-                    code: block.cid.code,
-                    version: block.cid.version
-                });
-                hasLoggedBlock = true;
-            }
-            
             totalSize += blockSize;
-            if (pinnedCids.has(block.cid.toString())) {
-                console.log('✓ Found matching pinned block:', {
-                    cid: block.cid.toString(),
-                    size: blockSize
-                });
-                pinnedBlockSize += blockSize;
-            }
         }
 
         return {
@@ -208,7 +158,12 @@ export function createHttpServer(helia, orbitdb) {
                         rss: Math.round(processMemory.rss / 1024 / 1024),      // MB
                     }
                 },
-                storage: heliaStats
+                storage: heliaStats,
+                metrics: {
+                    peers: helia.libp2p.metrics?.getPeerMetrics(),
+                    protocol: helia.libp2p.metrics?.getProtocolMetrics(),
+                    system: helia.libp2p.metrics?.getSystemMetrics()
+                }
             }, null, 2))
         } else if (req.method === 'GET' && parsedUrl.pathname === '/failed-cids') {
             try {
