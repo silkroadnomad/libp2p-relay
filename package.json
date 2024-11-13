@@ -1,10 +1,9 @@
 {
   "dependencies": {
     "dotenv": "^16.4.5",
+    "localforage": "^1.10.0",
     "yargs": "^17.7.2"
   },
-  "scripts": {
-  
-  },
+  "scripts": {},
   "type": "module"
 }

@@ -1,32 +1,33 @@
 import logger from '../logger.js'
-import { IPFSAccessController } from '@orbitdb/core'
+import localforage from 'localforage'
 
 const STATE_DB_NAME = 'scanning-state'
 let stateDB = null
 
-async function getStateDB(orbitdb) {
+async function getStateDB() {
     if (!stateDB) {
         logger.info('Opening scanning state database...')
-        stateDB = await orbitdb.open(STATE_DB_NAME, {
-            type: 'documents',
-            sync: false,
-            create: true,
-            directory: './orbitdb/scanning-state',
-            AccessController: IPFSAccessController({ write: [orbitdb.identity.id] })
+        stateDB = localforage.createInstance({
+            name: STATE_DB_NAME,
+            storeName: 'scanning_state',
+            // Use file storage for Node.js
+            driver: process.versions?.node ? require('localforage-node-driver') : localforage.INDEXEDDB
         })
         logger.info('Database loaded')
     }
     return stateDB
 }
 
-export async function updateScanningState(orbitdb, metadata) {
+export async function updateScanningState(_, metadata) {
     try {
-        const db = await getStateDB(orbitdb)
-        const result = await db.put({
-            _id: 'current_state',
+        const db = await getStateDB()
+        await db.setItem('current_state', {
             ...metadata,
+            updatedAt: new Date().toISOString()
         })
-        const verification = await db.get('current_state')
+        
+        // Verify the write
+        const verification = await db.getItem('current_state')
         return verification
     } catch (error) {
         logger.error('Error updating scanning state', { 
@@ -38,18 +39,17 @@ export async function updateScanningState(orbitdb, metadata) {
     }
 }
 
-export async function getScanningState(orbitdb) {
+export async function getScanningState(_) {
     try {
-        const db = await getStateDB(orbitdb)
-        const state = await db.get('current_state')
+        const db = await getStateDB()
+        const state = await db.getItem('current_state')
         
-        if (state && state.value && state.value.lastBlockHeight && state.value.tipHeight) {
-            const currentState = state.value // get first matching document
+        if (state && state.lastBlockHeight && state.tipHeight) {
             logger.info('Retrieved existing scanning state', { 
-                lastBlockHeight: currentState.lastBlockHeight, 
-                tipHeight: currentState.tipHeight 
+                lastBlockHeight: state.lastBlockHeight, 
+                tipHeight: state.tipHeight 
             })
-            return currentState
+            return state
         }
         
         logger.warn('No existing scanning state found, starting from the latest block')
@@ -65,7 +65,7 @@ export async function getScanningState(orbitdb) {
 
 export async function closeStateDB() {
     if (stateDB) {
-        await stateDB.close()
+        await stateDB.dropInstance()
         stateDB = null
     }
 }
