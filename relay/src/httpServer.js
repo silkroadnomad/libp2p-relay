@@ -38,6 +38,12 @@ import * as CBOR from '@ipld/dag-cbor'
  * GET /pinned-cids
  * Returns all pinned CIDs and their content (if readable)
  * 
+ * GET /check-missing
+ * Checks IPFS URLs in nameOps
+ * 
+ * GET /find-missing
+ * Checks IPFS URLs in nameOps and attempts to retrieve them from IPFS
+ * 
  * @returns {http.Server} The created HTTP server instance
  * 
  * @example
@@ -185,6 +191,233 @@ export function createHttpServer(helia, orbitdb) {
                 res.writeHead(500, { 'Content-Type': 'application/json' })
                 res.end(JSON.stringify({
                     error: 'Failed to retrieve pinned CIDs',
+                    message: error.message
+                }))
+            }
+        } else if (req.method === 'GET' && parsedUrl.pathname === '/check-missing') {
+            try {
+                const db = await getOrCreateDB(orbitdb)
+                const allDocs = await db.all()
+                const missingItems = []
+                
+                // Go through all documents and their nameOps
+                for (const doc of allDocs) {
+                    const nameOps = doc.value.nameOps || []
+                    for (const nameOp of nameOps) {
+                        // Check if nameValue is an IPFS URL
+                        if (typeof nameOp.nameValue === 'string' && nameOp.nameValue.startsWith('ipfs://')) {
+                            const cidStr = nameOp.nameValue.replace('ipfs://', '')
+                            console.log(`Checking IPFS URL for nameId ${nameOp.nameId}: ${nameOp.nameValue}`)
+                            
+                            try {
+                                const cid = CID.parse(cidStr)
+                                console.log(`Valid CID parsed: ${cid.toString()}`)
+                                
+                                // Check if CID exists in blockstore
+                                let existsInBlockstore = false
+                                try {
+                                    // Add timeout of 5 seconds for blockstore check
+                                    const timeoutPromise = new Promise((_, reject) => {
+                                        setTimeout(() => reject(new Error('Timeout')), 5000)
+                                    })
+                                    
+                                    await Promise.race([
+                                        helia.blockstore.get(cid),
+                                        timeoutPromise
+                                    ])
+                                    existsInBlockstore = true
+                                    console.log(`✅ CID exists in blockstore: ${cid.toString()}`)
+                                } catch (error) {
+                                    existsInBlockstore = false
+                                    console.log(`❌ CID not found in blockstore: ${cid.toString()} - ${error.message === 'Timeout' ? 'Check timed out' : 'Not found'}`)
+                                }
+                                
+                                // Check if CID is pinned
+                                let isPinned = false
+                                console.log(`Checking if CID is pinned: ${cid.toString()}`)
+                                for await (const pin of helia.pins.ls()) {
+                                    if (pin.cid.toString() === cid.toString()) {
+                                        isPinned = true
+                                        console.log(`✅ CID is pinned: ${cid.toString()}`)
+                                        break
+                                    }
+                                }
+                                if (!isPinned) {
+                                    console.log(`❌ CID is not pinned: ${cid.toString()}`)
+                                }
+                                
+                                if (!existsInBlockstore || !isPinned) {
+                                    console.log(`⚠️  Adding to missing items: ${nameOp.nameValue}`)
+                                    missingItems.push({
+                                        nameId: nameOp.nameId,
+                                        nameValue: nameOp.nameValue,
+                                        cid: cidStr,
+                                        existsInBlockstore,
+                                        isPinned,
+                                        blocktime: nameOp.blocktime
+                                    })
+                                }
+                            } catch (cidError) {
+                                console.log(`❌ Invalid CID format: ${cidStr} - ${cidError.message}`)
+                                missingItems.push({
+                                    nameId: nameOp.nameId,
+                                    nameValue: nameOp.nameValue,
+                                    error: `Invalid CID: ${cidError.message}`,
+                                    blocktime: nameOp.blocktime
+                                })
+                            }
+                        }
+                    }
+                }
+                
+                // Sort by blocktime descending (newest first)
+                missingItems.sort((a, b) => b.blocktime - a.blocktime)
+                
+                res.writeHead(200, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({
+                    totalChecked: allDocs.reduce((sum, doc) => sum + (doc.value.nameOps?.length || 0), 0),
+                    missingCount: missingItems.length,
+                    missing: missingItems
+                }, null, 2))
+            } catch (error) {
+                res.writeHead(500, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({
+                    error: 'Failed to check missing CIDs',
+                    message: error.message
+                }))
+            }
+        } else if (req.method === 'GET' && parsedUrl.pathname === '/find-missing') {
+            try {
+                const db = await getOrCreateDB(orbitdb)
+                const allDocs = await db.all()
+                const missingItems = []
+                const fs = unixfs(helia)
+                
+                // Go through all documents and their nameOps
+                for (const doc of allDocs) {
+                    const nameOps = doc.value.nameOps || []
+                    for (const nameOp of nameOps) {
+                        // Check if nameValue is an IPFS URL
+                        if (typeof nameOp.nameValue === 'string' && nameOp.nameValue.startsWith('ipfs://')) {
+                            const cidStr = nameOp.nameValue.replace('ipfs://', '')
+                            console.log(`Checking IPFS URL for nameId ${nameOp.nameId}: ${nameOp.nameValue}`)
+                            
+                            try {
+                                const cid = CID.parse(cidStr)
+                                console.log(`Valid CID parsed: ${cid.toString()}`)
+                                
+                                // Check if CID exists in blockstore
+                                let existsInBlockstore = false
+                                try {
+                                    const timeoutPromise = new Promise((_, reject) => {
+                                        setTimeout(() => reject(new Error('Timeout')), 5000)
+                                    })
+                                    
+                                    await Promise.race([
+                                        helia.blockstore.get(cid),
+                                        timeoutPromise
+                                    ])
+                                    existsInBlockstore = true
+                                    console.log(`✅ CID exists in blockstore: ${cid.toString()}`)
+                                } catch (error) {
+                                    existsInBlockstore = false
+                                    console.log(`❌ CID not found in blockstore: ${cid.toString()} - ${error.message === 'Timeout' ? 'Check timed out' : 'Not found'}`)
+                                }
+                                
+                                // Check if CID is pinned
+                                let isPinned = false
+                                console.log(`Checking if CID is pinned: ${cid.toString()}`)
+                                for await (const pin of helia.pins.ls()) {
+                                    if (pin.cid.toString() === cid.toString()) {
+                                        isPinned = true
+                                        console.log(`✅ CID is pinned: ${cid.toString()}`)
+                                        break
+                                    }
+                                }
+                                if (!isPinned) {
+                                    console.log(`❌ CID is not pinned: ${cid.toString()}`)
+                                }
+                                
+                                if (!existsInBlockstore || !isPinned) {
+                                    console.log(`⚠️  CID missing locally, attempting to retrieve from IPFS: ${cid.toString()}`)
+                                    
+                                    try {
+                                        // Add timeout for IPFS retrieval
+                                        const timeoutPromise = new Promise((_, reject) => {
+                                            setTimeout(() => reject(new Error('Timeout')), 30000) // 30 second timeout for IPFS retrieval
+                                        })
+
+                                        // Try to retrieve the content
+                                        const chunks = []
+                                        const catPromise = (async () => {
+                                            for await (const chunk of fs.cat(cid)) {
+                                                chunks.push(chunk)
+                                            }
+                                        })()
+
+                                        await Promise.race([catPromise, timeoutPromise])
+                                        const content = new TextDecoder().decode(Buffer.concat(chunks))
+                                        console.log(`✅ Successfully retrieved content for CID: ${cid.toString()}`)
+
+                                        // Try to pin it
+                                        try {
+                                            await helia.pins.add(cid)
+                                            console.log(`✅ Successfully pinned CID: ${cid.toString()}`)
+                                            isPinned = true
+                                        } catch (pinError) {
+                                            console.log(`❌ Failed to pin CID: ${cid.toString()} - ${pinError.message}`)
+                                        }
+
+                                        missingItems.push({
+                                            nameId: nameOp.nameId,
+                                            nameValue: nameOp.nameValue,
+                                            cid: cidStr,
+                                            existsInBlockstore,
+                                            isPinned,
+                                            retrievalStatus: 'success',
+                                            contentPreview: content.substring(0, 100) + (content.length > 100 ? '...' : ''),
+                                            blocktime: nameOp.blocktime
+                                        })
+                                    } catch (retrievalError) {
+                                        console.log(`❌ Failed to retrieve CID: ${cid.toString()} - ${retrievalError.message}`)
+                                        missingItems.push({
+                                            nameId: nameOp.nameId,
+                                            nameValue: nameOp.nameValue,
+                                            cid: cidStr,
+                                            existsInBlockstore,
+                                            isPinned,
+                                            retrievalStatus: 'failed',
+                                            retrievalError: retrievalError.message,
+                                            blocktime: nameOp.blocktime
+                                        })
+                                    }
+                                }
+                            } catch (cidError) {
+                                console.log(`❌ Invalid CID format: ${cidStr} - ${cidError.message}`)
+                                missingItems.push({
+                                    nameId: nameOp.nameId,
+                                    nameValue: nameOp.nameValue,
+                                    error: `Invalid CID: ${cidError.message}`,
+                                    blocktime: nameOp.blocktime
+                                })
+                            }
+                        }
+                    }
+                }
+                
+                // Sort by blocktime descending (newest first)
+                missingItems.sort((a, b) => b.blocktime - a.blocktime)
+                
+                res.writeHead(200, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({
+                    totalChecked: allDocs.reduce((sum, doc) => sum + (doc.value.nameOps?.length || 0), 0),
+                    missingCount: missingItems.length,
+                    missing: missingItems
+                }, null, 2))
+            } catch (error) {
+                res.writeHead(500, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({
+                    error: 'Failed to check and retrieve missing CIDs',
                     message: error.message
                 }))
             }
