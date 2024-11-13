@@ -1,33 +1,21 @@
 import logger from '../logger.js'
-import localforage from 'localforage'
+import { Level } from 'level'
 
-const STATE_DB_NAME = 'scanning-state'
-let stateDB = null
-
-async function getStateDB() {
-    if (!stateDB) {
-        logger.info('Opening scanning state database...')
-        stateDB = localforage.createInstance({
-            name: STATE_DB_NAME,
-            storeName: 'scanning_state',
-            // Use file storage for Node.js
-            driver: process.versions?.node ? require('localforage-node-driver') : localforage.INDEXEDDB
-        })
-        logger.info('Database loaded')
-    }
-    return stateDB
-}
+// Create a database instance
+const db = new Level('scanning-state', {
+    valueEncoding: 'json'  // Automatically handles JSON serialization
+})
 
 export async function updateScanningState(_, metadata) {
     try {
-        const db = await getStateDB()
-        await db.setItem('current_state', {
+        const state = {
             ...metadata,
             updatedAt: new Date().toISOString()
-        })
+        }
+        await db.put('current_state', state)
         
         // Verify the write
-        const verification = await db.getItem('current_state')
+        const verification = await db.get('current_state')
         return verification
     } catch (error) {
         logger.error('Error updating scanning state', { 
@@ -41,8 +29,7 @@ export async function updateScanningState(_, metadata) {
 
 export async function getScanningState(_) {
     try {
-        const db = await getStateDB()
-        const state = await db.getItem('current_state')
+        const state = await db.get('current_state')
         
         if (state && state.lastBlockHeight && state.tipHeight) {
             logger.info('Retrieved existing scanning state', { 
@@ -55,6 +42,10 @@ export async function getScanningState(_) {
         logger.warn('No existing scanning state found, starting from the latest block')
         return null
     } catch (error) {
+        if (error.code === 'LEVEL_NOT_FOUND') {
+            logger.warn('No existing scanning state found, starting from the latest block')
+            return null
+        }
         logger.error('Error reading scanning state', { 
             error: error.message,
             stack: error.stack 
@@ -64,8 +55,5 @@ export async function getScanningState(_) {
 }
 
 export async function closeStateDB() {
-    if (stateDB) {
-        await stateDB.dropInstance()
-        stateDB = null
-    }
+    return db.close()
 }
