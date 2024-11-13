@@ -11,7 +11,7 @@ export async function processBlockAtHeight(height, electrumClient) {
             const tx = await electrumClient.request('blockchain.transaction.id_from_pos', [height, counter]);
             const txDetails = await electrumClient.request('blockchain.transaction.get', [tx, true]);
             blockDate = new Date(txDetails.blocktime * 1000); // Convert UNIX timestamp to JavaScript Date object
-
+            logger.info(`Processing block at height ${height}, position ${counter}`, { txid: txDetails.txid.toString('hex') })
             for (const vout of txDetails.vout) {
                 const asm = vout.scriptPubKey.asm
                 const asmParts = asm.split(" ")

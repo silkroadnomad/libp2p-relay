@@ -32,18 +32,19 @@ export async function getScanningState(_) {
         const state = await db.get('current_state')
         
         if (state && state.lastBlockHeight && state.tipHeight) {
-            logger.info('Retrieved existing scanning state', { 
+            logger.info('Scanning state', { 
+                status: 'existing',
                 lastBlockHeight: state.lastBlockHeight, 
                 tipHeight: state.tipHeight 
             })
             return state
         }
         
-        logger.warn('No existing scanning state found, starting from the latest block')
+        logger.info('Scanning state', { status: 'starting_fresh' })
         return null
     } catch (error) {
         if (error.code === 'LEVEL_NOT_FOUND') {
-            logger.warn('No existing scanning state found, starting from the latest block')
+            logger.info('Scanning state', { status: 'starting_fresh' })
             return null
         }
         logger.error('Error reading scanning state', { 

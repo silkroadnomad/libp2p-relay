@@ -1,6 +1,7 @@
 import { spawn, execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
+import fs from 'fs';
 import logger from './logger.js';
 import os from 'os';
 import dotenv from 'dotenv';
@@ -29,8 +30,59 @@ global.restartCount = 0;
 const RESTART_DELAY = 5000;
 let lastCrashTime = 0;
 
+// Add lock file constants
+const LOCK_FILE = resolve(__dirname, '../relay.lock');
+
+// Add lock file check and creation function
+async function checkAndCreateLock() {
+    try {
+        // Check if lock file exists
+        if (fs.existsSync(LOCK_FILE)) {
+            // Read PID from lock file
+            const pid = parseInt(fs.readFileSync(LOCK_FILE, 'utf8'));
+            
+            // Check if process with that PID is still running
+            try {
+                process.kill(pid, 0);
+                logger.error(`Relay is already running with PID ${pid}`);
+                process.exit(1);
+            } catch (e) {
+                // Process not running, safe to remove stale lock file
+                logger.warn('Removing stale lock file');
+                fs.unlinkSync(LOCK_FILE);
+            }
+        }
+        
+        // Create new lock file with current PID
+        fs.writeFileSync(LOCK_FILE, process.pid.toString());
+        
+        // Remove lock file on process exit
+        const cleanup = () => {
+            try {
+                if (fs.existsSync(LOCK_FILE)) {
+                    fs.unlinkSync(LOCK_FILE);
+                }
+            } catch (error) {
+                logger.error('Error removing lock file:', error);
+            }
+        };
+        
+        process.on('exit', cleanup);
+        process.on('SIGINT', cleanup);
+        process.on('SIGTERM', cleanup);
+        process.on('uncaughtException', cleanup);
+        
+    } catch (error) {
+        logger.error('Error handling lock file:', error);
+        process.exit(1);
+    }
+}
+
 // 1. Main relay function
 async function startRelay() {
+    // Check for existing instance first
+    await checkAndCreateLock();
+    
     logger.info('=== Initial Memory Status ===');
     logSystemMemory();
     logProcessMemory('Wrapper');
