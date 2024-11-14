@@ -355,17 +355,44 @@ if (argv['generate-keypair']) {
 if (!argv['disable-scanning']) {
     logger.info('Starting blockchain scanning...');
     
-    // REMOVE this old direct call:
-    // await scanBlockchainForNameOps(electrumClient, helia, orbitdb);
-    
-    // ADD this new TipWatcher logic:
     const tipWatcher = new TipWatcher(electrumClient);
     
     tipWatcher.on('newTip', async () => {
         try {
+            // Check if connection is alive before scanning
+            if (electrumClient.getStatus() !== 1) {
+                logger.warn('ElectrumX connection lost, attempting to reconnect...');
+                await electrumClient.connect();
+                logger.info('Successfully reconnected to ElectrumX');
+            }
+            
             await scanBlockchainForNameOps(electrumClient, helia, orbitdb);
         } catch (error) {
             logger.error('Error scanning blockchain:', error);
+            
+            // Handle connection errors specifically
+            if (error.message.includes('close connect') || electrumClient.getStatus() !== 1) {
+                logger.info('Attempting to reconnect to ElectrumX...');
+                try {
+                    await electrumClient.connect();
+                    logger.info('Successfully reconnected to ElectrumX');
+                } catch (reconnectError) {
+                    logger.error('Failed to reconnect to ElectrumX:', reconnectError);
+                }
+            }
+        }
+    });
+    
+    // Add error handler for tipWatcher
+    tipWatcher.on('error', async (error) => {
+        logger.error('TipWatcher error:', error);
+        if (electrumClient.getStatus() !== 1) {
+            try {
+                await electrumClient.connect();
+                logger.info('Reconnected to ElectrumX after TipWatcher error');
+            } catch (reconnectError) {
+                logger.error('Failed to reconnect after TipWatcher error:', reconnectError);
+            }
         }
     });
     
