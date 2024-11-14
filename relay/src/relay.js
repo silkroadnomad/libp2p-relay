@@ -12,6 +12,8 @@ import { createLibp2p } from 'libp2p'
 import { createHelia } from 'helia'
 import { unixfs } from "@helia/unixfs"
 
+import { bitswap, trustlessGateway } from '@helia/block-brokers'
+import { httpGatewayRouting, libp2pRouting } from '@helia/routers'
 
 // Storage modules
 import { LevelBlockstore } from "blockstore-level"
@@ -74,7 +76,7 @@ async function createNode () {
 	})
 
 	const libp2p = await createLibp2p(libp2pConfig)
-s
+
 	console.log('Libp2p peerId:', libp2p.peerId.toString())
 
 	const helia = await createHelia({
@@ -86,7 +88,7 @@ s
             bitswap()
         ],
         routers: [
-        libp2pRouting(libp2p),
+            libp2pRouting(libp2p),
             // httpGatewayRouting()
         ],
 		// blockstore: {
