@@ -84,12 +84,12 @@ async function createNode () {
 		datastore,
         blockstore,
         blockBrokers: [
-            // trustlessGateway(),
+            trustlessGateway(),
             bitswap()
         ],
         routers: [
             libp2pRouting(libp2p),
-            // httpGatewayRouting()
+             httpGatewayRouting()
         ],
 		// blockstore: {
 		// 	blocks: blockstore,
