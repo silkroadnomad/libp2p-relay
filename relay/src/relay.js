@@ -74,13 +74,21 @@ async function createNode () {
 	})
 
 	const libp2p = await createLibp2p(libp2pConfig)
-
+s
 	console.log('Libp2p peerId:', libp2p.peerId.toString())
 
 	const helia = await createHelia({
 		libp2p,
 		datastore,
         blockstore,
+        blockBrokers: [
+            // trustlessGateway(),
+            bitswap()
+        ],
+        routers: [
+        libp2pRouting(libp2p),
+            // httpGatewayRouting()
+        ],
 		// blockstore: {
 		// 	blocks: blockstore,
 		// 	gc: {
