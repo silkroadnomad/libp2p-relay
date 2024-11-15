@@ -1,7 +1,6 @@
 import { tcp } from '@libp2p/tcp'
 import { noise } from '@chainsafe/libp2p-noise'
 import { yamux } from '@chainsafe/libp2p-yamux'
-import { tls } from '@libp2p/tls'
 import { identify } from '@libp2p/identify'
 import { ping } from "@libp2p/ping"
 import { autoNAT } from "@libp2p/autonat"
@@ -15,10 +14,13 @@ import { multiaddr } from '@multiformats/multiaddr'
 import { circuitRelayTransport, circuitRelayServer } from '@libp2p/circuit-relay-v2'
 import { kadDHT } from '@libp2p/kad-dht'
 import { uPnPNAT } from '@libp2p/upnp-nat'
+import { prometheusMetrics } from '@libp2p/prometheus-metrics'
+
 import logger from './logger.js'
 
 export function createLibp2pConfig({ keyPair, datastore, listenAddresses, announceAddresses, pubsubPeerDiscoveryTopics, scoreThresholds }) {
     return {
+        metrics: prometheusMetrics(),
         privateKey: keyPair,
         datastore,
         addresses: {
@@ -41,22 +43,16 @@ export function createLibp2pConfig({ keyPair, datastore, listenAddresses, announ
                     iceServers: [
                         { urls: ['stun:stun.l.google.com:19302'] },
                         { urls: ['stun:global.stun.twilio.com:3478'] }
-                    ],
-                    iceTransportPolicy: 'all',
-                    rtcpMuxPolicy: 'require'
-                },
-                maxStreamWindowSize: 512 * 1024
+                    ]
+                }
             }),
             webRTC({
                 rtcConfiguration: {
                     iceServers: [
                         { urls: ['stun:stun.l.google.com:19302'] },
                         { urls: ['stun:global.stun.twilio.com:3478'] }
-                    ],
-                    iceTransportPolicy: 'all',
-                    rtcpMuxPolicy: 'require'
+                    ]
                 },
-                maxStreamWindowSize: 512 * 1024
             }),
             circuitRelayTransport({ discoverRelays: 1 }),
             webSockets({
@@ -68,7 +64,7 @@ export function createLibp2pConfig({ keyPair, datastore, listenAddresses, announ
             })
         ],
         connectionEncrypters: [noise()],
-        streamMuxers: [yamux(), tls()],
+        streamMuxers: [yamux()],
         peerDiscovery: [
             pubsubPeerDiscovery({
                 interval: 10000,
@@ -84,7 +80,6 @@ export function createLibp2pConfig({ keyPair, datastore, listenAddresses, announ
             dht: kadDHT(),
             dcutr: dcutr(),
             pubsub: gossipsub({ 
-                doPX: true, 
                 allowPublishToZeroTopicPeers: true, 
                 canRelayMessage: true, 
                 scoreThresholds

@@ -53,6 +53,11 @@ async function processBlocks(helia, electrumClient, startHeight, tip, orbitdb) {
 
     for (let height = startHeight; height > MIN_HEIGHT; height--) {
         try {
+            if (electrumClient.getStatus() !== 1) {
+                logger.warn("ElectrumX connection lost, attempting to reconnect...");
+                await reconnectElectrumClient(electrumClient);
+            }
+
             logger.info(`Processing block at height ${height}`);
             const { nameOpUtxos, blockDate } = await processBlockAtHeight(height, electrumClient);
             logger.info(`nameOpUtxos ${nameOpUtxos} at ${blockDate}`);
@@ -79,7 +84,7 @@ async function processBlocks(helia, electrumClient, startHeight, tip, orbitdb) {
                 logger.debug(`No name operations found in block ${height}`);
             }
             
-            state = await updateScanningState(orbitdb, { lastBlockHeight: height, tipHeight: tip.height })
+            state = await updateScanningState(orbitdb, { lastBlockHeight: height, tipHeight: tip.height });
             if (state && state.tipHeight && height === state.tipHeight) {
                 height = state.lastBlockHeight;
                 logger.info(`Reached old tip, jumping to last processed block`, { height: state.lastBlockHeight });

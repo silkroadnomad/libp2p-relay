@@ -9,98 +9,32 @@ import { getScanningState } from './pinner/scanningStateManager.js'
 import os from 'os'
 import 'dotenv/config'
 import { multiaddr } from '@multiformats/multiaddr'
-/**
- * Creates and starts an HTTP server that provides various IPFS and OrbitDB related endpoints
- * 
- * @param {import('@helia/interface').Helia} helia - Helia IPFS instance
- * @param {import('@orbitdb/core').OrbitDB} orbitdb - OrbitDB instance
- * 
- * @description
- * Creates an HTTP server with the following endpoints:
- * 
- * GET /status
- * Returns system status including:
- * - Connected peers count and details
- * - NameOp count
- * - Memory usage statistics
- * - Helia storage statistics
- * - Network metrics
- * 
- * GET /failed-cids
- * Returns a list of CIDs that failed to be pinned
- * 
- * GET /duplicate-nameops
- * Returns nameOps that have the same nameId and nameValue
- * 
- * GET /with-history
- * Returns nameOps that have multiple operations for the same nameId
- * 
- * GET /pinned-cids
- * Returns all pinned CIDs and their content (if readable)
- * 
- * GET /check-missing
- * Checks IPFS URLs in nameOps
- * 
- * GET /find-missing
- * Checks IPFS URLs in nameOps and attempts to retrieve them from IPFS
- * 
- * @returns {http.Server} The created HTTP server instance
- * 
- * @example
- * const helia = await createHelia()
- * const orbitdb = await createOrbitDB()
- * createHttpServer(helia, orbitdb)
- */
+import client from 'prom-client'
+
+// Initialize Prometheus metrics
+const collectDefaultMetrics = client.collectDefaultMetrics;
+collectDefaultMetrics();  // Collect default metrics
+
+// Create a custom counter metric
+const requestCounter = new client.Counter({
+    name: 'http_requests_total',
+    help: 'Total number of HTTP requests',
+    labelNames: ['method', 'path']
+});
+
 export function createHttpServer(helia, orbitdb) {
     const server = http.createServer(async (req, res) => {
-        const parsedUrl = url.parse(req.url, true)
-        
+        const parsedUrl = url.parse(req.url, true);
+
+        // Increment the request counter
+        requestCounter.inc({ method: req.method, path: parsedUrl.pathname });
+
         if (req.method === 'GET' && parsedUrl.pathname === '/status') {
-            const connectedPeers = helia.libp2p.getPeers()
-            const nameOpCount = await getNameOpCount(orbitdb)
-            const heliaStats = await getHeliaStats(helia)
-            
-            // Get memory information
-            const totalMemory = os.totalmem()
-            const freeMemory = os.freemem()
-            const usedMemory = totalMemory - freeMemory
-            const processMemory = process.memoryUsage()
-
-            const peerDetails = await Promise.all(connectedPeers.map(async (peerId) => {
-                const connections = helia.libp2p.getConnections(peerId)
-                return connections.map(connection => ({
-                    peerId: peerId.toString(),
-                    address: connection.remoteAddr.toString(),
-                    direction: connection.direction,
-                    status: connection.status,
-                }))
-            }))
-
-            const flatPeerDetails = peerDetails.flat()
-            const scanningState = await getScanningState(orbitdb)
-            res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({
-                connectedPeersCount: connectedPeers.length,
-                nameOpCount,
-                peers: flatPeerDetails,
-                scanningState: scanningState?.value || null,
-                memory: {
-                    total: Math.round(totalMemory / 1024 / 1024),    // MB
-                    free: Math.round(freeMemory / 1024 / 1024),      // MB
-                    used: Math.round(usedMemory / 1024 / 1024),      // MB
-                    process: {
-                        heapUsed: Math.round(processMemory.heapUsed / 1024 / 1024),      // MB
-                        heapTotal: Math.round(processMemory.heapTotal / 1024 / 1024),      // MB
-                        rss: Math.round(processMemory.rss / 1024 / 1024),      // MB
-                    }
-                },
-                storage: heliaStats,
-                metrics: {
-                    peers: helia.libp2p.metrics?.getPeerMetrics(),
-                    protocol: helia.libp2p.metrics?.getProtocolMetrics(),
-                    system: helia.libp2p.metrics?.getSystemMetrics()
-                }
-            }, null, 2))
+            await handleStatusRequest(req, res, helia, orbitdb);
+        } else if (req.method === 'GET' && parsedUrl.pathname === '/metrics') {
+            // Expose metrics for Prometheus
+            res.writeHead(200, { 'Content-Type': client.register.contentType });
+            res.end(await client.register.metrics());
         } else if (req.method === 'GET' && parsedUrl.pathname === '/failed-cids') {
             try {
                 const failedCIDs = await getFailedCIDs(orbitdb)
@@ -467,6 +401,54 @@ export function createHttpServer(helia, orbitdb) {
         console.log(`HTTP server running on port ${port}`)
     })
 }
+async function handleStatusRequest(req, res, helia, orbitdb) {
+    const connectedPeers = helia.libp2p.getPeers();
+    const nameOpCount = await getNameOpCount(orbitdb);
+    const heliaStats = await getHeliaStats(helia);
+
+    // Get memory information
+    const totalMemory = os.totalmem();
+    const freeMemory = os.freemem();
+    const usedMemory = totalMemory - freeMemory;
+    const processMemory = process.memoryUsage();
+
+    const peerDetails = await Promise.all(connectedPeers.map(async (peerId) => {
+        const connections = helia.libp2p.getConnections(peerId);
+        return connections.map(connection => ({
+            peerId: peerId.toString(),
+            address: connection.remoteAddr.toString(),
+            direction: connection.direction,
+            status: connection.status,
+        }));
+    }));
+
+    const flatPeerDetails = peerDetails.flat();
+    const scanningState = await getScanningState(orbitdb);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+        connectedPeersCount: connectedPeers.length,
+        nameOpCount,
+        peers: flatPeerDetails,
+        scanningState: scanningState?.value || null,
+        memory: {
+            total: Math.round(totalMemory / 1024 / 1024),    // MB
+            free: Math.round(freeMemory / 1024 / 1024),      // MB
+            used: Math.round(usedMemory / 1024 / 1024),      // MB
+            process: {
+                heapUsed: Math.round(processMemory.heapUsed / 1024 / 1024),      // MB
+                heapTotal: Math.round(processMemory.heapTotal / 1024 / 1024),      // MB
+                rss: Math.round(processMemory.rss / 1024 / 1024),      // MB
+            }
+        },
+        storage: heliaStats,
+        // metrics: {
+        //     // peers: helia.libp2p.metrics?.getPeerMetrics(),
+        //     // protocol: helia.libp2p.metrics?.getProtocolMetrics(),
+        //     // system: helia.libp2p.metrics?.getSystemMetrics()
+        // }
+    }, null, 2));
+}
+
 
 async function getHeliaStats(helia) {
     

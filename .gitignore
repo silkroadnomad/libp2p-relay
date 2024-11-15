@@ -1,6 +1,7 @@
 node_modules/
 relay/node_modules
 relay/orbitdb
+relay/leveldb
 data/
 .env
 .env*

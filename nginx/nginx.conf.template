@@ -25,7 +25,6 @@ server {
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
-    # Keep-Alive settings
     keepalive_timeout 750s;  
     keepalive_requests 1000;
 
