@@ -8,8 +8,7 @@ import { getOrCreateDB } from './pinner/nameOpsFileManager.js'
 import { getScanningState } from './pinner/scanningStateManager.js'
 import os from 'os'
 import 'dotenv/config'
-import { multiaddr } from 'multiaddr'
-
+import { multiaddr } from '@multiformats/multiaddr'
 /**
  * Creates and starts an HTTP server that provides various IPFS and OrbitDB related endpoints
  * 
@@ -198,11 +197,13 @@ export function createHttpServer(helia, orbitdb) {
         } else if (req.method === 'GET' && parsedUrl.pathname === '/check-missing') {
             try {
                 const db = await getOrCreateDB(orbitdb)
+                console.log(`Checking missing CIDs for database: ${db.address}`)
                 const allDocs = await db.all()
                 const missingItems = []
                 
                 // Go through all documents and their nameOps
                 for (const doc of allDocs) {
+                    console.log(`Checking document`,doc)
                     const nameOps = doc.value.nameOps || []
                     for (const nameOp of nameOps) {
                         // Check if nameValue is an IPFS URL

@@ -44,13 +44,8 @@ const announceAddresses = process.env.RELAY_ANNOUNCE_ADDRESSES?.split(',')
 const pubsubPeerDiscoveryTopics = process.env.RELAY_PUBSUB_PEER_DISCOVERY_TOPICS?.split(',')||['doichain._peer-discovery._p2p._pubsub']
 const relayDevMode = process.env.RELAY_DEV_MODE
 
-let blockstore = new LevelBlockstore("./helia-blocks", {
-    prefix: 'helia-blocks'
-})
-let datastore = new LevelDatastore("./helia-data", {
-    prefix: 'helia-data'
-})
-
+let blockstore = new LevelBlockstore("./helia-blocks")
+let datastore = new LevelDatastore("./helia-data")
 
 let scoreThresholds = {}
 if(relayDevMode) scoreThresholds = {

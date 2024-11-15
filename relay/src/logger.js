@@ -3,7 +3,7 @@ import { format } from 'winston'
 import { consoleFormat } from 'winston-console-format'
 import path from 'path'
 
-// Add this custom format function
+// Custom format function to add file and line information
 const fileAndLine = format((info) => {
   const originalPrepareStackTrace = Error.prepareStackTrace
   Error.prepareStackTrace = (_, stack) => stack
@@ -11,17 +11,16 @@ const fileAndLine = format((info) => {
   Error.prepareStackTrace = originalPrepareStackTrace
 
   if (callerStack && typeof callerStack === 'object') {
-    // Find the first stack frame that isn't from logger.js
     const relevantFrame = callerStack.find(frame => {
       const fileName = frame.getFileName()
       return fileName && !fileName.endsWith('logger.js')
     })
 
-    // if (relevantFrame) {
-    //   const callerFile = relevantFrame.getFileName()
-    //   const callerLine = relevantFrame.getLineNumber()
-    //   info.caller = `${path.basename(callerFile)}:${callerLine}`
-    // }
+    if (relevantFrame) {
+      const callerFile = relevantFrame.getFileName()
+      const callerLine = relevantFrame.getLineNumber()
+      info.caller = `${path.basename(callerFile)}:${callerLine}`
+    }
   }
   return info
 })
@@ -29,9 +28,9 @@ const fileAndLine = format((info) => {
 const logger = winston.createLogger({
   level: 'info',
   format: format.combine(
-    fileAndLine(), // Add this line
-    format.timestamp(),
-    format.ms(),
+    format.timestamp(), // Ensure timestamp is first
+    fileAndLine(), // Custom format
+    format.ms(), // Calculate time difference after timestamp
     format.errors({ stack: true }),
     format.splat(),
     format.json()

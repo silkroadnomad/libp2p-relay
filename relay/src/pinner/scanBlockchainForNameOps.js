@@ -37,17 +37,23 @@ export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb) {
             logger.info("Continuing from last scanned block", { startHeight });
         }
     } else {
-        startHeight = tip.height; //state.value.lastBlockHeight;
+        startHeight = tip.height; 
         logger.info("No previous state, starting from current tip", { startHeight });
     }
 
+    await processBlocks(helia, electrumClient, startHeight, tip, orbitdb);
+    logFailedCIDs(helia, orbitdb);
+}
+
+async function processBlocks(helia, electrumClient, startHeight, tip, orbitdb) {
     const BATCH_SIZE = 100;
     const MIN_HEIGHT = 0;
+    let currentDay = null;
+    let state = null;
 
     for (let height = startHeight; height > MIN_HEIGHT; height--) {
-       logger.info(`Processing block at height ${height}`);
         try {
-            // const blockHash = await electrumClient.request('blockchain.block.header', [height]);
+            logger.info(`Processing block at height ${height}`);
             const { nameOpUtxos, blockDate } = await processBlockAtHeight(height, electrumClient);
             logger.info(`nameOpUtxos ${nameOpUtxos} at ${blockDate}`);
             const blockDay = moment.utc(blockDate).format('YYYY-MM-DD');
@@ -74,13 +80,19 @@ export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb) {
             }
             
             state = await updateScanningState(orbitdb, { lastBlockHeight: height, tipHeight: tip.height })
-            if (state && state.value && state.value.tipHeight && height === state.value.tipHeight) {
-                height = state.value.lastBlockHeight;
-                logger.info(`Reached old tip, jumping to last processed block`, { height: state.value.lastBlockHeight });
+            if (state && state.tipHeight && height === state.tipHeight) {
+                height = state.lastBlockHeight;
+                logger.info(`Reached old tip, jumping to last processed block`, { height: state.lastBlockHeight });
             }
         } catch (error) {
             logger.error(`Error processing block at height ${height}:`, { error });
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            if (error.message.includes('ElectrumX connection')) {
+                logger.warn("ElectrumX connection lost, attempting to reconnect...");
+                await reconnectElectrumClient(electrumClient);
+                height++; // Retry the current block
+            } else {
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait before retrying
+            }
         }
 
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -90,7 +102,20 @@ export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb) {
             await new Promise(resolve => setTimeout(resolve, 5000));
         }
     }
-    logFailedCIDs(helia, orbitdb);
+}
+
+async function reconnectElectrumClient(electrumClient) {
+    let connected = false;
+    while (!connected) {
+        try {
+            await electrumClient.connect();
+            logger.info("Reconnected to ElectrumX server");
+            connected = true;
+        } catch (error) {
+            logger.error("Failed to reconnect to ElectrumX server", { error });
+            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds before retrying
+        }
+    }
 }
 
 export async function getTodayNameOpsCids(helia) {
