@@ -1,88 +1,85 @@
+import { IPFSAccessController } from '@orbitdb/core'
 import logger from '../logger.js'
-import { Level } from 'level'
 
 let db = null
 
 /**
- * Initialize or get the single LevelDB instance
+ * Initialize or get the single OrbitDB instance
  */
-export async function getOrCreateDB() {
+export async function getOrCreateDB(orbitdb) {
+    // If we already have the DB open, return it
     if (db) {
         return db
     }
 
-    // Create a new LevelDB instance
-    db = new Level('./leveldb/nameops', {
-        valueEncoding: 'json'
+    // Open new DB
+    const dbName = 'nameops'
+    db = await orbitdb.open(dbName, {
+        type: 'documents',
+        create: true,
+        overwrite: false,
+        directory: './orbitdb/nameops',
+        AccessController: IPFSAccessController({ write: [orbitdb.identity.id] })
+        // AccessController: IPFSAccessController({ write: ['*'] })
     })
 
-    logger.info('Opened LevelDB: nameops')
+    logger.info(`Opened OrbitDB: ${dbName}`)
     return db
 }
 
 /**
- * Updates the name operations in LevelDB.
+ * Updates the name operations in OrbitDB.
  */
-export async function updateDailyNameOpsFile(_, nameOpUtxos, blockDate, blockHeight) {
+export async function updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDate, blockHeight) {
+    
     try {
-        const db = await getOrCreateDB()
+        const db = await getOrCreateDB(orbitdb)
         const docId = `nameops-${blockDate}`
+        
+        const existingDoc = await db.get(docId)
 
-        let existingDoc
-        try {
-            existingDoc = await db.get(docId)
-        } catch (error) {
-            if (error.code !== 'LEVEL_NOT_FOUND') {
-                throw error
-            }
-            existingDoc = { nameOps: [] }
-        }
-
-        const existingNameOps = existingDoc.nameOps || []
+        const existingNameOps = existingDoc?.value?.nameOps || []
         logger.info("existingNameOps", existingNameOps)
 
         const allNameOps = [...existingNameOps, ...nameOpUtxos]
-
+        
         // Create a map using a composite key of relevant fields
         const uniqueMap = new Map()
         allNameOps.forEach(nameOp => {
             const key = `${nameOp.nameId}-${nameOp.nameValue}`
+            // Keep the most recent operation (highest blocktime)
             if (!uniqueMap.has(key) || uniqueMap.get(key).blocktime < nameOp.blocktime) {
                 uniqueMap.set(key, nameOp)
             }
         })
-
+        
         const uniqueNameOps = Array.from(uniqueMap.values())
 
-        await db.put(docId, {
+        await db.put({
+            _id: docId,
             nameOps: uniqueNameOps,
             blockHeight,
             blockDate
         })
 
-        logger.info(`Document updated in LevelDB: ${docId}`, uniqueNameOps)
+        logger.info(`Document updated in OrbitDB: ${docId}`,uniqueNameOps)
         return docId
 
     } catch (error) {
-        logger.error(`Error updating LevelDB: ${error.message}`)
+        logger.error(`Error updating OrbitDB: ${error.message}`)
         throw error
     }
 }
 
-/**
- * Retrieves the last name operations from LevelDB.
- */
-export async function getLastNameOps(_, limit = 100) {
+export async function getLastNameOps(orbitdb, limit = 100) {
     try {
-        const db = await getOrCreateDB()
-        const allDocs = []
-
-        for await (const [key, value] of db.iterator()) {
-            allDocs.push({ key, value })
-        }
-
+        const db = await getOrCreateDB(orbitdb)
+        const allDocs = await db.all()
+        
+        // Sort documents by date (newest first)
         const sortedDocs = allDocs.sort((a, b) => b.value.blockDate.localeCompare(a.value.blockDate))
-
+        
+        // Collect nameOps until we reach the limit
         let nameOps = []
         for (const doc of sortedDocs) {
             nameOps = [...nameOps, ...doc.value.nameOps]
@@ -95,7 +92,7 @@ export async function getLastNameOps(_, limit = 100) {
         return nameOps
 
     } catch (error) {
-        logger.error(`Error getting nameOps from LevelDB: ${error.message}`)
+        logger.error(`Error getting nameOps from OrbitDB: ${error.message}`)
         throw error
     }
 }
