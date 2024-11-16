@@ -6,6 +6,7 @@ scrape_configs:
     static_configs:
       - targets: ['prometheus:9090']
     metrics_path: '/metrics'
+    
   - job_name: 'libp2p-node'
     scrape_interval: 5s
     static_configs:

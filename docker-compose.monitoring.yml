@@ -8,8 +8,11 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yaml'
     volumes:
       - ./prometheus.yaml:/etc/prometheus/prometheus.yaml
-      - ./data:/prometheus
+      - ./prometheus_data:/prometheus
     restart: unless-stopped
+    networks:
+      - local-first-network
+      - monitoring
 
   grafana:
     image: grafana/grafana-oss:latest
@@ -19,6 +22,9 @@ services:
     volumes:
       - grafana-data:/var/lib/grafana
     restart: unless-stopped
+    networks:
+      - local-first-network
+      - monitoring
 
   node_exporter:
     image: quay.io/prometheus/node-exporter:v1.8.2
@@ -28,6 +34,9 @@ services:
     restart: unless-stopped
     volumes:
       - /:/host
+    networks:
+      - local-first-network
+      - monitoring
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.47.0
@@ -45,13 +54,18 @@ services:
       - /dev/kmsg
     privileged: true
     restart: unless-stopped
+    networks:
+      - local-first-network
+      - monitoring
 
 volumes:
   prometheus-data:
     driver: local
   grafana-data:
     driver: local
-    
+
 networks:
+  local-first-network:
+    external: true
   monitoring:
     driver: bridge
