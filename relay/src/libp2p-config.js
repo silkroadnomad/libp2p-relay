@@ -1,3 +1,4 @@
+import dotenv from 'dotenv';
 import { tcp } from '@libp2p/tcp'
 import { noise } from '@chainsafe/libp2p-noise'
 import { yamux } from '@chainsafe/libp2p-yamux'
@@ -17,6 +18,9 @@ import { uPnPNAT } from '@libp2p/upnp-nat'
 import { prometheusMetrics } from '@libp2p/prometheus-metrics'
 
 import logger from './logger.js'
+dotenv.config();
+
+const bootstrapList = process.env.RELAY_BOOTSTRAP_LIST.split(',');
 
 export function createLibp2pConfig({ keyPair, datastore, listenAddresses, announceAddresses, pubsubPeerDiscoveryTopics, scoreThresholds }) {
     return {
@@ -66,6 +70,7 @@ export function createLibp2pConfig({ keyPair, datastore, listenAddresses, announ
         connectionEncrypters: [noise()],
         streamMuxers: [yamux()],
         peerDiscovery: [
+            bootstrap({ list: bootstrapList }),
             pubsubPeerDiscovery({
                 interval: 10000,
                 topics: pubsubPeerDiscoveryTopics,
