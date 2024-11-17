@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { tcp } from '@libp2p/tcp'
+import { bootstrap } from '@libp2p/bootstrap'
 import { noise } from '@chainsafe/libp2p-noise'
 import { yamux } from '@chainsafe/libp2p-yamux'
 import { identify } from '@libp2p/identify'
