@@ -428,5 +428,5 @@ process.on('SIGTERM', async () => {
     process.exit(0)
 })
 
-createHttpServer(helia, orbitdb)
+createHttpServer(helia, orbitdb, electrumClient)
 

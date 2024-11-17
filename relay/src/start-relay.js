@@ -116,7 +116,7 @@ async function startRelay() {
     logger.info('Starting relay process...');
     
     const nodeArgs = [
-        '--max-old-space-size=4096',
+        '--max-old-space-size=8192',
         '--expose-gc',
         '--optimize-for-size',
         relayPath,

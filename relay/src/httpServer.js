@@ -10,6 +10,8 @@ import os from 'os'
 import 'dotenv/config'
 import { multiaddr } from '@multiformats/multiaddr'
 import client from 'prom-client'
+import moment from 'moment/moment.js';
+import logger from './logger.js';
 
 // Initialize Prometheus metrics
 const collectDefaultMetrics = client.collectDefaultMetrics;
@@ -22,7 +24,7 @@ const requestCounter = new client.Counter({
     labelNames: ['method', 'path']
 });
 
-export function createHttpServer(helia, orbitdb) {
+export function createHttpServer(helia, orbitdb, electrumClient) {
     const server = http.createServer(async (req, res) => {
         const parsedUrl = url.parse(req.url, true);
 
@@ -390,9 +392,44 @@ export function createHttpServer(helia, orbitdb) {
                     message: error.message
                 }))
             }
+        } else if (req.method === 'GET' && parsedUrl.pathname === '/scan-block') {
+            console.log('Scan block request received', parsedUrl);
+            const blockHeight = parseInt(parsedUrl.query.height, 10); // Assume height is passed as a query parameter
+            const count = parseInt(parsedUrl.query.count, 10) || 1; // Default to 1 if count is not provided
+
+            if (isNaN(blockHeight) || isNaN(count) || count < 1) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Valid block height and count query parameters are required' }));
+                return;
+            }
+
+            // Set headers for SSE
+            res.writeHead(200, {
+                'Content-Type': 'text/event-stream',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive'
+            });
+
+            for (let i = 0; i < count; i++) {
+                const currentHeight = blockHeight + i;
+                try {
+                    const blockDetails = await processBlockAtHeight(currentHeight, electrumClient);
+                    res.write(`data: ${JSON.stringify({ height: currentHeight, ...blockDetails })}\n\n`);
+                } catch (error) {
+                    res.write(`data: ${JSON.stringify({
+                        error: `Failed to retrieve block details for height ${currentHeight}`,
+                        message: error.message
+                    })}\n\n`);
+                    break; // Stop processing further blocks on error
+                }
+            }
+
+            res.write('event: end\n');
+            res.write('data: End of stream\n\n');
+            res.end();
         } else {
-            res.writeHead(404, { 'Content-Type': 'text/plain' })
-            res.end('Not Found')
+            res.writeHead(404, { 'Content-Type': 'text/plain' });
+            res.end('Not Found');
         }
     })
 
@@ -543,4 +580,47 @@ async function getNameOpsHistory(db, getKey) {
         totalCount: duplicates.length,
         duplicates
     }
+}
+
+async function processBlockAtHeight(height, electrumClient) {
+    let counter = 0;
+    let blockDate;
+    let nameOpUtxos = [];
+
+    while (true) {
+        try {
+            const tx = await electrumClient.request('blockchain.transaction.id_from_pos', [height, counter]);
+            const txDetails = await electrumClient.request('blockchain.transaction.get', [tx, true]);
+            blockDate = new Date(txDetails.blocktime * 1000); // Convert UNIX timestamp to JavaScript Date object
+            logger.info(`Processing block at height ${height}, position ${counter}`, { txid: txDetails.txid.toString('hex') })
+            for (const vout of txDetails.vout) {
+                const asm = vout.scriptPubKey.asm;
+                const asmParts = asm.split(" ");
+                if (asmParts[0] === 'OP_10' || asmParts[0] === 'OP_NAME_DOI') {
+                    logger.info(`nameOp found: ${vout.scriptPubKey.nameOp.name}`);
+                    logger.info(`value: ${vout.scriptPubKey.nameOp.value}`);
+                    nameOpUtxos.push({
+                        txid: txDetails.txid,
+                        blocktime: txDetails.blocktime,
+                        formattedBlocktime: moment.unix(txDetails.blocktime).format('YYYY-MM-DD HH:mm:ss'),
+                        n: vout.n,
+                        value: vout.value,
+                        nameId: vout.scriptPubKey.nameOp.name,
+                        nameValue: vout.scriptPubKey.nameOp.value,
+                        address: vout.scriptPubKey?.addresses[0]
+                    });
+                }
+            }
+            counter++;
+        } catch (ex) {
+            if (ex.message.includes('no tx at position') || ex.message.includes('No such transaction')) {
+                break;
+            }
+            logger.warn(`Warning: Error processing transaction at height ${height}, position ${counter}: ${ex.message}`);
+            await new Promise(resolve => setTimeout(resolve, 500));
+            counter++;
+        }
+    }
+
+    return { nameOpUtxos, blockDate };
 } 

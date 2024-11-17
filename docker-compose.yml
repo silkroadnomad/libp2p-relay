@@ -37,7 +37,9 @@ services:
     environment:
       - DEBUG=libp2p:*
       - NODE_ENV=production
-    command: ["node", "relay/src/start-relay.js", "--disable-scanning"]
+    #command: ["node", "relay/src/start-relay.js", "--disable-scanning"]
+    # command: ["node", "relay/src/start-relay.js"] 
+    command: ["node", "--max-old-space-size=8192", "relay/src/start-relay.js"]
     networks:
       - local-first-network
 

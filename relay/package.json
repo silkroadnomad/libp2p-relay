@@ -4,8 +4,8 @@
 	"private": true,
 	"scripts": {
 		"start:no-restart": "node src/relay.js",
-		"start": "node src/start-relay.js",
-		"start:no-scan": "node src/start-relay.js --disable-scanning",
+		"start": "node --max-old-space-size=8192 src/start-relay.js",
+		"start:no-scan": "node --max-old-space-size=8192 src/start-relay.js --disable-scanning",
 		"generate-keypair": "node src/relay.js --generate-keypair",
 		"test": "npx mocha 'tests/**/*.js'"
 	},
