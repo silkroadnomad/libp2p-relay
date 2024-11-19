@@ -25,10 +25,8 @@ import { connectElectrum } from "./doichain/connectElectrum.js"
 import { getLastNameOps } from "./pinner/nameOpsFileManager.js"
 import { getNameOpsCidsForDate } from "./pinner/scanBlockchainForNameOps.js"
 import { scanBlockchainForNameOps } from '../src/pinner/scanBlockchainForNameOps.js'
-import { retryFailedCIDs } from './pinner/scanBlockchainForNameOps.js'
 
 import fs from 'fs/promises'
-import { setTimeout } from 'timers/promises'
 
 import { createHttpServer } from './httpServer.js'
 import { createOrbitDB } from '@orbitdb/core'
@@ -284,27 +282,6 @@ helia.libp2p.services.pubsub.addEventListener('gossipsub:message', (evt) => {
 helia.libp2p.addEventListener('connection:error', (evt) => {
 	logger.warn(`Connection error: ${evt.detail.error.message}`)
 })
-
-async function retryFailedCIDsWithAttempts(helia, maxAttempts = 3, timeWindow = 5000) {
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-            await retryFailedCIDs(helia, orbitdb);
-            console.log(`Attempt ${attempt}: Successfully retried failed CIDs`);
-            return; // Exit the function if successful
-        } catch (error) {
-            console.error(`Attempt ${attempt}: Failed to retry CIDs`, error);
-            if (attempt < maxAttempts) {
-                const delay = timeWindow;
-                console.log(`Waiting ${delay}ms before next attempt...`);
-                await setTimeout(delay);
-            }
-        }
-    }
-    console.error(`Failed to retry CIDs after ${maxAttempts} attempts`);
-}
-
-//await retryFailedCIDsWithAttempts(helia, orbitdb);
-
 
 // Parse command line arguments
 const argv = yargs(hideBin(process.argv))

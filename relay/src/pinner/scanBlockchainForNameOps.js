@@ -8,14 +8,8 @@ import { unixfs } from '@helia/unixfs'
 import fs from 'fs/promises'
 import path from 'path'
 import { getImageUrlFromIPFS } from '../doichain/nfc/getImageUrlFromIPFS.js'
-// import TipWatcher from './tipWatcher.js'
 import { addFailedCID, getFailedCIDs, removeSuccessfulCIDs, logFailedCIDs } from './failedCidsManager.js'
 
-let helia
-let tipWatcher
-let isScanning = false
-
-// Add this constant at the top of the file
 const CONTENT_TOPIC = '/doichain/nft/1.0.0'
 
 export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb) {
@@ -85,9 +79,11 @@ async function processBlocks(helia, electrumClient, startHeight, tip, orbitdb) {
             }
             
             state = await updateScanningState(orbitdb, { lastBlockHeight: height, tipHeight: tip.height });
+            
+            // Check if we have reached the stored tipHeight
             if (state && state.tipHeight && height === state.tipHeight) {
-                height = state.lastBlockHeight;
-                logger.info(`Reached old tip, jumping to last processed block`, { height: state.lastBlockHeight });
+                logger.info(`Reached stored tipHeight, jumping to last processed block`, { height: state.lastBlockHeight });
+                height = state.lastBlockHeight + 1; // Set height to one above lastBlockHeight to continue scanning
             }
         } catch (error) {
             logger.error(`Error processing block at height ${height}:`, { error });
@@ -315,53 +311,3 @@ async function pinIpfsContent(helia, orbitdb, nameId, ipfsUrl) {
         throw error
     }
 }
-
-export async function retryFailedCIDs(helia, orbitdb) {
-    const failedCIDs = await getFailedCIDs(orbitdb)
-    if (failedCIDs.length === 0) {
-        return
-    }
-    
-    logger.info(`Retrying ${failedCIDs.length} failed CIDs`)
-    const successfulCIDs = []
-
-    for (const failedCID of failedCIDs) {
-        logger.info(`Retrying CID: ${failedCID.cid}`)
-        try {
-            await pinIpfsContent(helia, orbitdb, failedCID.nameId, `ipfs://${failedCID.cid}`, orbitdb)
-            successfulCIDs.push(failedCID)
-            logger.info(`Successfully pinned CID: ${failedCID.cid}`)
-        } catch (error) {
-            logger.error(`Failed to pin CID: ${failedCID.cid}`, { error: error.message })
-        }
-    }
-
-    // Remove successful CIDs from the database
-    if (successfulCIDs.length > 0) {
-        await removeSuccessfulCIDs(successfulCIDs, orbitdb)
-    }
-
-    logger.info(`Removed ${successfulCIDs.length} successfully pinned CIDs from the database`)
-}
-
-export async function initializeScanningProcess(electrumClient, _helia) {
-    helia = _helia;
-    tipWatcher = new TipWatcher(electrumClient);
-
-    tipWatcher.on('newTip', (tip) => {
-        logger.info("New tip received, queueing scan restart", { height: tip.height });
-        queueScanRestart(electrumClient);
-    });
-
-    await tipWatcher.start();
-    await scanBlockchainForNameOps(electrumClient);
-}
-
-function queueScanRestart(electrumClient) {
-    if (!isScanning) {
-        scanBlockchainForNameOps(electrumClient);
-    } else {
-        logger.info("Scan already in progress, will restart after current scan completes");
-    }
-}
-
