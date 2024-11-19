@@ -83,7 +83,7 @@ async function processBlocks(helia, electrumClient, startHeight, tip, orbitdb) {
             // Check if we have reached the stored tipHeight
             if (state && state.tipHeight && height === state.tipHeight) {
                 logger.info(`Reached stored tipHeight, jumping to last processed block`, { height: state.lastBlockHeight });
-                height = state.lastBlockHeight + 1; // Set height to one above lastBlockHeight to continue scanning
+                height = state.lastBlockHeight; // Set height to one above lastBlockHeight to continue scanning
             }
         } catch (error) {
             logger.error(`Error processing block at height ${height}:`, { error });
