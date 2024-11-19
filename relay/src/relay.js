@@ -117,14 +117,95 @@ const fsHelia = unixfs(helia)
 
 helia.libp2p.services.pubsub.subscribe(CONTENT_TOPIC)
 
+async function handleListRequest(dateString, pageSize, from, filter) {
+    try {
+        let nameOps;
+        console.log("Handling LIST request:", { dateString, pageSize, from, filter });
+        if (dateString === "LAST") {
+            nameOps = await getLastNameOps(pageSize, from, filter);
+        } else {
+            const date = parseDate(dateString);
+            if (!date) {
+                publishMessage("INVALID_DATE_FORMAT");
+                return;
+            }
+            nameOps = await getNameOpsCidsForDate(helia, date);
+        }
+
+        if (nameOps.length > 0) {
+            publishMessage(JSON.stringify(nameOps));
+        } else {
+            publishMessage(`${dateString}_CIDS:NONE`);
+        }
+    } catch (error) {
+        logger.error('Error fetching NameOps:', error);
+        publishMessage(`ERROR:Failed to fetch NameOps: ${error.message}`);
+    }
+}
+
+function parseDate(dateString) {
+    if (dateString === "TODAY") {
+        return moment.utc().toDate();
+    }
+    const date = moment.utc(dateString, 'YYYY-MM-DD').startOf('day').toDate();
+    return isNaN(date.getTime()) ? null : date;
+}
+
+function publishMessage(message) {
+    helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(message));
+}
+
+function filterNameOps(nameOps, selectedFilter) {
+    return nameOps.filter(nameOp => {
+        const isNotSpecialPrefix = !nameOp.nameId.startsWith('e/') &&
+            !nameOp.nameId.startsWith('pe/') &&
+            !nameOp.nameId.startsWith('poe/') &&
+            !nameOp.nameId.startsWith('nft/') &&
+            !nameOp.nameId.startsWith('bp/');
+
+        switch (selectedFilter) {
+            case 'all':
+                return true;
+            case 'e':
+                return nameOp.nameId.startsWith('e/');
+            case 'pe':
+                return nameOp.nameId.startsWith('pe/') || nameOp.nameId.startsWith('poe/');
+            case 'bp':
+                return nameOp.nameId.startsWith('bp/');
+            case 'names':
+                return !nameOp.nameValue && isNotSpecialPrefix;
+            case 'other':
+                return nameOp.nameValue && isNotSpecialPrefix;
+            default:
+                return true;
+        }
+    });
+}
+
+helia.libp2p.services.pubsub.addEventListener('message', async event => {
+
+});
+
 helia.libp2p.services.pubsub.addEventListener('message', async event => {
     logger.info(`Received pubsub message from ${event.detail.from} on topic ${event.detail.topic}`)
     const topic = event.detail.topic
     const from = event.detail.from
+    const message = new TextDecoder().decode(event.detail.data)
+    let messageObject;
 
-    if (topic.startsWith(CONTENT_TOPIC)) {
-        const message = new TextDecoder().decode(event.detail.data)
-        logger.info(`Received pubsub message from ${from} on topic ${topic}`)
+    try {
+        messageObject = JSON.parse(message);
+    } catch (error) {
+    }
+
+    if (messageObject && topic.startsWith(CONTENT_TOPIC)) {
+        
+        if (messageObject.type=="LIST") {
+            console.log("Received LIST request:", messageObject);
+            const { dateString, pageSize, from, filter } = messageObject;
+            const pageSizeValue = parseInt(pageSize, 10) || 100; // Default to 100 if not specified
+            await handleListRequest(dateString, pageSizeValue, from, filter);
+        }
 
         if(message.startsWith("NEW-CID")){
             const cid = message.substring(8)
@@ -207,58 +288,6 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
             const addedMsg = "ADDED-CID:"+cid
             console.log("publishing", addedMsg)
             helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addedMsg))
-        } else if (message.startsWith("LIST_")) {
-            console.log("Received LIST request:");
-            const dateString = message.substring(5);
-            
-            if (dateString === "LAST_100") {
-                console.log("Fetching last 100 name_ops");
-                try {
-                    const lastNameOps = await getLastNameOps(orbitdb, 100);
-                    
-                    logger.info(`Retrieved ${lastNameOps?.length || 0} NameOps from OrbitDB`);
-                    
-                    if (lastNameOps && lastNameOps.length > 0) {
-                        console.log(`Publishing last ${lastNameOps.length} NameOps`);
-                        const jsonString = JSON.stringify(lastNameOps);
-                        helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(jsonString));
-                    } else {
-                        logger.warn("No NameOps found in OrbitDB");
-                        helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("LAST_100_CIDS:NONE"));
-                    }
-                } catch (error) {
-                    logger.error('Error fetching last NameOps:', error);
-                    // Notify about the error through pubsub
-                    helia.libp2p.services.pubsub.publish(
-                        CONTENT_TOPIC, 
-                        new TextEncoder().encode(`ERROR:Failed to fetch last 100 NameOps: ${error.message}`)
-                    );
-                }
-            } else {
-                
-                let date;
-                if (dateString === "TODAY") {
-                    date = moment.utc().toDate();
-                } else {
-                    date = moment.utc(dateString, 'YYYY-MM-DD').startOf('day').toDate();
-                }
-
-                if (isNaN(date.getTime())) {
-                    console.log("Invalid date format received");
-                    helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("INVALID_DATE_FORMAT"));
-                } else {
-                    const foundNameOps = await getNameOpsCidsForDate(helia, date);
-                    const formattedDate = date.toISOString().split('T')[0]; // Format as YYYY-MM-DD
-                    if (foundNameOps.length > 0) {
-                        console.log(`Publishing NameOps for ${formattedDate}:`, foundNameOps);
-                        const jsonString = JSON.stringify(foundNameOps);
-                        helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(jsonString));
-                    } else {
-                        console.log(`No NameOps found for ${formattedDate}`);
-                        helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(`${formattedDate}_CIDS:NONE`));
-                    }
-                }
-            }
         }
     }
 })
