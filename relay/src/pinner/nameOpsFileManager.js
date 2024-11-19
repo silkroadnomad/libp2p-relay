@@ -146,7 +146,7 @@ function applyFilter(nameOp, selectedFilter) {
         case 'bp':
             return nameOp.nameId.startsWith('bp/');
         case 'names':
-            return !nameOp.nameValue && isNotSpecialPrefix;
+            return (!nameOp.nameValue || nameOp.nameValue === ' ') && isNotSpecialPrefix;
         case 'other':
             return nameOp.nameValue && isNotSpecialPrefix;
         default:
