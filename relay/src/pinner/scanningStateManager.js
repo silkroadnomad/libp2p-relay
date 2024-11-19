@@ -1,60 +1,79 @@
 import logger from '../logger.js'
-import { Level } from 'level'
+import fs from 'fs/promises';
 
-// Create a database instance
-const db = new Level('scanning-state', {
-    valueEncoding: 'json'  // Automatically handles JSON serialization
-})
+const isBrowser = typeof window !== 'undefined';
+const filePath = './scanning-state.json';
+
+async function getStateFromFile() {
+    try {
+        const data = await fs.readFile(filePath, 'utf-8');
+        return JSON.parse(data);
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            return null; // File not found, return null
+        }
+        throw error;
+    }
+}
+
+async function saveStateToFile(state) {
+    await fs.writeFile(filePath, JSON.stringify(state, null, 2));
+}
 
 export async function updateScanningState(_, metadata) {
     try {
         const state = {
             ...metadata,
             updatedAt: new Date().toISOString()
+        };
+
+        if (isBrowser) {
+            localStorage.setItem('current_state', JSON.stringify(state));
+        } else {
+            await saveStateToFile(state);
         }
-        await db.put('current_state', state)
-        
-        // Verify the write
-        const verification = await db.get('current_state')
-        return verification
+
+        return state;
     } catch (error) {
         logger.error('Error updating scanning state', { 
             error: error.message,
             stack: error.stack,
             metadata 
-        })
-        throw error
+        });
+        throw error;
     }
 }
 
 export async function getScanningState(_) {
     try {
-        const state = await db.get('current_state')
-        
+        let state;
+        if (isBrowser) {
+            const stateStr = localStorage.getItem('current_state');
+            state = stateStr ? JSON.parse(stateStr) : null;
+        } else {
+            state = await getStateFromFile();
+        }
+
         if (state && state.lastBlockHeight && state.tipHeight) {
             logger.info('Scanning state', { 
                 status: 'existing',
                 lastBlockHeight: state.lastBlockHeight, 
                 tipHeight: state.tipHeight 
-            })
-            return state
+            });
+            return state;
         }
-        
-        logger.info('Scanning state', { status: 'starting_fresh' })
-        return null
+
+        logger.info('Scanning state', { status: 'starting_fresh' });
+        return null;
     } catch (error) {
-        if (error.code === 'LEVEL_NOT_FOUND') {
-            logger.info('Scanning state', { status: 'starting_fresh' })
-            return null
-        }
         logger.error('Error reading scanning state', { 
             error: error.message,
             stack: error.stack 
-        })
-        return null
+        });
+        return null;
     }
 }
 
 export async function closeStateDB() {
-    return db.close()
+    // No action needed for localStorage or file-based storage
 }
