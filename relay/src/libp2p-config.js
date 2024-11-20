@@ -43,22 +43,22 @@ export function createLibp2pConfig({ keyPair, datastore, listenAddresses, announ
         },
         transports: [
             tcp(),
-            webRTCDirect({
-                rtcConfiguration: {
-                    iceServers: [
-                        { urls: ['stun:stun.l.google.com:19302'] },
-                        { urls: ['stun:global.stun.twilio.com:3478'] }
-                    ]
-                }
-            }),
-            webRTC({
-                rtcConfiguration: {
-                    iceServers: [
-                        { urls: ['stun:stun.l.google.com:19302'] },
-                        { urls: ['stun:global.stun.twilio.com:3478'] }
-                    ]
-                },
-            }),
+            // webRTCDirect({
+            //     rtcConfiguration: {
+            //         iceServers: [
+            //             { urls: ['stun:stun.l.google.com:19302'] },
+            //             { urls: ['stun:global.stun.twilio.com:3478'] }
+            //         ]
+            //     }
+            // }),
+            // webRTC({
+            //     rtcConfiguration: {
+            //         iceServers: [
+            //             { urls: ['stun:stun.l.google.com:19302'] },
+            //             { urls: ['stun:global.stun.twilio.com:3478'] }
+            //         ]
+            //     },
+            // }),
             circuitRelayTransport({ discoverRelays: 1 }),
             webSockets({
                 filter: filters.all,
