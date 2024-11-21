@@ -21,7 +21,6 @@ export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb) {
 
     let state = await getScanningState(orbitdb)
     let startHeight;
-    let currentDay = null;
     if (state && state && state.tipHeight) {
         if (tip.height > state.tipHeight) {
             startHeight = tip.height;
@@ -35,11 +34,11 @@ export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb) {
         logger.info("No previous state, starting from current tip", { startHeight });
     }
 
-    await processBlocks(helia, electrumClient, startHeight, tip, orbitdb);
+    await processBlocks(helia, electrumClient, startHeight, tip, state, orbitdb);
     logFailedCIDs(helia, orbitdb);
 }
 
-async function processBlocks(helia, electrumClient, startHeight, tip, orbitdb) {
+async function processBlocks(helia, electrumClient, startHeight, tip, origState, orbitdb) {
     const BATCH_SIZE = 100;
     const MIN_HEIGHT = 0;
     let currentDay = null;
@@ -82,8 +81,8 @@ async function processBlocks(helia, electrumClient, startHeight, tip, orbitdb) {
             
             // Check if we have reached the stored tipHeight
             if (state && state.tipHeight && height <= state.tipHeight) {
-                logger.info(`Reached stored tipHeight, jumping to last processed block`, { height: state.lastBlockHeight });
-                height = state.lastBlockHeight; // Set height to one above lastBlockHeight to continue scanning
+                logger.info(`Reached stored tipHeight, jumping to last processed block`, { height: origState.lastBlockHeight });
+                height = origState.lastBlockHeight; // Set height to one above lastBlockHeight to continue scanning
             }
         } catch (error) {
             logger.error(`Error processing block at height ${height}:`, { error });
