@@ -95,7 +95,7 @@ Document Structure: The structure of your documents might allow for multiple nam
  * @param {*} filter 
  * @returns 
  */
-export async function getLastNameOps(pageSize, from=100, filter) {
+export async function getLastNameOps(pageSize, from=10, filter) {
     console.log("Getting last nameOps from OrbitDB:", { pageSize, from, filter });
     try {
         const db = await getOrCreateDB()
@@ -104,23 +104,19 @@ export async function getLastNameOps(pageSize, from=100, filter) {
         for await (const [key, value] of db.iterator()) {
             allDocs.push({ key, value })
         }
-        // Apply the filter to the documents
-        const filteredDocs = allDocs.filter(doc => {
-            return doc.value.nameOps.some(nameOp => {
-                return applyFilter(nameOp, filter);
-            });
-        });
-        console.log("filteredDocs", filteredDocs)
-        // Collect nameOps from filtered documents
+        console.log("allDocs", allDocs.length);
+        // Collect nameOps from all documents, applying the filter once
         let nameOps = [];
-        for (const doc of filteredDocs) {
+        for (const doc of allDocs) {
             nameOps = nameOps.concat(doc.value.nameOps.filter(nameOp => applyFilter(nameOp, filter)));
         }
         // console.log("nameOps", nameOps);
-        // Apply pagination
-        const paginatedNameOps = nameOps //.slice(from, from + pageSize);
+        console.log("nameOps length", nameOps.length);
+        console.log("from", from);
+        console.log("pageSize", pageSize);
+        const paginatedNameOps = nameOps.slice(from, from + pageSize);
         //const paginatedNameOps = nameOps.slice(from, from + pageSize);
-        console.log("paginatedNameOps", paginatedNameOps);
+        console.log("paginatedNameOps.length", paginatedNameOps.length);
         return paginatedNameOps;
 
     } catch (error) {
@@ -130,6 +126,8 @@ export async function getLastNameOps(pageSize, from=100, filter) {
 }
 
 function applyFilter(nameOp, selectedFilter) {
+    const hasNameValue = nameOp.nameValue && nameOp.nameValue !== '' && nameOp.nameValue !== ' ' && nameOp.nameValue !== 'empty';
+		
     const isNotSpecialPrefix = !nameOp.nameId.startsWith('e/') &&
         !nameOp.nameId.startsWith('pe/') &&
         !nameOp.nameId.startsWith('poe/') &&
@@ -146,9 +144,9 @@ function applyFilter(nameOp, selectedFilter) {
         case 'bp':
             return nameOp.nameId.startsWith('bp/');
         case 'names':
-            return (!nameOp.nameValue || nameOp.nameValue === ' ') && isNotSpecialPrefix;
+            return !hasNameValue && isNotSpecialPrefix;
         case 'other':
-            return nameOp.nameValue && isNotSpecialPrefix;
+            return hasNameValue && isNotSpecialPrefix;
         default:
             return true; // No filter applied, include all nameOps
     }

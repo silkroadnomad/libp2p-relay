@@ -182,9 +182,6 @@ function filterNameOps(nameOps, selectedFilter) {
     });
 }
 
-helia.libp2p.services.pubsub.addEventListener('message', async event => {
-
-});
 
 helia.libp2p.services.pubsub.addEventListener('message', async event => {
     logger.info(`Received pubsub message from ${event.detail.from} on topic ${event.detail.topic}`)
@@ -203,7 +200,7 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
         if (messageObject.type=="LIST") {
             console.log("Received LIST request:", messageObject);
             const { dateString, pageSize, from, filter } = messageObject;
-            const pageSizeValue = parseInt(pageSize, 10) || 100; // Default to 100 if not specified
+            const pageSizeValue = parseInt(pageSize, 10) || 10; // Default to 100 if not specified
             await handleListRequest(dateString, pageSizeValue, from, filter);
         }
 
