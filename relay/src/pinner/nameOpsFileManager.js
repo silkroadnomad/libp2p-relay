@@ -104,19 +104,14 @@ export async function getLastNameOps(pageSize, from=10, filter) {
         for await (const [key, value] of db.iterator()) {
             allDocs.push({ key, value })
         }
-        console.log("allDocs", allDocs.length);
-        // Collect nameOps from all documents, applying the filter once
         let nameOps = [];
         for (const doc of allDocs) {
             nameOps = nameOps.concat(doc.value.nameOps.filter(nameOp => applyFilter(nameOp, filter)));
         }
-        // console.log("nameOps", nameOps);
-        console.log("nameOps length", nameOps.length);
-        console.log("from", from);
-        console.log("pageSize", pageSize);
+        // Sort nameOps by blocktime in descending order (newest first)
+        nameOps.sort((a, b) => b.blocktime - a.blocktime);
+        
         const paginatedNameOps = nameOps.slice(from, from + pageSize);
-        //const paginatedNameOps = nameOps.slice(from, from + pageSize);
-        console.log("paginatedNameOps.length", paginatedNameOps.length);
         return paginatedNameOps;
 
     } catch (error) {
