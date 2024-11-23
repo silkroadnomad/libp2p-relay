@@ -196,15 +196,15 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
     }
 
     if (messageObject && topic.startsWith(CONTENT_TOPIC)) {
-        
         if (messageObject.type=="LIST") {
             console.log("Received LIST request:", messageObject);
             const { dateString, pageSize, from, filter } = messageObject;
             const pageSizeValue = parseInt(pageSize, 10) || 10; // Default to 100 if not specified
             await handleListRequest(dateString, pageSizeValue, from, filter);
         }
-
-        if(message.startsWith("NEW-CID")){
+    }
+    else {
+         if(message.startsWith("NEW-CID")){
             const cid = message.substring(8)
             const addingMsg = "ADDING-CID:"+cid
             console.log("publishing query in ipfs:", addingMsg)
