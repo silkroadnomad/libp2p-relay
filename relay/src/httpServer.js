@@ -1,6 +1,5 @@
 import http from 'http'
 import url from 'url'
-import { getFailedCIDs } from './pinner/failedCidsManager.js'
 import { CID } from 'multiformats/cid'
 import { base64 } from "multiformats/bases/base64"
 import { unixfs } from "@helia/unixfs"
@@ -37,23 +36,7 @@ export function createHttpServer(helia, orbitdb, electrumClient) {
             // Expose metrics for Prometheus
             res.writeHead(200, { 'Content-Type': client.register.contentType });
             res.end(await client.register.metrics());
-        } else if (req.method === 'GET' && parsedUrl.pathname === '/failed-cids') {
-            try {
-                const failedCIDs = await getFailedCIDs(orbitdb)
-                
-                res.writeHead(200, { 'Content-Type': 'application/json' })
-                res.end(JSON.stringify({
-                    count: failedCIDs.length,
-                    failedCIDs
-                }, null, 2))
-            } catch (error) {
-                res.writeHead(500, { 'Content-Type': 'application/json' })
-                res.end(JSON.stringify({
-                    error: 'Failed to retrieve failed CIDs',
-                    message: error.message
-                }))
-            }
-        } else if (req.method === 'GET' && parsedUrl.pathname === '/duplicate-nameops') {
+        }  else if (req.method === 'GET' && parsedUrl.pathname === '/duplicate-nameops') {
             try {
                 const db = await getOrCreateDB(orbitdb)
                 const result = await getNameOpsHistory(db, 

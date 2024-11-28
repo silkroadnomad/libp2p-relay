@@ -8,7 +8,6 @@ import { unixfs } from '@helia/unixfs'
 import fs from 'fs/promises'
 import path from 'path'
 import { getImageUrlFromIPFS } from '../doichain/nfc/getImageUrlFromIPFS.js'
-import { addFailedCID, getFailedCIDs, removeSuccessfulCIDs, logFailedCIDs } from './failedCidsManager.js'
 
 const CONTENT_TOPIC = '/doichain/nft/1.0.0'
 
@@ -35,7 +34,6 @@ export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb) {
     }
 
     await processBlocks(helia, electrumClient, startHeight, tip, state, orbitdb);
-    logFailedCIDs(helia, orbitdb);
 }
 
 async function processBlocks(helia, electrumClient, startHeight, tip, origState, orbitdb) {
@@ -293,20 +291,16 @@ async function pinIpfsContent(helia, orbitdb, nameId, ipfsUrl) {
                     helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNED-CID:" + imageCid))
                 } catch (imageError) {
                     logger.error(`Failed to retrieve or pin image: ${imageCid} for nameId: ${nameId}`, { error: imageError.message, nameId });
-                    await addFailedCID({ cid: imageCid, type: 'image', parentCid: cid, nameId }, orbitdb);
                     throw imageError
                 }
             }
         } catch (metadataError) {
             logger.error(`Error processing metadata for CID: ${cid} and nameId: ${nameId}`, { error: metadataError.message, nameId });
-            await addFailedCID({ cid, type: 'metadata_processing', nameId }, orbitdb);
             throw metadataError
         }
     } catch (error) {
-        // Optionally notify about failed pinning
         helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("FAILED-PIN:" + cid))
         logger.error(`Error retrieving or processing IPFS content: ${cid} for nameId: ${nameId}`, { error: error.message, nameId });
-        await addFailedCID({ cid, type: 'retrieval_or_pinning', nameId }, orbitdb);
         throw error
     }
 }

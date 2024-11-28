@@ -10,7 +10,6 @@ import { dcutr } from "@libp2p/dcutr"
 import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 import { pubsubPeerDiscovery } from "@libp2p/pubsub-peer-discovery"
 import { webSockets } from '@libp2p/websockets'
-import { webRTCDirect, webRTC } from '@libp2p/webrtc'
 import * as filters from '@libp2p/websockets/filters'
 import { multiaddr } from '@multiformats/multiaddr'
 import { circuitRelayTransport, circuitRelayServer } from '@libp2p/circuit-relay-v2'
