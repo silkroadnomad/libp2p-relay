@@ -1,48 +1,41 @@
 import { IPFSAccessController } from '@orbitdb/core'
 import logger from '../logger.js'
-import { Level } from 'level'
 
 let db = null
 
 /**
- * Initialize or get the single LevelDB instance
+ * Initialize or get the single OrbitDB instance
  */
-export async function getOrCreateDB() {
+export async function getOrCreateDB(orbitdb) {
+    console.log("getOrCreateDB", orbitdb.id)
     if (db) {
         return db
     }
 
-    // Create a new LevelDB instance
-    db = new Level('./leveldb/nameops', {
-        valueEncoding: 'json'
+    // Open new DB with documents type and access control
+    const dbName = 'nameops'
+    db = await orbitdb.open(dbName, {
+        type: 'documents',
+        create: true,
+        overwrite: false,
+        directory: './orbitdb/nameops',
+        AccessController: IPFSAccessController({ write: [orbitdb.identity.id] })
     })
 
-    logger.info('Opened LevelDB: nameops')
-
-
+    logger.info(`Opened OrbitDB: ${dbName}`)
     return db
 }
 
 /**
- * Updates the name operations in LevelDB.
+ * Updates the name operations in OrbitDB.
  */
-export async function updateDailyNameOpsFile(_, nameOpUtxos, blockDate, blockHeight) {
+export async function updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDate, blockHeight) {
     try {
-        const db = await getOrCreateDB()
+        const db = await getOrCreateDB(orbitdb)
         const docId = `nameops-${blockDate}`
-
-        let existingDoc
-        try {
-            existingDoc = await db.get(docId)
-        } catch (error) {
-            if (error.code !== 'LEVEL_NOT_FOUND') {
-                throw error
-            }
-            existingDoc = { nameOps: [] }
-        }
-
-        const existingNameOps = existingDoc.nameOps || []
-        logger.info("existingNameOps", existingNameOps)
+        
+        const existingDoc = await db.get(docId)
+        const existingNameOps = existingDoc?.value?.nameOps || []
 
         const allNameOps = [...existingNameOps, ...nameOpUtxos]
 
@@ -57,17 +50,18 @@ export async function updateDailyNameOpsFile(_, nameOpUtxos, blockDate, blockHei
 
         const uniqueNameOps = Array.from(uniqueMap.values())
 
-        await db.put(docId, {
+        await db.put({
+            _id: docId,
             nameOps: uniqueNameOps,
             blockHeight,
             blockDate
         })
 
-        logger.info(`Document updated in LevelDB: ${docId}`, uniqueNameOps)
+        logger.info(`Document updated in OrbitDB: ${docId}`, uniqueNameOps)
         return docId
 
     } catch (error) {
-        logger.error(`Error updating LevelDB: ${error.message}`)
+        logger.error(`Error updating OrbitDB: ${error.message}`)
         throw error
     }
 }
@@ -95,28 +89,25 @@ Document Structure: The structure of your documents might allow for multiple nam
  * @param {*} filter 
  * @returns 
  */
-export async function getLastNameOps(pageSize, from=10, filter) {
-    console.log("Getting last nameOps from OrbitDB:", { pageSize, from, filter });
+export async function getLastNameOps(orbitdb, pageSize, from=10, filter) {
     try {
-        const db = await getOrCreateDB()
-        const allDocs = []
-
-        for await (const [key, value] of db.iterator()) {
-            allDocs.push({ key, value })
-        }
-        let nameOps = [];
-        for (const doc of allDocs) {
-            nameOps = nameOps.concat(doc.value.nameOps.filter(nameOp => applyFilter(nameOp, filter)));
-        }
-        // Sort nameOps by blocktime in descending order (newest first)
-        nameOps.sort((a, b) => b.blocktime - a.blocktime);
+        const db = await getOrCreateDB(orbitdb)
+        const allDocs = await db.all()
         
-        const paginatedNameOps = nameOps.slice(from, from + pageSize);
-        return paginatedNameOps;
+        let nameOps = []
+        for (const doc of allDocs) {
+            nameOps = nameOps.concat(doc.value.nameOps.filter(nameOp => applyFilter(nameOp, filter)))
+        }
+        
+        // Sort nameOps by blocktime in descending order
+        nameOps.sort((a, b) => b.blocktime - a.blocktime)
+        
+        const paginatedNameOps = nameOps.slice(from, from + pageSize)
+        return paginatedNameOps
 
     } catch (error) {
-        logger.error(`Error getting nameOps from OrbitDB: ${error.message}`);
-        throw error;
+        logger.error(`Error getting nameOps from OrbitDB: ${error.message}`)
+        throw error
     }
 }
 

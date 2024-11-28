@@ -122,14 +122,14 @@ async function handleListRequest(dateString, pageSize, from, filter) {
         let nameOps;
         console.log("Handling LIST request:", { dateString, pageSize, from, filter });
         if (dateString === "LAST") {
-            nameOps = await getLastNameOps(pageSize, from, filter);
+            nameOps = await getLastNameOps(orbitdb, pageSize, from, filter);
         } else {
             const date = parseDate(dateString);
             if (!date) {
                 publishMessage("INVALID_DATE_FORMAT");
                 return;
             }
-            nameOps = await getNameOpsCidsForDate(helia, date);
+            nameOps = await getNameOpsCidsForDate(orbitdb, helia, date);
         }
 
         if (nameOps.length > 0) {

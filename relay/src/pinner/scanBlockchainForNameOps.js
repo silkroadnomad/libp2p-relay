@@ -12,7 +12,7 @@ import { getImageUrlFromIPFS } from '../doichain/nfc/getImageUrlFromIPFS.js'
 const CONTENT_TOPIC = '/doichain/nft/1.0.0'
 
 export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb) {
-    logger.info("scanBlockchainForNameOps")
+    logger.info("scanBlockchainForNameOps into orbitdb", orbitdb.id)
     helia = helia
 
     const tip = await electrumClient.request('blockchain.headers.subscribe');
