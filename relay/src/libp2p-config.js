@@ -14,7 +14,7 @@ import * as filters from '@libp2p/websockets/filters'
 import { multiaddr } from '@multiformats/multiaddr'
 import { circuitRelayTransport, circuitRelayServer } from '@libp2p/circuit-relay-v2'
 import { kadDHT } from '@libp2p/kad-dht'
-import { uPnPNAT } from '@libp2p/upnp-nat'
+// import { uPnPNAT } from '@libp2p/upnp-nat'
 import { prometheusMetrics } from '@libp2p/prometheus-metrics'
 
 import logger from './logger.js'
@@ -80,7 +80,7 @@ export function createLibp2pConfig({ keyPair, datastore, listenAddresses, announ
         services: {
             ping: ping(),
             identify: identify(),
-            uPnPNAT: uPnPNAT(),
+            // uPnPNAT: uPnPNAT(),
             autoNAT: autoNAT(),
             dht: kadDHT(),
             dcutr: dcutr(),
