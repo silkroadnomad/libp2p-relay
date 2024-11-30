@@ -101,39 +101,54 @@ export class ElectrumxClient {
 		this.status = 0;
 	}
 
-	request(method, params) {
+	async request(method, params) {
+		// Try to reconnect if disconnected
 		if (this.status === 0) {
-			return Promise.reject(new Error('ESOCKET'));
+			try {
+				console.log('Attempting to reconnect to ElectrumX...')
+				await this.connect()
+			} catch (reconnectError) {
+				console.error('Reconnection failed:', reconnectError.message)
+				return Promise.reject(new Error('ESOCKET'))
+			}
 		}
+
 		return new Promise((resolve, reject) => {
-			const id = ++this.id;
-			const content = makeRequest(method, params, id);
-			this.callback_message_queue[id] = createPromiseResult(resolve, reject);
-			this.ws.send(content + '\n', 'utf8');
-		});
+			const id = ++this.id
+			const content = makeRequest(method, params, id)
+			this.callback_message_queue[id] = createPromiseResult(resolve, reject)
+			this.ws.send(content + '\n', 'utf8')
+		})
 	}
 
-	requestBatch(method, params, secondParam) {
+	async requestBatch(method, params, secondParam) {
+		// Try to reconnect if disconnected
 		if (this.status === 0) {
-			return Promise.reject(new Error('ESOCKET'));
-		}
-		return new Promise((resolve, reject) => {
-			let arguments_far_calls = {};
-			let contents = [];
-			for (let param of params) {
-				const id = ++this.id;
-				if (secondParam !== undefined) {
-					contents.push(makeRequest(method, [param, secondParam], id));
-				} else {
-					contents.push(makeRequest(method, [param], id));
-				}
-				arguments_far_calls[id] = param;
+			try {
+				console.log('Attempting to reconnect to ElectrumX...')
+				await this.connect()
+			} catch (reconnectError) {
+				console.error('Reconnection failed:', reconnectError.message)
+				return Promise.reject(new Error('ESOCKET'))
 			}
-			const content = '[' + contents.join(',') + ']';
-			this.callback_message_queue[this.id] = createPromiseResultBatch(resolve, reject, arguments_far_calls);
-			// callback will exist only for max id
-			this.ws.send(content + '\n', 'utf8');
-		});
+		}
+
+		return new Promise((resolve, reject) => {
+			let arguments_far_calls = {}
+			let contents = []
+			for (let param of params) {
+				const id = ++this.id
+				if (secondParam !== undefined) {
+					contents.push(makeRequest(method, [param, secondParam], id))
+				} else {
+					contents.push(makeRequest(method, [param], id))
+				}
+				arguments_far_calls[id] = param
+			}
+			const content = '[' + contents.join(',') + ']'
+			this.callback_message_queue[this.id] = createPromiseResultBatch(resolve, reject, arguments_far_calls)
+			this.ws.send(content + '\n', 'utf8')
+		})
 	}
 
 	response(msg) {
