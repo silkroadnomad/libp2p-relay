@@ -21,6 +21,7 @@ import logger from './logger.js'
 dotenv.config();
 
 const bootstrapList = process.env.RELAY_BOOTSTRAP_LIST.split(',');
+const enableUPnP = process.env.ENABLE_UPNP === 'true'
 
 export function createLibp2pConfig({ keyPair, datastore, listenAddresses, announceAddresses, pubsubPeerDiscoveryTopics, scoreThresholds }) {
     return {
@@ -80,7 +81,6 @@ export function createLibp2pConfig({ keyPair, datastore, listenAddresses, announ
         services: {
             ping: ping(),
             identify: identify(),
-            // uPnPNAT: uPnPNAT(),
             autoNAT: autoNAT(),
             dht: kadDHT(),
             dcutr: dcutr(),
@@ -96,7 +96,8 @@ export function createLibp2pConfig({ keyPair, datastore, listenAddresses, announ
                 advertise: {
                     bootDelay: 15 * 60 * 1000
                 }
-            })
+            }),
+            ...(enableUPnP ? { uPnPNAT: uPnPNAT() } : {})
         },
         connectionGater: {
             denyDialMultiaddr: async () => false,
