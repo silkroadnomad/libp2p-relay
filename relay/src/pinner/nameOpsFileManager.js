@@ -41,7 +41,7 @@ export async function updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDate, bl
             blockDate
         })
 
-        logger.info(`Document updated in OrbitDB: ${docId}`, uniqueNameOps)
+        logger.info(`Document updated in OrbitDB: ${docId}`, nameOpUtxos.length)
         return docId
 
     } catch (error) {
