@@ -34,25 +34,9 @@ export async function updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDate, bl
         const db = await getOrCreateDB(orbitdb)
         const docId = `nameops-${blockDate}`
         
-        const existingDoc = await db.get(docId)
-        const existingNameOps = existingDoc?.value?.nameOps || []
-
-        const allNameOps = [...existingNameOps, ...nameOpUtxos]
-
-        // Create a map using a composite key of relevant fields
-        const uniqueMap = new Map()
-        allNameOps.forEach(nameOp => {
-            const key = `${nameOp.nameId}-${nameOp.nameValue}`
-            if (!uniqueMap.has(key) || uniqueMap.get(key).blocktime < nameOp.blocktime) {
-                uniqueMap.set(key, nameOp)
-            }
-        })
-
-        const uniqueNameOps = Array.from(uniqueMap.values())
-
         await db.put({
             _id: docId,
-            nameOps: uniqueNameOps,
+            nameOps: nameOpUtxos,
             blockHeight,
             blockDate
         })
