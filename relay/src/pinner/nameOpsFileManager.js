@@ -32,17 +32,21 @@ export async function getOrCreateDB(orbitdb) {
 export async function updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDate, blockHeight) {
     try {
         const db = await getOrCreateDB(orbitdb)
-        const docId = `nameops-${blockDate}`
-        
-        await db.put({
-            _id: docId,
-            nameOps: nameOpUtxos,
-            blockHeight,
-            blockDate
-        })
+        // Iterate over each nameOpUtxo and store it individually
+        for (const nameOp of nameOpUtxos) {
+            const docId = nameOp.txid;  // Use txid as the document ID
 
-        logger.info(`Document updated in OrbitDB: ${docId}`, nameOpUtxos.length)
-        return docId
+            // Store each nameOpUtxo as a separate document
+            await db.put({
+                _id: docId,
+                nameOp,  // Store the entire nameOp object
+                blockHeight,
+                blockDate
+            })
+        }
+
+        console.log(`Stored ${nameOpUtxos.length} name operations in OrbitDB`)
+        return nameOpUtxos.length
 
     } catch (error) {
         logger.error(`Error updating OrbitDB: ${error.message}`)
@@ -80,7 +84,10 @@ export async function getLastNameOps(orbitdb, pageSize, from=10, filter) {
         
         let nameOps = []
         for (const doc of allDocs) {
-            nameOps = nameOps.concat(doc.value.nameOps.filter(nameOp => applyFilter(nameOp, filter)))
+            const nameOp = doc.value.nameOp; // Access the single nameOp in the document
+            if (applyFilter(nameOp, filter)) {
+                nameOps.push(nameOp); // Add to the list if it passes the filter
+            }
         }
         
         // Sort nameOps by blocktime in descending order
