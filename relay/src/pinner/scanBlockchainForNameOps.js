@@ -43,8 +43,9 @@ async function processBlocks(helia, electrumClient, startHeight, tip, origState,
     let currentDay = null;
     let state = null;
 
-    // Create a new PQueue instance with a concurrency limit
-    const queue = new PQueue({ concurrency: 5 });
+    // Create separate PQueue instances for different operations
+    const updateQueue = new PQueue({ concurrency: 5 });
+    const pinQueue = new PQueue({ concurrency: 5 });
 
     for (let height = startHeight; height > MIN_HEIGHT; height--) {
         try {
@@ -65,12 +66,13 @@ async function processBlocks(helia, electrumClient, startHeight, tip, origState,
             if (nameOpUtxos.length > 0) {
                 logger.debug(`Found ${nameOpUtxos.length} name operations in block ${height}`);
 
-                // Use the queue to manage the updateDailyNameOpsFile operation
-                await queue.add(() => updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDay, height));
+                // Use the updateQueue for updateDailyNameOpsFile operation
+                await updateQueue.add(() => updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDay, height));
 
                 for (const nameOp of nameOpUtxos) {
                     if (nameOp.nameValue && nameOp.nameValue.startsWith('ipfs://')) {
-                        queue.add(() => pinIpfsContent(helia, orbitdb, nameOp.nameId, nameOp.nameValue)
+                        // Use the pinQueue for pinIpfsContent operation
+                        pinQueue.add(() => pinIpfsContent(helia, orbitdb, nameOp.nameId, nameOp.nameValue)
                             .then(() => {
                                 logger.info(`Successfully pinned IPFS content: ${nameOp.nameValue}`);
                             })
@@ -111,7 +113,8 @@ async function processBlocks(helia, electrumClient, startHeight, tip, origState,
     }
 
     // Wait for all queued tasks to complete
-    await queue.onIdle();
+    await updateQueue.onIdle();
+    await pinQueue.onIdle();
 }
 
 async function reconnectElectrumClient(electrumClient) {
