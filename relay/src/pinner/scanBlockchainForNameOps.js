@@ -8,6 +8,7 @@ import { unixfs } from '@helia/unixfs'
 import fs from 'fs/promises'
 import path from 'path'
 import { getImageUrlFromIPFS } from '../doichain/nfc/getImageUrlFromIPFS.js'
+import PQueue from 'p-queue';
 
 const CONTENT_TOPIC = '/doichain/nft/1.0.0'
 
@@ -42,6 +43,9 @@ async function processBlocks(helia, electrumClient, startHeight, tip, origState,
     let currentDay = null;
     let state = null;
 
+    // Create a new PQueue instance with a concurrency limit
+    const queue = new PQueue({ concurrency: 5 });
+
     for (let height = startHeight; height > MIN_HEIGHT; height--) {
         try {
             if (electrumClient.getStatus() !== 1) {
@@ -60,15 +64,20 @@ async function processBlocks(helia, electrumClient, startHeight, tip, origState,
 
             if (nameOpUtxos.length > 0) {
                 logger.debug(`Found ${nameOpUtxos.length} name operations in block ${height}`);
-                await updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDay, height);
-                
+
+                // Use the queue to manage the updateDailyNameOpsFile operation
+                await queue.add(() => updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDay, height));
+
                 for (const nameOp of nameOpUtxos) {
                     if (nameOp.nameValue && nameOp.nameValue.startsWith('ipfs://')) {
-                        pinIpfsContent(helia, orbitdb, nameOp.nameId, nameOp.nameValue).then(() => {
-                            logger.info(`Successfully pinned IPFS content: ${nameOp.nameValue}`);
-                        }).catch(error => {
-                            logger.error(`Failed to pin IPFS content: ${nameOp.nameValue}`, { error });
-                        });
+                        queue.add(() => pinIpfsContent(helia, orbitdb, nameOp.nameId, nameOp.nameValue)
+                            .then(() => {
+                                logger.info(`Successfully pinned IPFS content: ${nameOp.nameValue}`);
+                            })
+                            .catch(error => {
+                                logger.error(`Failed to pin IPFS content: ${nameOp.nameValue}`, { error });
+                            })
+                        );
                     }
                 }
             } else {
@@ -100,6 +109,9 @@ async function processBlocks(helia, electrumClient, startHeight, tip, origState,
             await new Promise(resolve => setTimeout(resolve, 5000));
         }
     }
+
+    // Wait for all queued tasks to complete
+    await queue.onIdle();
 }
 
 async function reconnectElectrumClient(electrumClient) {
