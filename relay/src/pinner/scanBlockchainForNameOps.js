@@ -9,8 +9,25 @@ import fs from 'fs/promises'
 import path from 'path'
 import { getImageUrlFromIPFS } from '../doichain/nfc/getImageUrlFromIPFS.js'
 import PQueue from 'p-queue';
+import client from 'prom-client';
 
 const CONTENT_TOPIC = '/doichain/nft/1.0.0'
+
+// Define custom Prometheus metrics
+const nameOpsIndexedCounter = new client.Counter({
+    name: 'nameops_indexed_total',
+    help: 'Total number of NameOps indexed'
+});
+
+const ipfsCidsPinnedCounter = new client.Counter({
+    name: 'ipfs_cids_pinned_total',
+    help: 'Total number of IPFS CIDs pinned'
+});
+
+const ipfsCidsPinnedErrorCounter = new client.Counter({
+    name: 'ipfs_cids_pinned_errors_total',
+    help: 'Total number of IPFS CIDs pinning errors'
+});
 
 export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb) {
     logger.info("scanBlockchainForNameOps into orbitdb", orbitdb.id)
@@ -66,6 +83,9 @@ async function processBlocks(helia, electrumClient, startHeight, tip, origState,
             if (nameOpUtxos.length > 0) {
                 logger.debug(`Found ${nameOpUtxos.length} name operations in block ${height}`);
 
+                // Increment the NameOps Indexed counter
+                nameOpsIndexedCounter.inc(nameOpUtxos.length);
+
                 // Use the updateQueue for updateDailyNameOpsFile operation
                 await updateQueue.add(() => updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDay, height));
 
@@ -75,9 +95,13 @@ async function processBlocks(helia, electrumClient, startHeight, tip, origState,
                         pinQueue.add(() => pinIpfsContent(helia, orbitdb, nameOp.nameId, nameOp.nameValue)
                             .then(() => {
                                 logger.info(`Successfully pinned IPFS content: ${nameOp.nameValue}`);
+                                // Increment the IPFS CIDs Pinned counter
+                                ipfsCidsPinnedCounter.inc();
                             })
                             .catch(error => {
                                 logger.error(`Failed to pin IPFS content: ${nameOp.nameValue}`, { error });
+                                // Increment the IPFS CIDs Pinned Errors counter
+                                ipfsCidsPinnedErrorCounter.inc();
                             })
                         );
                     }
