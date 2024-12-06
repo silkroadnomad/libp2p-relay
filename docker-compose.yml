@@ -29,6 +29,7 @@ services:
   relay-service:
     build: .
     ports:
+      - "3000:3000"
       - "1235:1235"
       - "12345:12345"
     volumes:
