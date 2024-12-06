@@ -29,6 +29,38 @@ const ipfsCidsPinnedErrorCounter = new client.Counter({
     help: 'Total number of IPFS CIDs pinning errors'
 });
 
+const blockProcessingDuration = new client.Histogram({
+    name: 'block_processing_duration_seconds',
+    help: 'Duration of block processing in seconds',
+    buckets: [0.1, 0.5, 1, 2, 5, 10] // Example buckets
+});
+
+const updateQueueLength = new client.Gauge({
+    name: 'update_queue_length',
+    help: 'Number of tasks in the update queue'
+});
+
+const pinQueueLength = new client.Gauge({
+    name: 'pin_queue_length',
+    help: 'Number of tasks in the pin queue'
+});
+
+const electrumClientConnectionStatus = new client.Gauge({
+    name: 'electrum_client_connection_status',
+    help: 'Electrum client connection status (1 for connected, 0 for disconnected)'
+});
+
+const nameOpsPerBlock = new client.Histogram({
+    name: 'nameops_per_block',
+    help: 'Number of NameOps found per block',
+    buckets: [0, 1, 2, 5, 10, 20, 50, 100] // Example buckets
+});
+
+const errorRate = new client.Counter({
+    name: 'error_rate',
+    help: 'Total number of errors encountered during block processing'
+});
+
 export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb) {
     logger.info("scanBlockchainForNameOps into orbitdb", orbitdb.id)
     helia = helia
@@ -65,7 +97,11 @@ async function processBlocks(helia, electrumClient, startHeight, tip, origState,
     const pinQueue = new PQueue({ concurrency: 5 });
 
     for (let height = startHeight; height > MIN_HEIGHT; height--) {
+        const endTimer = blockProcessingDuration.startTimer(); // Start timing block processing
         try {
+            // Update connection status
+            electrumClientConnectionStatus.set(electrumClient.getStatus() === 1 ? 1 : 0);
+
             if (electrumClient.getStatus() !== 1) {
                 logger.warn("ElectrumX connection lost, attempting to reconnect...");
                 await reconnectElectrumClient(electrumClient);
@@ -85,6 +121,9 @@ async function processBlocks(helia, electrumClient, startHeight, tip, origState,
 
                 // Increment the NameOps Indexed counter
                 nameOpsIndexedCounter.inc(nameOpUtxos.length);
+
+                // Record the number of NameOps per block
+                nameOpsPerBlock.observe(nameOpUtxos.length);
 
                 // Use the updateQueue for updateDailyNameOpsFile operation
                 await updateQueue.add(() => updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDay, height));
@@ -117,8 +156,13 @@ async function processBlocks(helia, electrumClient, startHeight, tip, origState,
                 logger.info(`Reached stored tipHeight, jumping to last processed block`, { height: origState.lastBlockHeight });
                 height = origState.lastBlockHeight; // Set height to one above lastBlockHeight to continue scanning
             }
+
+            // Update queue lengths
+            updateQueueLength.set(updateQueue.size);
+            pinQueueLength.set(pinQueue.size);
         } catch (error) {
             logger.error(`Error processing block at height ${height}:`, { error });
+            errorRate.inc(); // Increment the error rate counter
             if (error.message.includes('ElectrumX connection')) {
                 logger.warn("ElectrumX connection lost, attempting to reconnect...");
                 await reconnectElectrumClient(electrumClient);
@@ -126,6 +170,8 @@ async function processBlocks(helia, electrumClient, startHeight, tip, origState,
             } else {
                 await new Promise(resolve => setTimeout(resolve, 1000)); // Wait before retrying
             }
+        } finally {
+            endTimer(); // End timing block processing
         }
 
         await new Promise(resolve => setTimeout(resolve, 100));
