@@ -41,6 +41,7 @@ const listenAddresses = process.env.RELAY_LISTEN_ADDRESSES?.split(',') || ['/ip4
 const announceAddresses = process.env.RELAY_ANNOUNCE_ADDRESSES?.split(',')
 const pubsubPeerDiscoveryTopics = process.env.RELAY_PUBSUB_PEER_DISCOVERY_TOPICS?.split(',')||['doichain._peer-discovery._p2p._pubsub']
 const relayDevMode = process.env.RELAY_DEV_MODE
+const relayLocalRegTest = process.env.RELAY_LOCAL_REGTTEST
 
 let blockstore = new LevelBlockstore("./helia-blocks")
 let datastore = new LevelDatastore("./helia-data")
@@ -51,7 +52,9 @@ if(relayDevMode) scoreThresholds = {
 	publishThreshold: -Infinity,
 	graylistThreshold: -Infinity,
 }
-const network = { name: 'doichain-mainnet' }; // Replace with actual network object
+
+const network = (relayLocalRegTest===undefined || (relayLocalRegTest!==true && relayLocalRegTest==="true"))?{ name: 'doichain-mainnet' }:{ name: 'doichain-regtest' };
+console.log("starting with network:", network)
 const electrumClient = await connectElectrum(network, (x,y)=>{})
 
 

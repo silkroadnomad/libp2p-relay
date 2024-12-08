@@ -4,6 +4,7 @@
 	"private": true,
 	"scripts": {
 		"start:no-restart": "node src/relay.js",
+		"start:regtest": "RELAY_LOCAL_REGTTEST=true node src/relay.js",
 		"start": "node --max-old-space-size=8192 src/start-relay.js",
 		"start:no-scan": "node --max-old-space-size=8192 src/start-relay.js --disable-scanning",
 		"generate-keypair": "node src/relay.js --generate-keypair",

@@ -93,7 +93,7 @@ async function processBlocks(helia, electrumClient, startHeight, tip, origState,
     let state = null;
 
     // Create separate PQueue instances for different operations
-    const updateQueue = new PQueue({ concurrency: 5 });
+    // const updateQueue = new PQueue({ concurrency: 5 });
     const pinQueue = new PQueue({ concurrency: 5 });
 
     for (let height = startHeight; height > MIN_HEIGHT; height--) {
@@ -126,7 +126,8 @@ async function processBlocks(helia, electrumClient, startHeight, tip, origState,
                 nameOpsPerBlock.observe(nameOpUtxos.length);
 
                 // Use the updateQueue for updateDailyNameOpsFile operation
-                await updateQueue.add(() => updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDay, height));
+                // await updateQueue.add(() => updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDay, height));
+                updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDay, height)
 
                 for (const nameOp of nameOpUtxos) {
                     if (nameOp.nameValue && nameOp.nameValue.startsWith('ipfs://')) {
@@ -158,8 +159,8 @@ async function processBlocks(helia, electrumClient, startHeight, tip, origState,
             }
 
             // Update queue lengths
-            updateQueueLength.set(updateQueue.size);
-            pinQueueLength.set(pinQueue.size);
+            // updateQueueLength.set(updateQueue.size);
+            // pinQueueLength.set(pinQueue.size);
         } catch (error) {
             logger.error(`Error processing block at height ${height}:`, { error });
             errorRate.inc(); // Increment the error rate counter
@@ -174,16 +175,16 @@ async function processBlocks(helia, electrumClient, startHeight, tip, origState,
             endTimer(); // End timing block processing
         }
 
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // await new Promise(resolve => setTimeout(resolve, 100));
 
-        if (height % BATCH_SIZE === 0) {
-            logger.info(`Completed batch. Pausing for 5 seconds before next batch.`);
-            await new Promise(resolve => setTimeout(resolve, 5000));
-        }
+        // if (height % BATCH_SIZE === 0) {
+            // logger.info(`Completed batch. Pausing for 5 seconds before next batch.`);
+            // await new Promise(resolve => setTimeout(resolve, 5000));
+        // }
     }
 
     // Wait for all queued tasks to complete
-    await updateQueue.onIdle();
+    // await updateQueue.onIdle();
     await pinQueue.onIdle();
 }
 
