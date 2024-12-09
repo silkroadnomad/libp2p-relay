@@ -1,4 +1,4 @@
-import { IPFSAccessController } from '@orbitdb/core'
+import { IPFSAccessController } from '@doichain/orbitdb'
 import logger from '../logger.js'
 
 let db = null

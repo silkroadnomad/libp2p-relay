@@ -29,7 +29,7 @@ import { scanBlockchainForNameOps } from '../src/pinner/scanBlockchainForNameOps
 import fs from 'fs/promises'
 
 import { createHttpServer } from './httpServer.js'
-import { createOrbitDB } from '@orbitdb/core'
+import { createOrbitDB } from '@doichain/orbitdb'
 import telegramBot from './telegram-bot.js';
 import { createLibp2pConfig } from './libp2p-config.js'
 import TipWatcher from './pinner/tipWatcher.js'

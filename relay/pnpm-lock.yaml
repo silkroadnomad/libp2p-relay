@@ -17,6 +17,9 @@ importers:
       '@chainsafe/libp2p-yamux':
         specifier: ^7.0.1
         version: 7.0.1
+      '@doichain/orbitdb':
+        specifier: 2.4.3
+        version: 2.4.3
       '@helia/block-brokers':
         specifier: ^4.0.1
         version: 4.0.1
@@ -110,9 +113,6 @@ importers:
       '@multiformats/multiaddr':
         specifier: ^12.3.1
         version: 12.3.1
-      '@orbitdb/core':
-        specifier: ^2.4.3
-        version: 2.4.3
       blockstore-level:
         specifier: ^2.0.1
         version: 2.0.1
@@ -930,6 +930,10 @@ packages:
   '@dabh/diagnostics@2.0.3':
     resolution: {integrity: sha512-hrlQOIi7hAfzsMqlGSFyVucrx38O+j6wiGOf//H2ecvIEqYN4ADBSS2iLMh5UFyDunCNniUIPk/q3riFv45xRA==}
 
+  '@doichain/orbitdb@2.4.3':
+    resolution: {integrity: sha512-a0E4gY9v99Ujsh5Srfh1/YFjRxJ35XxESm25cGkhfSyycdCUWMk6JQLq5MYK8Dff5ieqHFAEjzWVbNdSNqYiNw==}
+    engines: {node: '>=20.0.0'}
+
   '@fastify/busboy@2.1.1':
     resolution: {integrity: sha512-vBZP4NlzfOlerQTnba4aqZoMhE/a9HY7HRqoOPaETQcSQuWEIyZMHGfVu6w9wGtGK5fED5qRs2DteVCjOH60sA==}
     engines: {node: '>=14'}
@@ -1227,10 +1231,6 @@ packages:
   '@opentelemetry/api@1.9.0':
     resolution: {integrity: sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==}
     engines: {node: '>=8.0.0'}
-
-  '@orbitdb/core@2.4.3':
-    resolution: {integrity: sha512-pRHDJlODTy35nySEAPhTjzZIKQ7eedwCIoplmEXs1rW3KYqMHNQaNxrIc1uBMw9cRsPTeIGwxTUkvXfhhaf35Q==}
-    engines: {node: '>=20.0.0'}
 
   '@peculiar/asn1-cms@2.3.13':
     resolution: {integrity: sha512-joqu8A7KR2G85oLPq+vB+NFr2ro7Ls4ol13Zcse/giPSzUNN0n2k3v8kMpf6QdGUhI13e5SzQYN8AKP8sJ8v4w==}
@@ -5067,6 +5067,18 @@ snapshots:
       enabled: 2.0.0
       kuler: 2.0.0
 
+  '@doichain/orbitdb@2.4.3':
+    dependencies:
+      '@ipld/dag-cbor': 9.2.2
+      '@libp2p/crypto': 5.0.6
+      it-pipe: 3.0.1
+      level: 8.0.1
+      lru: 3.1.0
+      multiformats: 12.1.3
+      p-queue: 8.0.1
+      timeout-abort-controller: 3.0.0
+      uint8arrays: 5.1.0
+
   '@fastify/busboy@2.1.1': {}
 
   '@helia/bitswap@2.0.1':
@@ -5947,18 +5959,6 @@ snapshots:
       fastq: 1.17.1
 
   '@opentelemetry/api@1.9.0': {}
-
-  '@orbitdb/core@2.4.3':
-    dependencies:
-      '@ipld/dag-cbor': 9.2.2
-      '@libp2p/crypto': 5.0.6
-      it-pipe: 3.0.1
-      level: 8.0.1
-      lru: 3.1.0
-      multiformats: 12.1.3
-      p-queue: 8.0.1
-      timeout-abort-controller: 3.0.0
-      uint8arrays: 5.1.0
 
   '@peculiar/asn1-cms@2.3.13':
     dependencies:

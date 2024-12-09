@@ -1,8 +1,6 @@
 {
   "dependencies": {
     "dotenv": "^16.4.5",
-    "localforage": "^1.10.0",
-    "p-queue": "^8.0.1",
     "yargs": "^17.7.2"
   },
   "scripts": {},

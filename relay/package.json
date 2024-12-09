@@ -1,6 +1,6 @@
 {
 	"name": "libp2p-relay",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"private": true,
 	"scripts": {
 		"start:no-restart": "node src/relay.js",
@@ -15,6 +15,7 @@
 		"@chainsafe/libp2p-gossipsub": "^14.1.0",
 		"@chainsafe/libp2p-noise": "^16.0.0",
 		"@chainsafe/libp2p-yamux": "^7.0.1",
+		"@doichain/orbitdb": "2.4.3",
 		"@helia/block-brokers": "^4.0.1",
 		"@helia/ipns": "^8.0.0",
 		"@helia/routers": "^2.1.0",
@@ -46,7 +47,6 @@
 		"@libp2p/webtransport": "^5.0.16",
 		"@multiformats/dns": "^1.0.6",
 		"@multiformats/multiaddr": "^12.3.1",
-		"@orbitdb/core": "^2.4.3",
 		"blockstore-level": "^2.0.1",
 		"colors": "^1.4.0",
 		"datastore-level": "^11.0.1",
