@@ -212,7 +212,7 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
             const addingMsg = "ADDING-CID:"+cid
             console.log("publishing query in ipfs:", addingMsg)
             helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addingMsg))
-            console.log("querying published")
+            console.log("querying published",cid)
 
             try {
                 // Get file info
