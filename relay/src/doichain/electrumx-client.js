@@ -61,8 +61,13 @@ export class ElectrumxClient {
 
 	connectSocket(wsModule, port, host, protocol) {
 		return new Promise((resolve, reject) => {
+			const relayLocalRegTest = process.env.RELAY_LOCAL_REGTTEST;
 
-			this.ws = new wsModule(`${protocol}://${host}:${port}/`);
+			const options = {
+				rejectUnauthorized: relayLocalRegTest ? false : true // Disable SSL certificate validation if relayLocalRegTest is true
+			};
+
+			this.ws = new wsModule(`${protocol}://${host}:${port}/`, options);
 			this.ws.onopen = () => {
 				console.log(`[ElectrumX] Connected to ${host}:${port}`);
 				resolve();
@@ -182,7 +187,7 @@ export class ElectrumxClient {
 		if (msg instanceof Array) {
 			this.response(msg);
 		} else {
-			if (msg.id !== 0) {
+			if (msg.id && msg.id !== 0) {
 				this.response(msg);
 			} else {
 				this.subscribe.emit(msg.method, msg.params);

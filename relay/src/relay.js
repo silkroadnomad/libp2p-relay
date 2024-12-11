@@ -53,7 +53,7 @@ if(relayDevMode) scoreThresholds = {
 	graylistThreshold: -Infinity,
 }
 
-const network = (relayLocalRegTest===undefined || (relayLocalRegTest!==true && relayLocalRegTest==="true"))?{ name: 'doichain-mainnet' }:{ name: 'doichain-regtest' };
+const network = (relayLocalRegTest===undefined || (relayLocalRegTest!==true && relayLocalRegTest!=="true"))?{ name: 'doichain-mainnet' }:{ name: 'doichain-regtest' };
 console.log("starting with network:", network)
 const electrumClient = await connectElectrum(network, (x,y)=>{})
 
@@ -157,34 +157,6 @@ function parseDate(dateString) {
 function publishMessage(message) {
     helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(message));
 }
-
-function filterNameOps(nameOps, selectedFilter) {
-    return nameOps.filter(nameOp => {
-        const isNotSpecialPrefix = !nameOp.nameId.startsWith('e/') &&
-            !nameOp.nameId.startsWith('pe/') &&
-            !nameOp.nameId.startsWith('poe/') &&
-            !nameOp.nameId.startsWith('nft/') &&
-            !nameOp.nameId.startsWith('bp/');
-
-        switch (selectedFilter) {
-            case 'all':
-                return true;
-            case 'e':
-                return nameOp.nameId.startsWith('e/');
-            case 'pe':
-                return nameOp.nameId.startsWith('pe/') || nameOp.nameId.startsWith('poe/');
-            case 'bp':
-                return nameOp.nameId.startsWith('bp/');
-            case 'names':
-                return !nameOp.nameValue && isNotSpecialPrefix;
-            case 'other':
-                return nameOp.nameValue && isNotSpecialPrefix;
-            default:
-                return true;
-        }
-    });
-}
-
 
 helia.libp2p.services.pubsub.addEventListener('message', async event => {
     logger.info(`Received pubsub message from ${event.detail.from} on topic ${event.detail.topic}`)
@@ -355,32 +327,14 @@ if (argv['generate-keypair']) {
 // Near the end of the file, replace the scanBlockchainForNameOps call with:
 if (!argv['disable-scanning']) {
     logger.info('Starting blockchain scanning...');
-    
+    await scanBlockchainForNameOps(electrumClient, helia, orbitdb); 
     const tipWatcher = new TipWatcher(electrumClient);
-    
-    tipWatcher.on('newTip', async () => {
+    tipWatcher.on('newTip', async (tip) => {
         try {
-            // Check if connection is alive before scanning
-            if (electrumClient.getStatus() !== 1) {
-                logger.warn('ElectrumX connection lost, attempting to reconnect...');
-                await electrumClient.connect();
-                logger.info('Successfully reconnected to ElectrumX');
-            }
-            
-            await scanBlockchainForNameOps(electrumClient, helia, orbitdb);
+            console.log("newTip: ", tip);
+            await scanBlockchainForNameOps(electrumClient, helia, orbitdb, tip);
         } catch (error) {
             logger.error('Error scanning blockchain:', error);
-            
-            // Handle connection errors specifically
-            if (error.message.includes('close connect') || electrumClient.getStatus() !== 1) {
-                logger.info('Attempting to reconnect to ElectrumX...');
-                try {
-                    await electrumClient.connect();
-                    logger.info('Successfully reconnected to ElectrumX');
-                } catch (reconnectError) {
-                    logger.error('Failed to reconnect to ElectrumX:', reconnectError);
-                }
-            }
         }
     });
     

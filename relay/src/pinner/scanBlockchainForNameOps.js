@@ -12,6 +12,7 @@ import PQueue from 'p-queue';
 import client from 'prom-client';
 
 const CONTENT_TOPIC = '/doichain/nft/1.0.0'
+let stopToken = null;
 
 // Define custom Prometheus metrics
 const nameOpsIndexedCounter = new client.Counter({
@@ -61,16 +62,20 @@ const errorRate = new client.Counter({
     help: 'Total number of errors encountered during block processing'
 });
 
-export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb) {
+export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb, tip, _stopToken) {
+    stopToken = _stopToken;
     logger.info("scanBlockchainForNameOps into orbitdb", orbitdb.id)
     helia = helia
 
-    const tip = await electrumClient.request('blockchain.headers.subscribe');
-    logger.info("Blockchain tip", { height: tip.height });
+    if (!tip) {
+        tip = await electrumClient.request('blockchain.headers.subscribe');
+        logger.info("Blockchain tip", { height: tip.height });
+    }
+
 
     let state = await getScanningState(orbitdb)
     let startHeight;
-    if (state && state && state.tipHeight) {
+    if (state && state.tipHeight) {
         if (tip.height > state.tipHeight) {
             startHeight = tip.height;
             logger.info("New blocks detected, starting from current tip", { startHeight, storedTip: state.tipHeight });
@@ -83,20 +88,18 @@ export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb) {
         logger.info("No previous state, starting from current tip", { startHeight });
     }
 
-    await processBlocks(helia, electrumClient, startHeight, tip, state, orbitdb);
+    await processBlocks(helia, electrumClient, startHeight, tip,state, orbitdb);
 }
 
-async function processBlocks(helia, electrumClient, startHeight, tip, origState, orbitdb) {
-    const BATCH_SIZE = 100;
+async function processBlocks(helia, electrumClient, startHeight, tip,origState, orbitdb) {
     const MIN_HEIGHT = 0;
     let currentDay = null;
     let state = null;
-
-    // Create separate PQueue instances for different operations
-    // const updateQueue = new PQueue({ concurrency: 5 });
+    stopToken = false
     const pinQueue = new PQueue({ concurrency: 5 });
 
     for (let height = startHeight; height > MIN_HEIGHT; height--) {
+        if(stopToken) break;
         const endTimer = blockProcessingDuration.startTimer(); // Start timing block processing
         try {
             // Update connection status
@@ -153,9 +156,10 @@ async function processBlocks(helia, electrumClient, startHeight, tip, origState,
             state = await updateScanningState(orbitdb, { lastBlockHeight: height, tipHeight: tip.height });
             
             // Check if we have reached the stored tipHeight
-            if (state && origState && state.tipHeight && height == origState.tipHeight) {
+            if (state && origState && state.tipHeight && height === origState.tipHeight) {
                 logger.info(`Reached stored tipHeight, jumping to last processed block`, { height: origState.lastBlockHeight });
                 height = origState.lastBlockHeight; // Set height to one above lastBlockHeight to continue scanning
+                state = await updateScanningState(orbitdb, { lastBlockHeight: height, tipHeight: tip.height });
             }
 
             // Update queue lengths

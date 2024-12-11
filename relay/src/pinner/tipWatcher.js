@@ -6,29 +6,34 @@ class TipWatcher extends EventEmitter {
         super();
         this.electrumClient = electrumClient;
         this.currentTip = null;
+        this.subscriptionInterval = null;
     }
 
     async start() {
-        try {
-            // Subscribe to header notifications
-            await this.electrumClient.request('blockchain.headers.subscribe', []);
-            
-            // Check if the subscription event handler is correctly set up
+        console.log("TipWatcher: Starting");
+        this.restartSubscription();
+    }
+
+    restartSubscription() {
+        if (this.subscriptionInterval) {
+            clearInterval(this.subscriptionInterval);
+        }
+
+        const subscribeToBlocks = () => {
+            console.log("subscribeToBlocks");
             this.electrumClient.subscribe.on('blockchain.headers.subscribe', (params) => {
-                // Add debug logging here
-                logger.debug("Received blockchain header subscription update", { params });
+                console.log('New block detected:', params);
                 this.handleNewTip(params[0]);
             });
+        };
 
-            logger.info("TipWatcher: Subscribed to blockchain headers");
+        subscribeToBlocks();
 
-            // Get the initial tip
-            const initialTip = await this.electrumClient.request('blockchain.headers.subscribe', []);
-            logger.debug("Initial tip received", { initialTip });
-            this.handleNewTip(initialTip);
-        } catch (error) {
-            logger.error("TipWatcher: Error during start:", error);
-        }
+        // this.subscriptionInterval = setInterval(() => {
+        //     console.log('Restarting subscription...');
+        //     this.electrumClient.subscribe.removeAllListeners('blockchain.headers.subscribe');
+        //     subscribeToBlocks();
+        // }, 10000); // Restart every 10 seconds
     }
 
     handleNewTip(tip) {

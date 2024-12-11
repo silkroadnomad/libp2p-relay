@@ -7,7 +7,7 @@ import { identify } from '@libp2p/identify'
 import { ping } from "@libp2p/ping"
 import { autoNAT } from "@libp2p/autonat"
 import { dcutr } from "@libp2p/dcutr"
-import { webRTCDirect, webRTC } from "@libp2p/webRTC"
+import { webRTCDirect, webRTC } from "@libp2p/webrtc"
 import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 import { pubsubPeerDiscovery } from "@libp2p/pubsub-peer-discovery"
 import { webSockets } from '@libp2p/websockets'
