@@ -35,11 +35,11 @@ What will it do?
 2. If our node is not yet stored on blockchain and a private key is inside .env it should send a transaction to a blockchain
 
 # Adaptation of this relay
-- [ ] http status messages should be available on telegram bot 
-- [ ] size of pinned files and not pinned files in http status and telegram bot (currently broken) 
-- [ ] install on a RaspberryPI
+- [ ] pinner should calculate fee based on file size 
+- [ ] pinner should only pin if cid is inside of nameOp transaction and 
+  - a minimum fee per kb is paid to a certain doichain address (-> multisig)
+- [x] BUG: fix scanning blocks on new tip
 - [x] tipWatcher:  when every a new block comes in the scan should be restarted. (Remark: src/pinner/tipWatcher already implemented but functionality not reviewed nor untestet)
-- [ ] pinner should only pin if cid is inside of nameOP transaction and a minimum fee per kb is paid to a certain doichain address (tx contains vout)
 - [x] adding a Telegram bot to send certain messages e.g. status, minted nameOps etc
 - [x] telegram bot send message when somebody adds / added a file (including name, description, filename, filetype and size)
 - [x] telegram bot should send message when a nameOp with ipfs:// cid got pinned. It should display amount of pins and the space they are taking on the hard drive
@@ -48,7 +48,6 @@ What will it do?
 - [x] when a scan is discovering a nameOp it should write it into data/failed_cids.json
   - [ ] write a test 
 - [x] when a peer connects it retries failed and removes successful loads from data/failed_cids.json
-  - [ ] write a test
 - [x] display also "unconfirmed"
 - [x] the relay is scanning Doichain blockchain for name-ops
 - [x] if a name-ops is being found, it needs to be investigated 
