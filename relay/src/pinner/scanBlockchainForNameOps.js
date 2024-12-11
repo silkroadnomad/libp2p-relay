@@ -12,7 +12,7 @@ import PQueue from 'p-queue';
 import client from 'prom-client';
 
 const CONTENT_TOPIC = '/doichain/nft/1.0.0'
-let stopToken = null;
+let stopToken = { isStopped: false };
 
 // Define custom Prometheus metrics
 const nameOpsIndexedCounter = new client.Counter({
@@ -63,7 +63,7 @@ const errorRate = new client.Counter({
 });
 
 export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb, tip, _stopToken) {
-    stopToken = _stopToken;
+    stopToken.isStopped = _stopToken;
     logger.info("scanBlockchainForNameOps into orbitdb", orbitdb.id)
     helia = helia
 
@@ -88,18 +88,17 @@ export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb, t
         logger.info("No previous state, starting from current tip", { startHeight });
     }
 
-    await processBlocks(helia, electrumClient, startHeight, tip,state, orbitdb);
+    await processBlocks(helia, electrumClient, startHeight, tip,state, orbitdb, stopToken);
 }
 
-async function processBlocks(helia, electrumClient, startHeight, tip,origState, orbitdb) {
+async function processBlocks(helia, electrumClient, startHeight, tip,origState, orbitdb, stopToken) {
     const MIN_HEIGHT = 0;
     let currentDay = null;
     let state = null;
-    stopToken = false
     const pinQueue = new PQueue({ concurrency: 5 });
 
     for (let height = startHeight; height > MIN_HEIGHT; height--) {
-        if(stopToken) break;
+        if (stopToken.isStopped) break;
         const endTimer = blockProcessingDuration.startTimer(); // Start timing block processing
         try {
             // Update connection status
