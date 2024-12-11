@@ -20,6 +20,7 @@ export async function processBlockAtHeight(height, electrumClient) {
                     logger.info(`value: ${vout.scriptPubKey.nameOp.value}`)
                     nameOpUtxos.push({
                         txid: txDetails.txid,
+                        height: height,
                         blocktime: txDetails.blocktime,
                         formattedBlocktime: moment.unix(txDetails.blocktime).format('YYYY-MM-DD HH:mm:ss'),
                         n: vout.n,

@@ -10,10 +10,11 @@ import path from 'path'
 import { getImageUrlFromIPFS } from '../doichain/nfc/getImageUrlFromIPFS.js'
 import PQueue from 'p-queue';
 import client from 'prom-client';
+import { PinningService } from './pinner/pinningService.js'
 
 const CONTENT_TOPIC = '/doichain/nft/1.0.0'
 let stopToken = { isStopped: false };
-
+const pinningService = new PinningService(helia, orbitdb, electrumClient)
 // Define custom Prometheus metrics
 const nameOpsIndexedCounter = new client.Counter({
     name: 'nameops_indexed_total',
@@ -134,7 +135,7 @@ async function processBlocks(helia, electrumClient, startHeight, tip,origState, 
                 for (const nameOp of nameOpUtxos) {
                     if (nameOp.nameValue && nameOp.nameValue.startsWith('ipfs://')) {
                         // Use the pinQueue for pinIpfsContent operation
-                        pinQueue.add(() => pinIpfsContent(helia, orbitdb, nameOp.nameId, nameOp.nameValue)
+                        pinQueue.add(() => pinIpfsContent(helia, orbitdb, nameOp, nameOp.nameId, nameOp.nameValue)
                             .then(() => {
                                 logger.info(`Successfully pinned IPFS content: ${nameOp.nameValue}`);
                                 // Increment the IPFS CIDs Pinned counter
@@ -316,7 +317,7 @@ async function getCidFromStorage(formattedDate) {
     }
 }
 
-async function pinIpfsContent(helia, orbitdb, nameId, ipfsUrl) {
+async function pinIpfsContent(helia, orbitdb, nameOp, nameId, ipfsUrl) {
     const cid = ipfsUrl.replace('ipfs://', '')
     try {
         logger.info(`Attempting to retrieve IPFS metadata content with CID: ${cid}`);
@@ -326,67 +327,106 @@ async function pinIpfsContent(helia, orbitdb, nameId, ipfsUrl) {
         
         const fs = unixfs(helia)
         
-        // Try to retrieve the content
-        let content = ''
+        // Get metadata content and size
+        let metadataContent = ''
+        let totalSize = 0
+        let metadataSize = 0
+        
+        // Measure metadata size
         for await (const chunk of fs.cat(CID.parse(cid))) {
-            content += new TextDecoder().decode(chunk)
+            metadataContent += new TextDecoder().decode(chunk)
+            metadataSize += chunk.length
+        }
+        totalSize += metadataSize
+        
+        // Parse metadata and get associated file
+        const metadata = JSON.parse(metadataContent)
+        logger.info(`Metadata size: ${metadataSize} bytes`);
+
+        // Process image/file from metadata
+        if (metadata.image) {
+            const imageCid = metadata.image.replace('ipfs://', '')
+            try {
+                logger.info(`Measuring file size for CID: ${imageCid}`);
+                let fileSize = 0
+                
+                // Measure actual file size
+                for await (const chunk of fs.cat(CID.parse(imageCid))) {
+                    fileSize += chunk.length
+                }
+                totalSize += fileSize
+                logger.info(`File size: ${fileSize} bytes`);
+            } catch (error) {
+                logger.error(`Failed to measure file size for CID: ${imageCid}`, error);
+                throw error;
+            }
         }
         
-        // If we've reached here, content retrieval was successful
-        logger.info(`Successfully retrieved IPFS metadata content: ${cid}`);
+        logger.info(`Total size to be pinned: ${totalSize} bytes (metadata: ${metadataSize} bytes)`);
+        
+        // Calculate fee and duration based on total size
+        const currentBlock = await electrumClient.request('blockchain.headers.subscribe')
+        const registrationBlock = nameOp.blocktime
+        
+        // Get available durations and use maximum available
+        const durations = pinningService.getAvailableDurations(currentBlock.height, registrationBlock)
+        const durationMonths = durations.maxDuration // Always use maximum available duration
+        
+        const expectedFee = pinningService.calculatePinningFee(totalSize, durationMonths)
+        
+        logger.info(`Using maximum available duration of ${durationMonths} months until NFT expiration`);
+        logger.info(`Calculated fee for ${durationMonths} months: ${expectedFee} DOI`);
 
-        // Now we can pin the content
-        logger.info(`Pinning IPFS metadata content with CID: ${cid}`);
-        await helia.pins.add(CID.parse(cid));
+        // Get the full transaction details of the nameOp
+        const txDetails = await electrumClient.request('blockchain.transaction.get', [nameOp.txid, true]);
+        
+        // Check for payment output to relay's address
+        const RELAY_ADDRESS = process.env.RELAY_PAYMENT_ADDRESS;
+        const paymentOutput = txDetails.vout.find(output => 
+            output.scriptPubKey?.addresses?.includes(RELAY_ADDRESS) &&
+            output.n !== nameOp.n
+        );
+
+        if (!paymentOutput) {
+            throw new Error(`No payment output found in transaction ${nameOp.txid}`);
+        }
+
+        // Validate payment amount
+        const paymentAmount = paymentOutput.value;
+        if (paymentAmount < expectedFee) {
+            throw new Error(`Insufficient payment: expected ${expectedFee} DOI, got ${paymentAmount} DOI`);
+        }
+
+        logger.info(`Valid payment found: ${paymentAmount} DOI in tx ${nameOp.txid}`);
+
+        // Pin the metadata
+        await pinningService.pinContent(cid, durationMonths, metadata.paymentTxId)
         logger.info(`Successfully pinned IPFS metadata content: ${cid}`);
         helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNED-CID:" + cid))
 
-        try {
-            const metadata = JSON.parse(content);
-            logger.info(`Retrieved metadata for CID: ${cid}`);
-
-            // Get and pin image from metadata
-            const imageUrl = await getImageUrlFromIPFS(helia, metadata.image);
-            if (imageUrl && imageUrl.startsWith('ipfs://')) {
-                const imageCid = imageUrl.replace('ipfs://', '');
-                try {
-                    // First, get existing pins before adding image
-                    const existingImagePins = []
-                    for await (const pin of helia.pins.ls()) {
-                        try {
-                            const chunks = []
-                            for await (const chunk of fs.cat(pin.cid)) {
-                                chunks.push(chunk)
-                            }
-                            existingImagePins.push({
-                                cid: pin.cid.toString(),
-                                content: new TextDecoder().decode(Buffer.concat(chunks))
-                            })
-                        } catch (error) {
-                            logger.warn(`Could not read content for existing image pin ${pin.cid.toString()}:`, error)
-                        }
-                    }
-
-                    // Try to retrieve the image
-                    logger.info(`Attempting to retrieve image with CID: ${imageCid}`);
-                    for await (const chunk of fs.cat(CID.parse(imageCid))) {
-                        // We don't need to store the image content, just verify we can retrieve it
-                    }
-                    
-                    // If retrieval is successful, pin the image
-                    logger.info(`Pinning image with CID: ${imageCid}`);
-                    await helia.pin.add(CID.parse(imageCid));
-                    logger.info(`Successfully pinned image: ${imageCid}`);
-                    helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNED-CID:" + imageCid))
-                } catch (imageError) {
-                    logger.error(`Failed to retrieve or pin image: ${imageCid} for nameId: ${nameId}`, { error: imageError.message, nameId });
-                    throw imageError
-                }
+        // Pin the associated file
+        if (metadata.image && metadata.image.startsWith('ipfs://')) {
+            const imageCid = metadata.image.replace('ipfs://', '')
+            try {
+                // Pin the image with the same duration as metadata
+                await pinningService.pinContent(imageCid, durationMonths, metadata.paymentTxId)
+                logger.info(`Successfully pinned file: ${imageCid}`);
+                helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNED-CID:" + imageCid))
+            } catch (imageError) {
+                logger.error(`Failed to pin file: ${imageCid} for nameId: ${nameId}`, { error: imageError.message, nameId });
+                throw imageError
             }
-        } catch (metadataError) {
-            logger.error(`Error processing metadata for CID: ${cid} and nameId: ${nameId}`, { error: metadataError.message, nameId });
-            throw metadataError
         }
+
+        return {
+            success: true,
+            totalSize,
+            metadataSize,
+            fileSize: totalSize - metadataSize,
+            expectedFee,
+            durationMonths
+        }
+        
     } catch (error) {
         helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("FAILED-PIN:" + cid))
         logger.error(`Error retrieving or processing IPFS content: ${cid} for nameId: ${nameId}`, { error: error.message, nameId });
