@@ -84,12 +84,20 @@ export async function getLastNameOps(orbitdb, pageSize, from=10, filter) {
         
         let nameOps = []
         for (const doc of allDocs) {
-            const nameOp = doc.value.nameOp; // Access the single nameOp in the document
-            if (applyFilter(nameOp, filter)) {
-                nameOps.push(nameOp); // Add to the list if it passes the filter
+            const nameOp = doc.value.nameOp;
+            const blockDate = doc.value.blockDate;
+            
+            // Add debug logging
+            console.log('Processing document:', {
+                blockDate,
+                filterDate: filter?.date,
+                passedFilter: applyFilter(nameOp, filter) && applyDateFilter(blockDate, filter?.date)
+            });
+            
+            if (applyFilter(nameOp, filter) && applyDateFilter(blockDate, filter?.date)) {
+                nameOps.push(nameOp);
             }
         }
-        
         // Sort nameOps by blocktime in descending order
         nameOps.sort((a, b) => b.blocktime - a.blocktime)
         
@@ -128,4 +136,28 @@ function applyFilter(nameOp, selectedFilter) {
         default:
             return true; // No filter applied, include all nameOps
     }
+}
+
+// Add new helper function for date filtering
+function applyDateFilter(blockDate, filterDate) {
+    if (!filterDate) return true; // If no date filter, include all
+    
+    // Add debug logging
+    console.log('Filtering dates:', {
+        originalBlockDate: blockDate,
+        originalFilterDate: filterDate
+    });
+    
+    // Convert both dates to start of day for comparison
+    const blockDateStart = new Date(blockDate).setHours(0, 0, 0, 0);
+    const filterDateStart = new Date(filterDate).setHours(0, 0, 0, 0);
+    
+    // Add more detailed debug logging
+    console.log('Comparing dates:', {
+        blockDateStart: new Date(blockDateStart).toISOString(),
+        filterDateStart: new Date(filterDateStart).toISOString(),
+        areEqual: blockDateStart === filterDateStart
+    });
+    
+    return blockDateStart === filterDateStart;
 }

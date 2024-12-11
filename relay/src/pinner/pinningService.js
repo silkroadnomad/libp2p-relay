@@ -2,9 +2,10 @@ import logger from '../logger.js'
 import { CID } from 'multiformats/cid'
 import { unixfs } from '@helia/unixfs'
 
-const BASE_RATE_PER_MB_PER_MONTH = 0.00742 // DOI
+const BASE_RATE_PER_MB_PER_MONTH = 742000; // 0.00742 DOI in swartz (1 DOI = 100,000,000 swartz)
 const BLOCKS_PER_YEAR = 52560 // Approximate number of blocks per year
 const EXPIRATION_BLOCKS = 36000 // NFT name expiration in blocks
+const MIN_FEE = 1000000; // 0.01 DOI in swartz
 
 export class PinningService {
     constructor(helia, orbitdb, electrumClient) {
@@ -18,11 +19,12 @@ export class PinningService {
      * Calculate fee based on file size and duration
      * @param {number} fileSizeBytes - File size in bytes
      * @param {number} durationMonths - Duration in months
-     * @returns {number} - Fee in DOI
+     * @returns {number} - Fee in swartz (1 DOI = 100,000,000 swartz)
      */
     calculatePinningFee(fileSizeBytes, durationMonths) {
-        const fileSizeMB = fileSizeBytes / (1024 * 1024)
-        return BASE_RATE_PER_MB_PER_MONTH * durationMonths * fileSizeMB
+        const fileSizeMB = fileSizeBytes / (1024 * 1024);
+        const calculatedFee = Math.floor(BASE_RATE_PER_MB_PER_MONTH * durationMonths * fileSizeMB);
+        return Math.max(calculatedFee, MIN_FEE);
     }
 
     /**

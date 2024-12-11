@@ -33,6 +33,7 @@
 		"@libp2p/interface-transport": "^4.0.3",
 		"@libp2p/kad-dht": "^14.1.4",
 		"@libp2p/logger": "^5.1.5",
+		"@libp2p/noise": "^12.0.1",
 		"@libp2p/peer-id": "^5.0.9",
 		"@libp2p/peer-id-factory": "^4.2.4",
 		"@libp2p/ping": "^2.0.13",

@@ -23,7 +23,6 @@ import { LevelDatastore } from "datastore-level"
 import logger from './logger.js'
 import { connectElectrum } from "./doichain/connectElectrum.js"
 import { getLastNameOps } from "./pinner/nameOpsFileManager.js"
-import { getNameOpsCidsForDate } from "./pinner/scanBlockchainForNameOps.js"
 import { scanBlockchainForNameOps } from '../src/pinner/scanBlockchainForNameOps.js'
 
 import fs from 'fs/promises'
@@ -33,6 +32,7 @@ import { createOrbitDB } from '@doichain/orbitdb'
 import telegramBot from './telegram-bot.js';
 import { createLibp2pConfig } from './libp2p-config.js'
 import TipWatcher from './pinner/tipWatcher.js'
+import { PinningService } from './pinner/pinningService.js'
 
 export const CONTENT_TOPIC = process.env.CONTENT_TOPIC || "/doichain-nfc/1/message/proto"
 
@@ -87,16 +87,7 @@ async function createNode () {
         routers: [
             libp2pRouting(libp2p),
              httpGatewayRouting()
-        ],
-		// blockstore: {
-		// 	blocks: blockstore,
-		// 	gc: {
-		// 		enabled: true,          // Enable automatic GC
-		// 		interval: 1000 * 60 * 60, // Run GC every hour (in milliseconds)
-		// 		gracePeriod: '48h',     // Keep blocks for at least 48 hours after last access
-		// 	}
-		// },
-		// metrics: libp2p.metrics
+        ]
 	})
 
 	// Create OrbitDB instance
@@ -110,11 +101,12 @@ async function createNode () {
 	console.log('Helia peerId:', helia.libp2p.peerId.toString())
 	console.log('Configured listen addresses:', listenAddresses)
 	console.log('Actual listen addresses:', helia.libp2p.getMultiaddrs().map(ma => ma.toString()))
+    const pinningService = new PinningService(helia, orbitdb, electrumClient)
 
-	return { helia, orbitdb }
+	return { helia, orbitdb, pinningService }
 }
 
-const { helia, orbitdb } = await createNode()
+const { helia, orbitdb, pinningService } = await createNode()
 logger.info('Helia and OrbitDB are running')
 //when a peer connecs we need to update the peer list
 const fsHelia = unixfs(helia)
@@ -125,16 +117,17 @@ async function handleListRequest(dateString, pageSize, from, filter) {
     try {
         let nameOps;
         console.log("Handling LIST request:", { dateString, pageSize, from, filter });
-        if (dateString === "LAST") {
-            nameOps = await getLastNameOps(orbitdb, pageSize, from, filter);
-        } else {
+        
+        if (dateString !== "LAST") {
             const date = parseDate(dateString);
             if (!date) {
                 publishMessage("INVALID_DATE_FORMAT");
                 return;
             }
-            nameOps = await getNameOpsCidsForDate(orbitdb, helia, date);
+            filter = { ...filter, date }; // Add date to the filter object
         }
+        
+        nameOps = await getLastNameOps(orbitdb, pageSize, from, filter);
 
         if (nameOps.length > 0) {
             publishMessage(JSON.stringify(nameOps));
@@ -165,13 +158,14 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
     const from = event.detail.from
     const message = new TextDecoder().decode(event.detail.data)
     let messageObject;
-
+    console.log("Received message:", message);
     try {
         messageObject = JSON.parse(message);
     } catch (error) {
     }
 
     if (messageObject && topic.startsWith(CONTENT_TOPIC)) {
+        console.log("Received message:", messageObject);
         if (messageObject.type=="LIST") {
             console.log("Received LIST request:", messageObject);
             const { dateString, pageSize, from, filter } = messageObject;
@@ -182,85 +176,121 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
     else {
          if(message.startsWith("NEW-CID")){
             const cid = message.substring(8)
-            const addingMsg = "ADDING-CID:"+cid
-            console.log("publishing query in ipfs:", addingMsg)
-            helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addingMsg))
-            console.log("querying published",cid)
-
+            logger.info(`Processing new CID request: ${cid}`)
             try {
-                // Get file info
-                let fileContent = '';
-                let fileSize = 0;
+                // Get metadata content and size
+                let metadataContent = '';
+                let totalSize = 0;
+                let metadataSize = 0;
+                
+                logger.info(`Fetching metadata for CID: ${cid}`)
+                // Measure metadata size
                 for await (const buf of fsHelia.cat(cid)) {
-                    fileContent += new TextDecoder().decode(buf);
-                    fileSize += buf.length;
+                    metadataContent += new TextDecoder().decode(buf);
+                    metadataSize += buf.length;
                 }
+                totalSize += metadataSize;
+                logger.info(`Metadata size: ${formatFileSize(metadataSize)}`)
 
-                // Parse the content to get metadata (assuming JSON format)
+                // Parse the metadata
                 let metadata;
                 try {
-                    metadata = JSON.parse(fileContent);
+                    // First, check if the content looks like JSON
+                    const isTextContent = /^[\s{[]/.test(metadataContent.trim());
+                    
+                    logger.debug(`Content type check - appears to be ${isTextContent ? 'text/JSON' : 'binary'}`);
+                    logger.debug('Content preview:', metadataContent.substring(0, 100));
+
+                    if (isTextContent) {
+                        try {
+                            metadata = JSON.parse(metadataContent);
+                            logger.debug('Successfully parsed as JSON metadata:', metadata);
+                        } catch (parseError) {
+                            logger.debug('Content is text but not valid JSON, treating as raw text');
+                            metadata = { 
+                                type: 'text',
+                                content: metadataContent 
+                            };
+                        }
+                    } else {
+                        logger.debug('Content appears to be binary, treating as raw data');
+                        metadata = { 
+                            type: 'binary',
+                            size: metadataSize
+                        };
+                    }
                 } catch (e) {
-                    metadata = { name: 'Unknown', description: 'No description available' };
+                    logger.error(`Failed to process content for CID ${cid}:`, e);
+                    logger.debug('Content type detection failed. First 100 bytes:', metadataContent.substring(0, 100));
+                    throw new Error(`Failed to process content for CID: ${cid}`);
                 }
 
-                // Format file size
-                const formattedSize = formatFileSize(fileSize);
-
-                // Determine file type from content or metadata
-                const isImage = fileContent.startsWith('\xFF\xD8') || // JPEG
-                              fileContent.startsWith('\x89PNG') ||    // PNG
-                              fileContent.startsWith('GIF8') ||       // GIF
-                              metadata.type === 'image';              // Check metadata
-                
-                const isText = !isImage && (
-                    metadata.type === 'text' || 
-                    metadata.type === 'json' ||
-                    (fileContent.length < 5000 && /^[\x00-\x7F]*$/.test(fileContent)) // Basic ASCII check
-                );
-
-                // Prepare telegram message
-                let telegramMessage = `📄 New File Added to IPFS\n\n` +
-                    `🔗 CID: ${cid}\n` +
-                    `📝 Name: ${metadata.name || 'Unknown'}\n` +
-                    `📋 Description: ${metadata.description || 'No description'}\n` +
-                    `📦 Size: ${formattedSize}\n` +
-                    `🕒 Added: ${new Date().toISOString()}\n` +
-                    `👤 Added by: ${from}`;
-
-                if (isText) {
-                    // For text files, append content (truncate if too long)
-                    const maxLength = 1000; // Telegram has message length limits
-                    let contentPreview = fileContent;
-                    if (contentPreview.length > maxLength) {
-                        contentPreview = contentPreview.substring(0, maxLength) + '...(truncated)';
-                    }
-                    telegramMessage += `\n\n📝 Content:\n\`\`\`\n${contentPreview}\n\`\`\``;
-                    await telegramBot.sendMessage(telegramMessage, { parse_mode: 'Markdown' });
-                } else if (isImage) {
-                    // For images, first send the image, then send the info
+                // If metadata contains image, measure its size too
+                let imageSize = 0;
+                if (metadata.image && metadata.image.startsWith('ipfs://')) {
+                    const imageCid = metadata.image.replace('ipfs://', '');
+                    logger.info(`Found image in metadata, fetching size for CID: ${imageCid}`)
                     try {
-                        // Convert buffer to format suitable for Telegram
-                        const imageBuffer = Buffer.from(fileContent);
-                        await telegramBot.sendPhoto({ source: imageBuffer }, { caption: telegramMessage });
+                        for await (const chunk of fsHelia.cat(imageCid)) {
+                            imageSize += chunk.length;
+                        }
+                        totalSize += imageSize;
+                        logger.info(`Image size: ${formatFileSize(imageSize)}`)
                     } catch (error) {
-                        logger.error('Error sending image to Telegram:', error);
-                        // Fallback to sending just the message if image send fails
-                        await telegramBot.sendMessage(telegramMessage);
+                        logger.error(`Failed to measure image size for CID: ${imageCid}`, error);
+                        throw new Error(`Failed to access image: ${imageCid}`);
                     }
                 } else {
-                    // For other file types, just send the message
-                    await telegramBot.sendMessage(telegramMessage);
+                    logger.info('No image found in metadata')
                 }
+
+                // Calculate fee based on total size
+                logger.info('Fetching current block height for fee calculation')
+                const currentBlock = await electrumClient.request('blockchain.headers.subscribe');
+                logger.debug('Current block:', currentBlock)
+                
+                const durations = pinningService.getAvailableDurations(currentBlock.height, currentBlock.height);
+                const durationMonths = durations.maxDuration;
+                logger.debug(`Available durations:`, durations)
+                
+                const expectedFee = pinningService.calculatePinningFee(totalSize, durationMonths);
+                logger.info(`Calculated fee: ${expectedFee} for ${durationMonths} months`)
+
+                // Prepare size information
+                const sizeInfo = {
+                    metadata: formatFileSize(metadataSize),
+                    image: formatFileSize(imageSize),
+                    total: formatFileSize(totalSize)
+                };
+                logger.debug('Size information:', sizeInfo)
+
+                // Create response message with fee information
+                const addingMsg = JSON.stringify({
+                    status: "ADDING-CID",
+                    cid: cid,
+                    sizes: sizeInfo,
+                    fee: {
+                        amount: expectedFee,
+                        durationMonths: durationMonths
+                    }
+                });
+
+                logger.info(`Publishing response for CID ${cid}`)
+                logger.info("Response payload:", addingMsg);
+                helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addingMsg));
 
             } catch (error) {
                 logger.error('Error processing file or sending notification:', error);
                 await telegramBot.sendMessage(`⚠️ Error processing new file with CID: ${cid}\nError: ${error.message}`);
             }
 
-            const addedMsg = "ADDED-CID:"+cid
-            console.log("publishing", addedMsg)
-            helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addedMsg))
+            const addedMsg = JSON.stringify({
+                status: "ADDED-CID",
+                cid: cid,
+                // timestamp: Date.now()
+            });
+            logger.info(`Publishing completion message for CID ${cid}:`, addedMsg);
+            helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addedMsg));
         }
     }
 })

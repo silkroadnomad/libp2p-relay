@@ -7,14 +7,13 @@ import { CID } from 'multiformats/cid'
 import { unixfs } from '@helia/unixfs'
 import fs from 'fs/promises'
 import path from 'path'
-import { getImageUrlFromIPFS } from '../doichain/nfc/getImageUrlFromIPFS.js'
 import PQueue from 'p-queue';
 import client from 'prom-client';
-import { PinningService } from './pinner/pinningService.js'
+import { PinningService } from './pinningService.js'
 
 const CONTENT_TOPIC = '/doichain/nft/1.0.0'
 let stopToken = { isStopped: false };
-const pinningService = new PinningService(helia, orbitdb, electrumClient)
+let pinningService = null;
 // Define custom Prometheus metrics
 const nameOpsIndexedCounter = new client.Counter({
     name: 'nameops_indexed_total',
@@ -64,6 +63,7 @@ const errorRate = new client.Counter({
 });
 
 export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb, tip, _stopToken) {
+    pinningService = new PinningService(helia, orbitdb, electrumClient)
     stopToken.isStopped = _stopToken;
     logger.info("scanBlockchainForNameOps into orbitdb", orbitdb.id)
     helia = helia
@@ -178,13 +178,6 @@ async function processBlocks(helia, electrumClient, startHeight, tip,origState, 
         } finally {
             endTimer(); // End timing block processing
         }
-
-        // await new Promise(resolve => setTimeout(resolve, 100));
-
-        // if (height % BATCH_SIZE === 0) {
-            // logger.info(`Completed batch. Pausing for 5 seconds before next batch.`);
-            // await new Promise(resolve => setTimeout(resolve, 5000));
-        // }
     }
 
     // Wait for all queued tasks to complete
@@ -206,116 +199,6 @@ async function reconnectElectrumClient(electrumClient) {
     }
 }
 
-export async function getTodayNameOpsCids(helia) {
-    logger.info("Getting today's NameOps CIDs")
-    
-    const today = moment().format('YYYY-MM-DD');
-
-    try {
-        const fs = unixfs(helia)
-
-        // Here you would need to implement a way to retrieve the CID for today's NameOps
-        // without using IPNS. This might involve storing the CID in a local database or file.
-        const todayCid = await getTodayCidFromStorage(today);
-
-        if (!todayCid) {
-            logger.info("No CID found for today's NameOps")
-            return []
-        }
-
-        const chunks = []
-        for await (const chunk of fs.cat(CID.parse(todayCid))) {
-            chunks.push(chunk)
-        }
-        const content = new TextDecoder().decode(Buffer.concat(chunks))
-        
-        const parsedContent = JSON.parse(content)
-        
-        if (!parsedContent || !Array.isArray(parsedContent)) {
-            logger.info("No NameOps found in the retrieved content")
-            return []
-        }
-        
-        const todayCids = parsedContent.map(op => op.txid)
-        
-        logger.info(`Found ${todayCids.length} NameOps for today`, { date: today })
-        
-        return todayCids
-    } catch (error) {
-        logger.error("Error retrieving today's NameOps CIDs", { error: error.message })
-        return []
-    }
-}
-
-export async function getNameOpsCidsForDate(helia, date) {
-    const formattedDate = date.toISOString().split('T')[0];
-    logger.info(`Getting NameOps CIDs for ${formattedDate}`)
-    
-    try {
-        const fs = unixfs(helia)
-        const dateCid = await getCidFromStorage(formattedDate);
-        if (!dateCid) {
-            logger.info(`No CID found for NameOps on ${formattedDate}`)
-            return []
-        }
-
-        const chunks = []
-        for await (const chunk of fs.cat(CID.parse(dateCid))) {
-            chunks.push(chunk)
-        }
-        const content = new TextDecoder().decode(Buffer.concat(chunks))
-        
-        const parsedContent = JSON.parse(content)
-        
-        if (!parsedContent || !Array.isArray(parsedContent)) {
-            logger.info(`No NameOps found for ${formattedDate}`)
-            return []
-        }
-        
-        logger.info(`Found ${parsedContent.length} NameOps for ${formattedDate}`,parsedContent)
-        
-        return parsedContent
-    } catch (error) {
-        logger.error(`Error retrieving NameOps for ${formattedDate}`, { error: error.message })
-        return []
-    }
-}
-
-const CID_STORAGE_DIR = path.join(process.cwd(), 'data', 'nameops_cids')
-
-async function getTodayCidFromStorage(date) {
-    const fileName = `nameops-${date}.json`
-    const filePath = path.join(CID_STORAGE_DIR, fileName)
-
-    try {
-        const cid = await fs.readFile(filePath, 'utf-8')
-        return cid.trim() // Remove any whitespace
-    } catch (error) {
-        if (error.code === 'ENOENT') {
-            console.log(`No CID file found for date: ${date}`)
-            return null
-        }
-        console.error(`Error reading CID file: ${error.message}`)
-        throw error
-    }
-}
-
-async function getCidFromStorage(formattedDate) {
-    const fileName = `nameops-${formattedDate}.json`
-    const filePath = path.join(CID_STORAGE_DIR, fileName)
-
-    try {
-        const cid = await fs.readFile(filePath, 'utf-8')
-        return cid.trim()
-    } catch (error) {
-        if (error.code === 'ENOENT') {
-            console.log(`No CID file found for date: ${formattedDate}`)
-            return null
-        }
-        console.error(`Error reading CID file: ${error.message}`)
-        throw error
-    }
-}
 
 async function pinIpfsContent(helia, orbitdb, nameOp, nameId, ipfsUrl) {
     const cid = ipfsUrl.replace('ipfs://', '')
