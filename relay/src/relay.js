@@ -388,12 +388,12 @@ if (!argv['disable-scanning']) {
     logger.info('Blockchain scanning is disabled')
 }
 
-// Cleanup handlers with current supported methods
-process.on('SIGINT', async () => {
+async function cleanup() {
     logger.info('Shutting down...')
     try {
+        await closeDB() // Close nameops DB first
         if (orbitdb) {
-            await orbitdb.stop()
+            await orbitdb.stop() // Then stop OrbitDB
         }
         await blockstore.close()
         await datastore.close()
@@ -401,21 +401,15 @@ process.on('SIGINT', async () => {
     } catch (error) {
         logger.error('Error during shutdown:', error)
     }
+}
+
+process.on('SIGINT', async () => {
+    await cleanup()
     process.exit(0)
 })
 
 process.on('SIGTERM', async () => {
-    logger.info('Shutting down...')
-    try {
-        if (orbitdb) {
-            await orbitdb.stop()
-        }
-        await blockstore.close()
-        await datastore.close()
-        logger.info('Databases closed')
-    } catch (error) {
-        logger.error('Error during shutdown:', error)
-    }
+    await cleanup()
     process.exit(0)
 })
 

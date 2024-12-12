@@ -161,3 +161,12 @@ function applyDateFilter(blockDate, filterDate) {
     
     return blockDateStart === filterDateStart;
 }
+
+// Add new function to close DB
+export async function closeDB() {
+    if (db) {
+        await db.close()
+        db = null
+        logger.info('Closed nameops database')
+    }
+}

@@ -1,5 +1,5 @@
 import { processBlockAtHeight } from './blockProcessor.js'
-import { updateDailyNameOpsFile } from './nameOpsFileManager.js'
+import { updateDailyNameOpsFile, closeDB } from './nameOpsFileManager.js'
 import { getScanningState, updateScanningState } from './scanningStateManager.js'
 import logger from '../logger.js'
 import moment from 'moment/moment.js'
@@ -63,33 +63,38 @@ const errorRate = new client.Counter({
 });
 
 export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb, tip, _stopToken) {
-    pinningService = new PinningService(helia, orbitdb, electrumClient)
-    stopToken.isStopped = _stopToken;
-    logger.info("scanBlockchainForNameOps into orbitdb", orbitdb.id)
-    helia = helia
+    try {
+        pinningService = new PinningService(helia, orbitdb, electrumClient)
+        stopToken.isStopped = _stopToken;
+        logger.info("scanBlockchainForNameOps into orbitdb", orbitdb.id)
+        helia = helia
 
-    if (!tip) {
-        tip = await electrumClient.request('blockchain.headers.subscribe');
-        logger.info("Blockchain tip", { height: tip.height });
-    }
-
-
-    let state = await getScanningState(orbitdb)
-    let startHeight;
-    if (state && state.tipHeight) {
-        if (tip.height > state.tipHeight) {
-            startHeight = tip.height;
-            logger.info("New blocks detected, starting from current tip", { startHeight, storedTip: state.tipHeight });
-        } else {
-            startHeight = state.lastBlockHeight;
-            logger.info("Continuing from last scanned block", { startHeight });
+        if (!tip) {
+            tip = await electrumClient.request('blockchain.headers.subscribe');
+            logger.info("Blockchain tip", { height: tip.height });
         }
-    } else {
-        startHeight = tip.height; 
-        logger.info("No previous state, starting from current tip", { startHeight });
-    }
 
-    await processBlocks(helia, electrumClient, startHeight, tip,state, orbitdb, stopToken);
+
+        let state = await getScanningState(orbitdb)
+        let startHeight;
+        if (state && state.tipHeight) {
+            if (tip.height > state.tipHeight) {
+                startHeight = tip.height;
+                logger.info("New blocks detected, starting from current tip", { startHeight, storedTip: state.tipHeight });
+            } else {
+                startHeight = state.lastBlockHeight;
+                logger.info("Continuing from last scanned block", { startHeight });
+            }
+        } else {
+            startHeight = tip.height; 
+            logger.info("No previous state, starting from current tip", { startHeight });
+        }
+
+        await processBlocks(helia, electrumClient, startHeight, tip,state, orbitdb, stopToken);
+    } finally {
+        // Close DB when scanning is complete or if there's an error
+        await closeDB()
+    }
 }
 
 async function processBlocks(helia, electrumClient, startHeight, tip,origState, orbitdb, stopToken) {
