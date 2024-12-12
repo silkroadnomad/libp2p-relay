@@ -363,9 +363,24 @@ if (!argv['disable-scanning']) {
     tipWatcher.on('newTip', async (tip) => {
         try {
             console.log("newTip: ", tip);
+            // First scan for new name operations
             await scanBlockchainForNameOps(electrumClient, helia, orbitdb, tip);
+            
+            // Then check for expired pins
+            const pinnedCids = []
+            for await (const pin of helia.pins.ls()) {
+                pinnedCids.push(pin.cid.toString())
+            }
+
+            for (const cid of pinnedCids) {
+                const shouldRemain = await pinningService.shouldRemainPinned(cid)
+                if (!shouldRemain) {
+                    logger.info(`Unpinning expired content: ${cid}`)
+                    await helia.pins.rm(CID.parse(cid))
+                }
+            }
         } catch (error) {
-            logger.error('Error scanning blockchain:', error);
+            logger.error('Error processing new tip:', error);
         }
     });
     
@@ -414,25 +429,4 @@ process.on('SIGTERM', async () => {
 })
 
 createHttpServer(helia, orbitdb, electrumClient)
-
-async function checkExpiredPins() {
-    try {
-        const pinnedCids = []
-        for await (const pin of helia.pins.ls()) {
-            pinnedCids.push(pin.cid.toString())
-        }
-
-        for (const cid of pinnedCids) {
-            const shouldRemain = await pinningService.shouldRemainPinned(cid)
-            if (!shouldRemain) {
-                logger.info(`Unpinning expired content: ${cid}`)
-                await helia.pins.rm(CID.parse(cid))
-            }
-        }
-    } catch (error) {
-        logger.error('Error checking expired pins:', error)
-    }
-}
-
-setInterval(checkExpiredPins, 60 * 60 * 1000)
 

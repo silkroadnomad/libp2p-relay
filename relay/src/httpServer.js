@@ -1,12 +1,12 @@
 import http from 'http'
+import os from 'os'
+import 'dotenv/config'
 import url from 'url'
 import { CID } from 'multiformats/cid'
 import { base64 } from "multiformats/bases/base64"
 import { unixfs } from "@helia/unixfs"
 import { getOrCreateDB } from './pinner/nameOpsFileManager.js'
 import { getScanningState } from './pinner/scanningStateManager.js'
-import os from 'os'
-import 'dotenv/config'
 import { multiaddr } from '@multiformats/multiaddr'
 import client from 'prom-client'
 import moment from 'moment/moment.js';
