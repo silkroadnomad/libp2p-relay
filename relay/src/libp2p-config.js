@@ -92,14 +92,15 @@ export function createLibp2pConfig({ keyPair, datastore, listenAddresses, announ
                 canRelayMessage: true, 
                 scoreThresholds
             }),
-            relay: circuitRelayServer({
-                reservations: {
-                    maxReservations: 1000
-                },
-                advertise: {
-                    bootDelay: 15 * 60 * 1000
-                }
-            }),
+            circuitRelay: circuitRelayServer(),
+            // circuitRelay: circuitRelayServer({
+            //     reservations: {
+            //         maxReservations: 1000
+            //     },
+            //     advertise: {
+            //         bootDelay: 15 * 60 * 1000
+            //     }
+            // }),
             ...(enableUPnP ? { uPnPNAT: uPnPNAT() } : {})
         },
         connectionGater: {
