@@ -124,7 +124,9 @@ export class PinningService {
                 expirationDate: Date.now() + (durationMonths * 30 * 24 * 60 * 60 * 1000),
                 paymentTxId: paymentTxId || null,
                 fee: expectedFee || 0,
-                paymentAmount: paymentAmount || 0
+                paymentAmount: paymentAmount || 0,
+                nameId: nameOp.nameId || null,
+                nameTxid: nameOp.txid || null
             }
 
             // Open docstore instead of kvstore
