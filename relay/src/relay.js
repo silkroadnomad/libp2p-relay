@@ -415,43 +415,6 @@ process.on('SIGTERM', async () => {
 
 createHttpServer(helia, orbitdb, electrumClient)
 
-
-
-async function pinIpfsContent(helia, orbitdb, nameId, ipfsUrl) {
-    const cid = ipfsUrl.replace('ipfs://', '')
-    try {
-        logger.info(`Attempting to retrieve IPFS metadata content with CID: ${cid}`)
-        
-        // Get current block height
-        const tip = await electrumClient.request('blockchain.headers.subscribe')
-        const currentBlock = tip.height
-
-        // Get registration block for the nameId
-        // This would need to be implemented based on your nameId lookup logic
-        const registrationBlock = await getNameRegistrationBlock(nameId)
-
-        // Get available durations
-        const durations = pinningService.getAvailableDurations(currentBlock, registrationBlock)
-
-        // Use maximum available duration for now
-        // In production, this should come from the NFT metadata or transaction
-        const durationMonths = durations.maxDuration
-
-        // Pin the content with the pinning service
-        // The payment validation would need to be integrated with your payment flow
-        const pinningResult = await pinningService.pinContent(cid, durationMonths, 'payment_tx_id')
-
-        logger.info(`Successfully pinned content: ${cid}`, pinningResult)
-        helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNED-CID:" + cid))
-
-        return pinningResult
-    } catch (error) {
-        helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("FAILED-PIN:" + cid))
-        logger.error(`Error pinning content: ${cid}`, error)
-        throw error
-    }
-}
-
 async function checkExpiredPins() {
     try {
         const pinnedCids = []
