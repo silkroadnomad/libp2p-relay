@@ -265,35 +265,8 @@ async function pinIpfsContent(electrumClient, helia, orbitdb, nameOp, nameId, ip
         logger.info(`Using maximum available duration of ${durationMonths} months until NFT expiration`);
         logger.info(`Calculated fee for ${durationMonths} months: ${expectedFee} DOI`);
 
-        // Get the full transaction details of the nameOp
-        const txDetails = await electrumClient.request('blockchain.transaction.get', [nameOp.txid, true]);
-        
-        // Check for payment output to relay's address only if date is >= 2025-01-01
-        const PAYMENT_START_DATE = new Date('2025-01-01');
-        const currentDate = new Date();
-
-        if (currentDate >= PAYMENT_START_DATE) {
-            const RELAY_ADDRESS = process.env.RELAY_PAYMENT_ADDRESS;
-            const paymentOutput = txDetails.vout.find(output => 
-                output.scriptPubKey?.addresses?.includes(RELAY_ADDRESS) &&
-                output.n !== nameOp.n
-            );
-
-            if (!paymentOutput) {
-                throw new Error(`No payment output found in transaction ${nameOp.txid}`);
-            }
-
-            // Validate payment amount
-            const paymentAmount = paymentOutput.value;
-            if (paymentAmount < expectedFee) {
-                throw new Error(`Insufficient payment: expected ${expectedFee} DOI, got ${paymentAmount} DOI`);
-            }
-
-            logger.info(`Valid payment found: ${paymentAmount} DOI in tx ${nameOp.txid}`);
-        }
-
         // Pin the metadata
-        await pinningService.pinContent(cid, durationMonths, metadata.paymentTxId)
+        await pinningService.pinContent(cid, durationMonths, metadata.paymentTxId, nameOp)
         logger.info(`Successfully pinned IPFS metadata content: ${cid}`);
         helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNED-CID:" + cid))
 
@@ -301,8 +274,7 @@ async function pinIpfsContent(electrumClient, helia, orbitdb, nameOp, nameId, ip
         if (metadata.image && metadata.image.startsWith('ipfs://')) {
             const imageCid = metadata.image.replace('ipfs://', '')
             try {
-                // Pin the image with the same duration as metadata
-                await pinningService.pinContent(imageCid, durationMonths, metadata.paymentTxId)
+                await pinningService.pinContent(imageCid, durationMonths, metadata.paymentTxId, nameOp)
                 logger.info(`Successfully pinned file: ${imageCid}`);
                 helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNED-CID:" + imageCid))
             } catch (imageError) {

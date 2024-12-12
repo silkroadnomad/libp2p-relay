@@ -69,23 +69,44 @@ export class PinningService {
      * @param {string} cid - Content identifier
      * @param {number} durationMonths - Pinning duration in months
      * @param {string} paymentTxId - Payment transaction ID
+     * @param {Object} nameOp - Name operation details
      * @returns {Promise<Object>} - Pinning result
      */
-    async pinContent(cid, durationMonths, paymentTxId) {
+    async pinContent(cid, durationMonths, paymentTxId, nameOp) {
         try {
+            // Check payment requirement based on date
+            const PAYMENT_START_DATE = new Date('2025-01-01');
+            const currentDate = new Date();
+            const requirePayment = currentDate >= PAYMENT_START_DATE;
+
             // Get content size
-            let totalSize = 0
+            let totalSize = 0;
             for await (const chunk of this.fs.cat(CID.parse(cid))) {
-                totalSize += chunk.length
+                totalSize += chunk.length;
             }
 
             // Calculate expected fee
-            const expectedFee = this.calculatePinningFee(totalSize, durationMonths)
+            const expectedFee = this.calculatePinningFee(totalSize, durationMonths);
 
-            // Validate payment
-            const isPaymentValid = await this.validatePayment(paymentTxId, expectedFee)
-            if (!isPaymentValid) {
-                throw new Error('Invalid payment amount')
+            if (requirePayment) {
+                const RELAY_ADDRESS = process.env.RELAY_PAYMENT_ADDRESS;
+                const txDetails = await this.electrumClient.request('blockchain.transaction.get', [nameOp.txid, true]);
+                
+                const paymentOutput = txDetails.vout.find(output => 
+                    output.scriptPubKey?.addresses?.includes(RELAY_ADDRESS) &&
+                    output.n !== nameOp.n
+                );
+
+                if (!paymentOutput) {
+                    throw new Error(`No payment output found in transaction ${nameOp.txid}`);
+                }
+
+                const paymentAmount = paymentOutput.value;
+                if (paymentAmount < expectedFee) {
+                    throw new Error(`Insufficient payment: expected ${expectedFee} DOI, got ${paymentAmount} DOI`);
+                }
+
+                logger.info(`Valid payment found: ${paymentAmount} DOI in tx ${nameOp.txid}`);
             }
 
             // Pin the content
