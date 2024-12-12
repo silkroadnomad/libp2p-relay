@@ -89,6 +89,7 @@ export class PinningService {
             // Calculate expected fee
             const expectedFee = this.calculatePinningFee(totalSize, durationMonths);
 
+            let paymentAmount = 0;
             if (requirePayment) {
                 const RELAY_ADDRESS = process.env.RELAY_PAYMENT_ADDRESS;
                 const txDetails = await this.electrumClient.request('blockchain.transaction.get', [nameOp.txid, true]);
@@ -102,7 +103,7 @@ export class PinningService {
                     throw new Error(`No payment output found in transaction ${nameOp.txid}`);
                 }
 
-                const paymentAmount = paymentOutput.value;
+                paymentAmount = paymentOutput.value;
                 if (paymentAmount < expectedFee) {
                     throw new Error(`Insufficient payment: expected ${expectedFee} DOI, got ${paymentAmount} DOI`);
                 }
@@ -111,26 +112,30 @@ export class PinningService {
             }
 
             // Pin the content
+            logger.info(`Pinning content: ${cid}`)
             await this.helia.pins.add(CID.parse(cid))
-
-            // Store pinning metadata in OrbitDB
+            // Store pinning metadata in OrbitDB with explicit null values instead of undefined
+            logger.info(`Storing pinning metadata in OrbitDB for content: ${cid}`)
             const pinningMetadata = {
                 _id: cid, // Required for docstore
-                cid,
-                size: totalSize,
+                cid: cid || null,
+                size: totalSize || 0,
                 pinDate: Date.now(),
                 expirationDate: Date.now() + (durationMonths * 30 * 24 * 60 * 60 * 1000),
-                paymentTxId,
-                fee: expectedFee
+                paymentTxId: paymentTxId || null,
+                fee: expectedFee || 0,
+                paymentAmount: paymentAmount || 0
             }
 
             // Open docstore instead of kvstore
+            logger.info(`Opening OrbitDB docstore for pinning metadata`)
             const db = await this.orbitdb.open('pinning-metadata', {
                 type: 'documents',
                 create: true,
                 overwrite: false,
                 AccessController: IPFSAccessController({ write: [this.orbitdb.identity.id] })
             })
+            logger.info(`Putting pinning metadata in OrbitDB`)
             await db.put(pinningMetadata)
 
             logger.info(`Content pinned successfully: ${cid}`, pinningMetadata)
