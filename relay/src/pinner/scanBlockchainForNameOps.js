@@ -268,24 +268,29 @@ async function pinIpfsContent(electrumClient, helia, orbitdb, nameOp, nameId, ip
         // Get the full transaction details of the nameOp
         const txDetails = await electrumClient.request('blockchain.transaction.get', [nameOp.txid, true]);
         
-        // Check for payment output to relay's address
-        const RELAY_ADDRESS = process.env.RELAY_PAYMENT_ADDRESS;
-        const paymentOutput = txDetails.vout.find(output => 
-            output.scriptPubKey?.addresses?.includes(RELAY_ADDRESS) &&
-            output.n !== nameOp.n
-        );
+        // Check for payment output to relay's address only if date is >= 2025-01-01
+        const PAYMENT_START_DATE = new Date('2025-01-01');
+        const currentDate = new Date();
 
-        if (!paymentOutput) {
-            throw new Error(`No payment output found in transaction ${nameOp.txid}`);
+        if (currentDate >= PAYMENT_START_DATE) {
+            const RELAY_ADDRESS = process.env.RELAY_PAYMENT_ADDRESS;
+            const paymentOutput = txDetails.vout.find(output => 
+                output.scriptPubKey?.addresses?.includes(RELAY_ADDRESS) &&
+                output.n !== nameOp.n
+            );
+
+            if (!paymentOutput) {
+                throw new Error(`No payment output found in transaction ${nameOp.txid}`);
+            }
+
+            // Validate payment amount
+            const paymentAmount = paymentOutput.value;
+            if (paymentAmount < expectedFee) {
+                throw new Error(`Insufficient payment: expected ${expectedFee} DOI, got ${paymentAmount} DOI`);
+            }
+
+            logger.info(`Valid payment found: ${paymentAmount} DOI in tx ${nameOp.txid}`);
         }
-
-        // Validate payment amount
-        const paymentAmount = paymentOutput.value;
-        if (paymentAmount < expectedFee) {
-            throw new Error(`Insufficient payment: expected ${expectedFee} DOI, got ${paymentAmount} DOI`);
-        }
-
-        logger.info(`Valid payment found: ${paymentAmount} DOI in tx ${nameOp.txid}`);
 
         // Pin the metadata
         await pinningService.pinContent(cid, durationMonths, metadata.paymentTxId)
