@@ -1,7 +1,7 @@
 import logger from '../logger.js'
 import { CID } from 'multiformats/cid'
 import { unixfs } from '@helia/unixfs'
-import { IPFSAccessController } from '@orbitdb/ipfs-access-controller'
+import { IPFSAccessController } from '@doichain/orbitdb'
 
 const BASE_RATE_PER_MB_PER_MONTH = 742000; // 0.00742 DOI in swartz (1 DOI = 100,000,000 swartz)
 const BLOCKS_PER_YEAR = 52560 // Approximate number of blocks per year
