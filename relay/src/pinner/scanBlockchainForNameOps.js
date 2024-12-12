@@ -140,7 +140,7 @@ async function processBlocks(helia, electrumClient, startHeight, tip,origState, 
                 for (const nameOp of nameOpUtxos) {
                     if (nameOp.nameValue && nameOp.nameValue.startsWith('ipfs://')) {
                         // Use the pinQueue for pinIpfsContent operation
-                        pinQueue.add(() => pinIpfsContent(helia, orbitdb, nameOp, nameOp.nameId, nameOp.nameValue)
+                        pinQueue.add(() => pinIpfsContent(electrumClient, helia, orbitdb, nameOp, nameOp.nameId, nameOp.nameValue)
                             .then(() => {
                                 logger.info(`Successfully pinned IPFS content: ${nameOp.nameValue}`);
                                 // Increment the IPFS CIDs Pinned counter
@@ -205,7 +205,7 @@ async function reconnectElectrumClient(electrumClient) {
 }
 
 
-async function pinIpfsContent(helia, orbitdb, nameOp, nameId, ipfsUrl) {
+async function pinIpfsContent(electrumClient, helia, orbitdb, nameOp, nameId, ipfsUrl) {
     const cid = ipfsUrl.replace('ipfs://', '')
     try {
         logger.info(`Attempting to retrieve IPFS metadata content with CID: ${cid}`);
