@@ -1,6 +1,7 @@
 import logger from '../logger.js'
 import { CID } from 'multiformats/cid'
 import { unixfs } from '@helia/unixfs'
+import { IPFSAccessController } from '@orbitdb/ipfs-access-controller'
 
 const BASE_RATE_PER_MB_PER_MONTH = 742000; // 0.00742 DOI in swartz (1 DOI = 100,000,000 swartz)
 const BLOCKS_PER_YEAR = 52560 // Approximate number of blocks per year
@@ -75,9 +76,9 @@ export class PinningService {
     async pinContent(cid, durationMonths, paymentTxId, nameOp) {
         try {
             // Check payment requirement based on date
-            const PAYMENT_START_DATE = new Date('2025-01-01');
+            const paymentStartDate = new Date(process.env.PAYMENT_START_DATE || '2025-01-01');
             const currentDate = new Date();
-            const requirePayment = currentDate >= PAYMENT_START_DATE;
+            const requirePayment = currentDate >= paymentStartDate;
 
             // Get content size
             let totalSize = 0;
@@ -114,6 +115,7 @@ export class PinningService {
 
             // Store pinning metadata in OrbitDB
             const pinningMetadata = {
+                _id: cid, // Required for docstore
                 cid,
                 size: totalSize,
                 pinDate: Date.now(),
@@ -122,8 +124,14 @@ export class PinningService {
                 fee: expectedFee
             }
 
-            const db = await this.orbitdb.kvstore('pinning-metadata')
-            await db.put(cid, pinningMetadata)
+            // Open docstore instead of kvstore
+            const db = await this.orbitdb.open('pinning-metadata', {
+                type: 'documents',
+                create: true,
+                overwrite: false,
+                AccessController: IPFSAccessController({ write: [this.orbitdb.identity.id] })
+            })
+            await db.put(pinningMetadata)
 
             logger.info(`Content pinned successfully: ${cid}`, pinningMetadata)
 
@@ -144,8 +152,16 @@ export class PinningService {
      */
     async shouldRemainPinned(cid) {
         try {
-            const db = await this.orbitdb.kvstore('pinning-metadata')
-            const metadata = await db.get(cid)
+            const db = await this.orbitdb.open('pinning-metadata', {
+                type: 'documents',
+                create: true,
+                overwrite: false,
+                AccessController: IPFSAccessController({ write: [this.orbitdb.identity.id] })
+            })
+            
+            // Query document by cid
+            const allDocs = await db.query(doc => doc.cid === cid)
+            const metadata = allDocs[0]
 
             if (!metadata) {
                 return false
