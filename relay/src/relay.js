@@ -271,7 +271,8 @@ helia.libp2p.services.pubsub.addEventListener('message', async event => {
                     sizes: sizeInfo,
                     fee: {
                         amount: expectedFee,
-                        durationMonths: durationMonths
+                        durationMonths: durationMonths,
+                        paymentAddress: process.env.RELAY_PAYMENT_ADDRESS
                     }
                 });
 
