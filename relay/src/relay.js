@@ -33,6 +33,7 @@ import telegramBot from './telegram-bot.js';
 import { createLibp2pConfig } from './libp2p-config.js'
 import TipWatcher from './pinner/tipWatcher.js'
 import { PinningService } from './pinner/pinningService.js'
+import { DoichainRPC } from './doichainRPC.js';
 
 export const CONTENT_TOPIC = process.env.CONTENT_TOPIC || "/doichain-nfc/1/message/proto"
 
@@ -58,6 +59,11 @@ const network = (relayLocalRegTest===undefined || (relayLocalRegTest!==true && r
 console.log("starting with network:", network)
 const electrumClient = await connectElectrum(network, (x,y)=>{})
 
+const doichainRPC = new DoichainRPC({
+    username: process.env.DOICHAIN_RPC_USER,
+    password: process.env.DOICHAIN_RPC_PASSWORD,
+    port: process.env.DOICHAIN_RPC_PORT || 8339
+});
 
 async function createNode () {
 	const privKeyBuffer = uint8ArrayFromString(privKeyHex, 'hex')
