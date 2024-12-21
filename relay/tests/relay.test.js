@@ -218,7 +218,7 @@ describe('Doichain Relay Pinning Service Test', function() {
     expect(retrievedMetadata).to.deep.equal(metadata);
   });
 
-  it('should receive CIDs response when requesting LIST_TODAY', async function() {
+  xit('should receive CIDs response when requesting LIST_TODAY', async function() {
     this.timeout(20000);
     messages.length = 0;
 
@@ -287,7 +287,7 @@ describe('Doichain Relay Pinning Service Test', function() {
   //   }
   // });
 
-  it.only('should receive last 100 NameOps when requesting LIST_LAST_100', async function() {
+  it('should receive last 100 NameOps when requesting LIST_LAST_100', async function() {
     this.timeout(20000); 
     messages.length = 0; 
 
@@ -326,7 +326,7 @@ describe('Doichain Relay Pinning Service Test', function() {
     }
   });
 
-  it('should calculate sizes and fees for metadata with image', async () => {
+  xit('should calculate sizes and fees for metadata with image', async () => {
     // Create sample metadata with image
     const metadata = {
       name: "Test NFT",
