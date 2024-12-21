@@ -46,7 +46,7 @@ if(relayDevMode) scoreThresholds = {
 
 const network = (relayLocalRegTest===undefined || (relayLocalRegTest!==true && relayLocalRegTest!=="true"))?{ name: 'doichain-mainnet' }:{ name: 'doichain-regtest' };
 console.log("starting with network:", network)
-const electrumClient = await connectElectrum(network, (x,y)=>{})
+const electrumClient = await connectElectrum(network, ()=>{})
 // Parse command line arguments
 const argv = yargs(hideBin(process.argv))
   .option('disable-scanning', {
