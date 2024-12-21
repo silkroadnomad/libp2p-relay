@@ -206,8 +206,16 @@ describe('Doichain Relay Pinning Service Test', function() {
     const decimalPlaces = response.fee.amount.toString().split('.')[1]?.length || 0;
     expect(decimalPlaces).to.be.at.most(8, 'Fee should have at most 8 decimal places');
     
-    // Check the plain text ADDED-CID message
-    expect(messages).to.include(`ADDED-CID:${cid}`);
+    // Check for the ADDED-CID JSON message
+    const addedMessage = messages.find(msg => {
+        try {
+            const parsed = JSON.parse(msg);
+            return parsed.status === "ADDED-CID" && parsed.cid === cid.toString();
+        } catch (e) {
+            return false;
+        }
+    });
+    expect(addedMessage).to.exist;
 
     // Verify the retrieved content matches our metadata
     let retrievedContent = '';
