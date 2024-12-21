@@ -53,16 +53,17 @@ async function handleListRequest(dateString, pageSize, from, filter, orbitdb, he
         let nameOps;
         console.log("Handling LIST request:", { dateString, pageSize, from, filter });
 
-        if (dateString !== "LAST") {
+        if (dateString === "LAST") {
+            nameOps = await getLastNameOps(orbitdb, pageSize, from, filter);
+        } else {
             const date = parseDate(dateString);
             if (!date) {
                 publishMessage(helia, "INVALID_DATE_FORMAT", CONTENT_TOPIC);
                 return;
             }
             filter = { ...filter, date }; // Add date to the filter object
+            nameOps = await getLastNameOps(orbitdb, pageSize, from, filter);
         }
-
-        nameOps = await getLastNameOps(orbitdb, pageSize, from, filter);
 
         if (nameOps.length > 0) {
             publishMessage(helia, JSON.stringify(nameOps), CONTENT_TOPIC);
