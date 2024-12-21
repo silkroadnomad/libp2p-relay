@@ -36,7 +36,9 @@ export async function processBlockAtHeight(height, electrumClient) {
             if (ex.message.includes('no tx at position') || ex.message.includes('No such transaction')) {
                 break;
             }
-            logger.warn(`Warning: Error processing transaction at height ${height}, position ${counter}: ${ex.message}`);
+            logger.warn(`Warning: Error processing transaction at height ${height}, position ${counter}: ${ex.message}`, {
+                errorDetails: ex
+            });
             await new Promise(resolve => setTimeout(resolve, 500));
             counter++;
         }

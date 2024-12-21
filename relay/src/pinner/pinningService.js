@@ -137,8 +137,13 @@ export class PinningService {
                 overwrite: false,
                 AccessController: IPFSAccessController({ write: [this.orbitdb.identity.id] })
             })
-            logger.info(`Putting pinning metadata in OrbitDB`)
-            await db.put(pinningMetadata)
+            try {
+                logger.info(`Putting pinning metadata in OrbitDB`)
+                await db.put(pinningMetadata)
+            } finally {
+                logger.info(`Closing OrbitDB docstore for pinning metadata`)
+                await db.close()
+            }
 
             logger.info(`Content pinned successfully: ${cid}`, pinningMetadata)
 
