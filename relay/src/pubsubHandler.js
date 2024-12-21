@@ -3,7 +3,7 @@ import logger from './logger.js';
 import { getLastNameOps } from "./pinner/nameOpsFileManager.js";
 import { formatFileSize } from './utils.js';
 import moment from 'moment';
-import CID from 'cids';
+import { CID } from 'multiformats/cid'
 
 export function setupPubsub(helia, orbitdb, pinningService, electrumClient, fsHelia, CONTENT_TOPIC) {
     helia.libp2p.services.pubsub.subscribe(CONTENT_TOPIC);
