@@ -46,7 +46,8 @@ async function checkAndCreateLock() {
                 process.kill(pid, 0);
                 logger.error(`Relay is already running with PID ${pid}`);
                 process.exit(1);
-            } catch (e) {
+            } catch (err) {
+    console.error('Error during relay startup:', err);
                 // Process not running, safe to remove stale lock file
                 logger.warn('Removing stale lock file');
                 fs.unlinkSync(LOCK_FILE);
@@ -271,4 +272,4 @@ process.on('SIGTERM', async () => {
 });
 
 // Start the relay
-startRelay(); 
+startRelay();    

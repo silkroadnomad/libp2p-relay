@@ -57,7 +57,7 @@ export async function createNode(privKeyHex, datastore, blockstore, listenAddres
     console.log('Helia peerId:', helia.libp2p.peerId.toString());
     console.log('Configured listen addresses:', listenAddresses);
     console.log('Actual listen addresses:', helia.libp2p.getMultiaddrs().map(ma => ma.toString()));
-    const electrumClient = await connectElectrum(network, (x, y) => {});
+    const electrumClient = await connectElectrum(network, () => {});
     const pinningService = new PinningService(helia, orbitdb, electrumClient);
 
     return { helia, orbitdb, pinningService };

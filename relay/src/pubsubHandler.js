@@ -11,13 +11,14 @@ export function setupPubsub(helia, orbitdb, pinningService, electrumClient, fsHe
     helia.libp2p.services.pubsub.addEventListener('message', async event => {
         logger.info(`Received pubsub message from ${event.detail.from} on topic ${event.detail.topic}`);
         const topic = event.detail.topic;
-        const from = event.detail.from;
+        // 'from' value available in event.detail.from if needed later
         const message = new TextDecoder().decode(event.detail.data);
         let messageObject;
         console.log("Received message:", message);
         try {
             messageObject = JSON.parse(message);
-        } catch (error) {
+        } catch (err) {
+            logger.warn('Failed to parse message as JSON:', err);
         }
 
         if (messageObject && topic.startsWith(CONTENT_TOPIC)) {
@@ -52,21 +53,26 @@ async function handleListRequest(dateString, pageSize, from, filter, orbitdb, he
         let nameOps;
         console.log("Handling LIST request:", { dateString, pageSize, from, filter });
 
-        if (dateString !== "LAST") {
+        if (!dateString || dateString === "LAST") {
+            nameOps = await getLastNameOps(orbitdb, pageSize, from, filter);
+            if (nameOps.length === 0) {
+                publishMessage(helia, "LAST_100_CIDS:NONE", CONTENT_TOPIC);
+                return;
+            }
+            publishMessage(helia, JSON.stringify(nameOps), CONTENT_TOPIC);
+        } else {
             const date = parseDate(dateString);
             if (!date) {
                 publishMessage(helia, "INVALID_DATE_FORMAT", CONTENT_TOPIC);
                 return;
             }
             filter = { ...filter, date }; // Add date to the filter object
-        }
-
-        nameOps = await getLastNameOps(orbitdb, pageSize, from, filter);
-
-        if (nameOps.length > 0) {
-            publishMessage(helia, JSON.stringify(nameOps), CONTENT_TOPIC);
-        } else {
-            publishMessage(helia, `${dateString}_CIDS:NONE`, CONTENT_TOPIC);
+            nameOps = await getLastNameOps(orbitdb, pageSize, from, filter);
+            if (nameOps.length > 0) {
+                publishMessage(helia, JSON.stringify(nameOps), CONTENT_TOPIC);
+            } else {
+                publishMessage(helia, `${dateString}_CIDS:NONE`, CONTENT_TOPIC);
+            }
         }
     } catch (error) {
         logger.error('Error fetching NameOps:', error);
@@ -115,8 +121,8 @@ async function processNewCID(cid, fsHelia, pinningService, electrumClient, helia
                 try {
                     metadata = JSON.parse(metadataContent);
                     logger.debug('Successfully parsed as JSON metadata:', metadata);
-                } catch (parseError) {
-                    logger.debug('Content is text but not valid JSON, treating as raw text');
+                } catch (err) {
+                    logger.debug('Content is text but not valid JSON, treating as raw text:', err);
                     metadata = {
                         type: 'text',
                         content: metadataContent

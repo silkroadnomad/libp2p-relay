@@ -15,7 +15,7 @@ import * as filters from '@libp2p/websockets/filters'
 import { multiaddr } from '@multiformats/multiaddr'
 import { circuitRelayTransport, circuitRelayServer } from '@libp2p/circuit-relay-v2'
 import { kadDHT } from '@libp2p/kad-dht'
-// import { uPnPNAT } from '@libp2p/upnp-nat'
+import { uPnPNAT } from '@libp2p/upnp-nat'
 import { prometheusMetrics } from '@libp2p/prometheus-metrics'
 import { mdns } from '@libp2p/mdns'
 
@@ -109,4 +109,4 @@ export function createLibp2pConfig({ keyPair, datastore, listenAddresses, announ
             denyDialMultiaddr: async () => false,
         }
     }
-} 
+}    
