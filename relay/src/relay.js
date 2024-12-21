@@ -20,14 +20,16 @@ import { scanBlockchainForNameOps } from '../src/pinner/scanBlockchainForNameOps
 
 import { createHttpServer } from './httpServer.js'
 import TipWatcher from './pinner/tipWatcher.js'
-import { DoichainRPC } from './doichainRPC.js';
+// Import commented out as it's currently unused
+// import { DoichainRPC } from './doichainRPC.js';
 import { createNode } from './nodeFactory.js';
 import { setupPubsub } from './pubsubHandler.js';
 
 export const CONTENT_TOPIC = process.env.CONTENT_TOPIC || "/doichain-nfc/1/message/proto"
 
 const privKeyHex = process.env.RELAY_PRIVATE_KEY
-const bootstrapList = process.env.RELAY_BOOTSTRAP_LIST?.split(',')||[]
+// Bootstrap list configuration commented out as it's currently unused
+// const bootstrapList = process.env.RELAY_BOOTSTRAP_LIST?.split(',')||[]
 const listenAddresses = process.env.RELAY_LISTEN_ADDRESSES?.split(',') || ['/ip4/0.0.0.0/tcp/9090']
 const announceAddresses = process.env.RELAY_ANNOUNCE_ADDRESSES?.split(',')
 const pubsubPeerDiscoveryTopics = process.env.RELAY_PUBSUB_PEER_DISCOVERY_TOPICS?.split(',')||['doichain._peer-discovery._p2p._pubsub']
@@ -77,7 +79,7 @@ if (argv['generate-keypair']) {
     console.log('Private key has been saved to .env.privateKey')
     
     // Verify the key can be correctly parsed back
-    const parsedKey = privateKeyFromProtobuf(uint8ArrayFromString(privateKeyHex, 'hex'))
+    privateKeyFromProtobuf(uint8ArrayFromString(privateKeyHex, 'hex'))
     console.log('Verified: Key can be correctly parsed back from hex format')
     
     process.exit(0) // Exit after generating the keypair
