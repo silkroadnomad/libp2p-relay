@@ -19,8 +19,8 @@ jobs:
     - name: Check Docker Containers
       run: |
         echo "🔍 Checking Docker Containers..."
-        docker-compose -f "docker-compose-test.yml" ps
+        docker compose -f "docker-compose-test.yml" ps
     - name: Check Docker Containers
       run: |
-        echo "🔍 Checking Docker Containers..."
-        docker-compose -f "docker-compose-test.yml" exec relay-service npm test
+        echo "🧪 Running tests..."
+        docker compose -f docker-compose-test.yml exec relay-service npm test
