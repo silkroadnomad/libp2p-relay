@@ -159,7 +159,7 @@ describe('Doichain Relay Pinning Service Test', function() {
     if(helia) await helia.stop();
   });
 
-  it.only('should connect to the existing Helia node and check for specific peer', async function() {
+  it('should connect to the existing Helia node and check for specific peer', async function() {
     const peers = await helia.libp2p.getPeers();
     console.log("peers",peers)
     console.log("targetPeerId",targetPeerId.toString())
@@ -287,7 +287,7 @@ describe('Doichain Relay Pinning Service Test', function() {
   //   }
   // });
 
-  it.only('should receive last 100 NameOps when requesting LIST_LAST_100', async function() {
+  it('should receive last 100 NameOps when requesting LIST_LAST_100', async function() {
     this.timeout(20000); 
     messages.length = 0; 
 
