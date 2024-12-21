@@ -2,6 +2,7 @@ import { TextEncoder, TextDecoder } from 'util';
 import logger from './logger.js';
 import { getLastNameOps } from "./pinner/nameOpsFileManager.js";
 import { formatFileSize } from './utils.js';
+import moment from 'moment';
 
 export function setupPubsub(helia, orbitdb, pinningService, electrumClient, fsHelia, CONTENT_TOPIC) {
     helia.libp2p.services.pubsub.subscribe(CONTENT_TOPIC);

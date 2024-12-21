@@ -27,7 +27,11 @@ jobs:
       run: |
         echo "🔍 Checking Docker Containers..."
         docker compose -f "docker-compose-test.yml" ps
-    - name: Running-Tests
+    - name: Check Relay Service Logs
       run: |
+        echo "🔍 Checking Relay Service Logs..."
+        docker compose -f docker-compose-test.yml logs relay-service | grep "listening"
+    - name: Running-Tests
+      run: |  
         echo "🧪 Running tests..."
         docker compose -f docker-compose-test.yml exec relay-service npm test
