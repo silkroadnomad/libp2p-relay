@@ -21,7 +21,7 @@ export function setupPubsub(helia, orbitdb, pinningService, electrumClient, fsHe
         }
 
         if (messageObject && topic.startsWith(CONTENT_TOPIC)) {
-            console.log("Received message:", messageObject);
+            // console.log("Received message:", messageObject);
             if (messageObject.type == "LIST") {
                 console.log("Received LIST request:", messageObject);
                 const { dateString, pageSize, from, filter } = messageObject;

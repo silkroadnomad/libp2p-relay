@@ -81,7 +81,6 @@ export async function getLastNameOps(orbitdb, pageSize, from=10, filter) {
     try {
         const db = await getOrCreateDB(orbitdb)
         const allDocs = await db.all()
-        
         let nameOps = []
         for (const doc of allDocs) {
             const nameOp = doc.value.nameOp;
