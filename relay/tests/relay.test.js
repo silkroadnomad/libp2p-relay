@@ -2,7 +2,6 @@ import { expect } from 'chai';
 import { createHelia, libp2pDefaults } from 'helia';
 import { unixfs } from '@helia/unixfs';
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
-import moment from 'moment';
 import { identify } from '@libp2p/identify';
 import { tcp } from '@libp2p/tcp';
 import { webSockets } from '@libp2p/websockets';
@@ -11,8 +10,9 @@ import { yamux } from '@chainsafe/libp2p-yamux';
 import { pubsubPeerDiscovery } from "@libp2p/pubsub-peer-discovery"
 import { gossipsub } from "@chainsafe/libp2p-gossipsub";
 import { bootstrap } from "@libp2p/bootstrap"
-import { multiaddr } from '@multiformats/multiaddr'
 import { mdns } from '@libp2p/mdns'
+import { DoichainRPC } from '../src/doichainRPC.js';
+import net from 'net';
 
 const pubsubPeerDiscoveryTopics = process.env.RELAY_PUBSUB_PEER_DISCOVERY_TOPICS?.split(',')
 const CONTENT_TOPIC = '/doichain-nfc/1/message/proto';
@@ -26,7 +26,41 @@ describe('Doichain Relay Pinning Service Test', function() {
 
   before(async function() {
     this.timeout(100000);
-    
+
+    console.log('🔍 Checking if regtest is reachable...');
+    const isRegtestReachable = await new Promise(resolve => {
+      const socket = net.createConnection(18445, 'regtest', () => {
+        socket.end();
+        resolve(true);
+      });
+      socket.on('error', () => resolve(false));
+    });
+
+    if (isRegtestReachable) {
+      console.log('✅ Regtest is reachable!');
+      console.log('📖 Reading credentials from doichain-regtest.conf...');
+      const config = fs.readFileSync('docker/doichain-regtest.conf', 'utf8');
+      const rpcUser = config.match(/rpcuser=(.*)/)[1];
+      const rpcPassword = config.match(/rpcpassword=(.*)/)[1];
+
+      const doichainRPC = new DoichainRPC({
+        host: 'regtest',
+        port: 18445,
+        username: rpcUser,
+        password: rpcPassword
+      });
+
+      console.log('🔗 Connecting to Doichain RPC...');
+      const newAddress = await doichainRPC.call('getnewaddress');
+      console.log(`🏠 New address generated: ${newAddress}`);
+      console.log('⛏️ Mining 200 DOI...');
+      await doichainRPC.call('generatetoaddress', [200, newAddress]);
+      console.log('✅ Mining complete!');
+    } else {
+      console.log('❌ Regtest is not reachable. Skipping Doichain setup.');
+    }
+
+    console.log('🚀 Initializing Helia...');
     helia = await createHelia({
       libp2p: {
         transports: [tcp(), webSockets()],
@@ -51,23 +85,26 @@ describe('Doichain Relay Pinning Service Test', function() {
       }
     });
 
-  console.log('Peer ID:', helia.libp2p.peerId.toString());
+    console.log(`🆔 Peer ID: ${helia.libp2p.peerId.toString()}`);
 
     fs = unixfs(helia);
     pubsub = helia.libp2p.services.pubsub;
 
+    console.log(`📡 Subscribing to topic: ${CONTENT_TOPIC}`);
     await pubsub.subscribe(CONTENT_TOPIC);
-    console.log('Subscribed to topic:', CONTENT_TOPIC);
+    console.log('✅ Subscription complete!');
 
     pubsub.addEventListener('message', (event) => {
       if (event.detail.topic === CONTENT_TOPIC) {
         const message = new TextDecoder().decode(event.detail.data);
-        console.log("Received message:", message);
+        console.log("📨 Received message:", message);
         messages.push(message);
       }
     });
 
+    console.log('⏳ Waiting for initial setup...');
     await new Promise(resolve => setTimeout(resolve, TIMEOUT));
+    console.log('✅ Setup complete!');
   });
 
   after(async () => {
