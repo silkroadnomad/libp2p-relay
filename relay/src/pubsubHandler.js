@@ -3,6 +3,7 @@ import logger from './logger.js';
 import { getLastNameOps } from "./pinner/nameOpsFileManager.js";
 import { formatFileSize } from './utils.js';
 import moment from 'moment';
+import CID from 'cids';
 
 export function setupPubsub(helia, orbitdb, pinningService, electrumClient, fsHelia, CONTENT_TOPIC) {
     helia.libp2p.services.pubsub.subscribe(CONTENT_TOPIC);
@@ -138,6 +139,15 @@ async function processNewCID(cid, fsHelia, pinningService, electrumClient, helia
         let imageSize = 0;
         if (metadata.image && metadata.image.startsWith('ipfs://')) {
             const imageCid = metadata.image.replace('ipfs://', '');
+            
+            // Validate the CID format
+            try {
+                CID.parse(imageCid); // Ensure the CID is valid
+            } catch (cidError) {
+                logger.error(`Invalid CID format for image: ${imageCid}`, cidError);
+                throw new Error(`Invalid CID format for image: ${imageCid}`);
+            }
+
             logger.info(`Found image in metadata, fetching size for CID: ${imageCid}`);
             try {
                 for await (const chunk of fsHelia.cat(imageCid)) {
@@ -191,7 +201,6 @@ async function processNewCID(cid, fsHelia, pinningService, electrumClient, helia
 
     } catch (error) {
         logger.error('Error processing file or sending notification:', error);
-        await telegramBot.sendMessage(`⚠️ Error processing new file with CID: ${cid}\nError: ${error.message}`);
     }
 
     const addedMsg = JSON.stringify({
