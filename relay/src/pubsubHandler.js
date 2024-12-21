@@ -53,8 +53,12 @@ async function handleListRequest(dateString, pageSize, from, filter, orbitdb, he
         let nameOps;
         console.log("Handling LIST request:", { dateString, pageSize, from, filter });
 
-        if (dateString === "LAST") {
+        if (!dateString || dateString === "LAST") {
             nameOps = await getLastNameOps(orbitdb, pageSize, from, filter);
+            if (nameOps.length === 0) {
+                publishMessage(helia, "LAST_100_CIDS:NONE", CONTENT_TOPIC);
+                return;
+            }
         } else {
             const date = parseDate(dateString);
             if (!date) {
