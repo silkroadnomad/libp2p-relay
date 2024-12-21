@@ -26,7 +26,7 @@ export function setupPubsub(helia, orbitdb, pinningService, electrumClient, fsHe
                 console.log("Received LIST request:", messageObject);
                 const { dateString, pageSize, from, filter } = messageObject;
                 const pageSizeValue = parseInt(pageSize, 10) || 10; // Default to 100 if not specified
-                await handleListRequest(dateString, pageSizeValue, from, filter, orbitdb);
+                await handleListRequest(dateString, pageSizeValue, from, filter, orbitdb, helia);
             }
         } else {
             if (message.startsWith("NEW-CID")) {
@@ -47,7 +47,7 @@ export function setupPubsub(helia, orbitdb, pinningService, electrumClient, fsHe
     });
 }
 
-async function handleListRequest(dateString, pageSize, from, filter, orbitdb) {
+async function handleListRequest(dateString, pageSize, from, filter, orbitdb, helia) {
     try {
         let nameOps;
         console.log("Handling LIST request:", { dateString, pageSize, from, filter });
@@ -55,7 +55,7 @@ async function handleListRequest(dateString, pageSize, from, filter, orbitdb) {
         if (dateString !== "LAST") {
             const date = parseDate(dateString);
             if (!date) {
-                publishMessage("INVALID_DATE_FORMAT");
+                publishMessage(helia, "INVALID_DATE_FORMAT");
                 return;
             }
             filter = { ...filter, date }; // Add date to the filter object
@@ -64,13 +64,13 @@ async function handleListRequest(dateString, pageSize, from, filter, orbitdb) {
         nameOps = await getLastNameOps(orbitdb, pageSize, from, filter);
 
         if (nameOps.length > 0) {
-            publishMessage(JSON.stringify(nameOps));
+            publishMessage(helia, JSON.stringify(nameOps));
         } else {
-            publishMessage(`${dateString}_CIDS:NONE`);
+            publishMessage(helia, `${dateString}_CIDS:NONE`);
         }
     } catch (error) {
         logger.error('Error fetching NameOps:', error);
-        publishMessage(`ERROR:Failed to fetch NameOps: ${error.message}`);
+        publishMessage(helia, `ERROR:Failed to fetch NameOps: ${error.message}`);
     }
 }
 
@@ -82,7 +82,7 @@ function parseDate(dateString) {
     return isNaN(date.getTime()) ? null : date;
 }
 
-function publishMessage(message) {
+function publishMessage(helia, message) {
     helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(message));
 }
 
