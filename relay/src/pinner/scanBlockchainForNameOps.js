@@ -34,15 +34,16 @@ const blockProcessingDuration = new client.Histogram({
     buckets: [0.1, 0.5, 1, 2, 5, 10] // Example buckets
 });
 
-const updateQueueLength = new client.Gauge({
-    name: 'update_queue_length',
-    help: 'Number of tasks in the update queue'
-});
-
-const pinQueueLength = new client.Gauge({
-    name: 'pin_queue_length',
-    help: 'Number of tasks in the pin queue'
-});
+// Metrics for queue lengths are currently unused
+// const updateQueueLength = new client.Gauge({
+//     name: 'update_queue_length',
+//     help: 'Number of tasks in the update queue'
+// });
+// 
+// const pinQueueLength = new client.Gauge({
+//     name: 'pin_queue_length',
+//     help: 'Number of tasks in the pin queue'
+// });
 
 const electrumClientConnectionStatus = new client.Gauge({
     name: 'electrum_client_connection_status',
