@@ -97,20 +97,6 @@ export const getAddressTxs = async (_doiAddress, _historyStore, _electrumClient,
             }
         });
 
-        // Group txs by txid and accumulate values for txs with the same txid
-        const groupedTxs = ourTxs.reduce((acc, tx) => {
-            // Use txid as the key for grouping
-            const key = tx.txid;
-            if (!acc[key]) {
-                // If this txid hasn't been seen before, add it directly
-                acc[key] = { ...tx };
-            } else {
-                // If this txid has been seen, accumulate the value
-                acc[key].value += tx.value;
-            }
-            return acc;
-        }, {});
-
         ourTxs = ourTxs.sort((a, b) => b.blocktime - a.blocktime);
     }
     return ourTxs
