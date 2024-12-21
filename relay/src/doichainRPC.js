@@ -19,21 +19,25 @@ export class DoichainRPC {
         const url = `${this.config.protocol}://${this.config.host}:${this.config.port}`;
         const auth = Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64');
 
+        const axiosConfig = {
+            method: 'post',
+            url: url,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Basic ${auth}`
+            },
+            data: {
+                jsonrpc: '1.0',
+                id: Date.now(),
+                method: method,
+                params: params
+            }
+        };
+
+        console.log('Axios Configuration:', axiosConfig);
+
         try {
-            const response = await axios({
-                method: 'post',
-                url: url,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Basic ${auth}`
-                },
-                data: {
-                    jsonrpc: '1.0',
-                    id: Date.now(),
-                    method: method,
-                    params: params
-                }
-            });
+            const response = await axios(axiosConfig);
 
             if (response.data.error) {
                 throw new Error(response.data.error.message);

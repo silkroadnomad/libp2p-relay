@@ -11,6 +11,7 @@ import { multiaddr } from '@multiformats/multiaddr'
 import client from 'prom-client'
 import moment from 'moment/moment.js';
 import logger from './logger.js';
+import mime from 'mime-types';
 
 // Initialize Prometheus metrics
 const collectDefaultMetrics = client.collectDefaultMetrics;
@@ -24,9 +25,9 @@ const requestCounter = new client.Counter({
 });
 
 export function createHttpServer(helia, orbitdb, electrumClient) {
+    
     const server = http.createServer(async (req, res) => {
         const parsedUrl = url.parse(req.url, true);
-
         // Increment the request counter
         requestCounter.inc({ method: req.method, path: parsedUrl.pathname });
 
@@ -410,6 +411,29 @@ export function createHttpServer(helia, orbitdb, electrumClient) {
             res.write('event: end\n');
             res.write('data: End of stream\n\n');
             res.end();
+        } else if (req.method === 'GET' && parsedUrl.pathname.startsWith('/ipfs/')) {
+            console.log('IPFS content request received', parsedUrl);
+            const cidStr = parsedUrl.pathname.split('/ipfs/')[1];
+            try {
+                const cid = CID.parse(cidStr);
+                const fs = unixfs(helia);
+                const chunks = [];
+                
+                for await (const chunk of fs.cat(cid)) {
+                    chunks.push(chunk);
+                }
+                
+                const content = Buffer.concat(chunks);
+                const mimeType = mime.lookup(cidStr) || 'application/octet-stream';
+                res.writeHead(200, { 'Content-Type': mimeType });
+                res.end(content);
+            } catch (error) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    error: 'Failed to retrieve IPFS content',
+                    message: error.message
+                }));
+            }
         } else {
             res.writeHead(404, { 'Content-Type': 'text/plain' });
             res.end('Not Found');

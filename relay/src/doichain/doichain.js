@@ -18,6 +18,7 @@ export const electrumServers = [
     { network:'doichain-mainnet', host: 'ugly-bird-70.doi.works', port: 50004, protocol: 'wss' },
     { network:'doichain-mainnet', host: 'pink-deer-69.doi.works', port: 50004, protocol: 'wss' },
     { network:'doichain-mainnet', host: 'itchy-jellyfish-89.doi.works', port: 50004, protocol: 'wss' },
+    { network:'doichain-regtest', host: 'electrumx', port: 8443, protocol: 'wss' },
     { network:'doichain-regtest', host: 'localhost', port: 8443, protocol: 'wss' },
     { network:'bitcoin-mainnet', host: 'btcpay.doi.works', port: 50004, protocol: 'wss' },
 ];
