@@ -30,7 +30,7 @@ jobs:
     - name: Check Relay Service Logs
       run: |
         echo "🔍 Checking Relay Service Logs..."
-        sleep 30 && docker compose -f docker-compose-test.yml logs relay-service "
+        sleep 30 && docker compose -f docker-compose-test.yml logs relay-service
         # docker compose -f docker-compose-test.yml logs relay-service | grep "Actual listen addresses: "
     - name: Running-Tests
       run: |  
