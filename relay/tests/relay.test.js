@@ -14,6 +14,8 @@ import { mdns } from '@libp2p/mdns'
 import { DoichainRPC } from '../src/doichainRPC.js';
 import net from 'net';
 import dotenv from 'dotenv';
+import { privateKeyFromProtobuf } from '@libp2p/crypto/keys';
+import { peerIdFromPrivateKey } from '@libp2p/peer-id';
 dotenv.config();
 
 const pubsubPeerDiscoveryTopics = process.env.RELAY_PUBSUB_PEER_DISCOVERY_TOPICS?.split(',')
@@ -22,8 +24,11 @@ const CONTENT_TOPIC = '/doichain-nfc/1/message/proto';
 // Access the credentials and connection details from the .env file
 const rpcUser = process.env.DOICHAIN_RPC_USER;
 const rpcPassword = process.env.DOICHAIN_RPC_PASSWORD;
-const rpcHost = process.env.DOICHAIN_RPC_URL; // Assuming this includes the protocol and host
+let rpcHost = 'localhost';
+// const rpcHost = process.env.DOICHAIN_RPC_URL; // Assuming this includes the protocol and host
 const rpcPort = process.env.DOICHAIN_RPC_PORT;
+let targetPeerId
+const privateKey = process.env.RELAY_PRIVATE_KEY;
 
 describe('Doichain Relay Pinning Service Test', function() {
   this.timeout(100000); 
@@ -31,19 +36,52 @@ describe('Doichain Relay Pinning Service Test', function() {
   let helia, fs, pubsub;
   const messages = [];
   const TIMEOUT = 5000;
+  async function getPeerIdFromHexPrivateKey(privateKeyHex) {
+    const privateKeyBuffer = uint8ArrayFromString(privateKeyHex, 'hex');
+    try {
+      const parsedKey = privateKeyFromProtobuf(privateKeyBuffer);
+      let peerId = peerIdFromPrivateKey(parsedKey)
+      return peerId;
+    } catch (error) {
+      console.error("Error creating Peer ID from private key:", error);
+      throw error;
+    }
+  }
+  
+  async function waitForPeers(libp2p, expectedPeerCount, timeout = 10000) {
+    const start = Date.now();
+    let peers
+    while (Date.now() - start < timeout) {
+      peers = await libp2p.getPeers();
+      if (peers.length >= expectedPeerCount) {
+        return;
+      }
+      await new Promise(resolve => setTimeout(resolve, 500)); // Check every 500ms
+    }
+    throw new Error(`Expected at least ${expectedPeerCount} peers, but found ${peers.length}`);
+  }
 
   before(async function() {
     this.timeout(100000);
 
     console.log('🔍 Checking if regtest is reachable...');
-    const isRegtestReachable = await new Promise(resolve => {
+    let isRegtestReachable = await new Promise(resolve => {
       const socket = net.createConnection(18445, 'regtest', () => {
+         rpcHost = 'regtest'
         socket.end();
         resolve(true);
       });
       socket.on('error', () => resolve(false));
     });
 
+    isRegtestReachable = await new Promise(resolve => {
+      const socket = net.createConnection(18445, 'localhost', () => {
+        rpcHost = 'localhost'
+        socket.end();
+        resolve(true);
+      });
+      socket.on('error', () => resolve(false));
+    });
     if (isRegtestReachable) {
       console.log('✅ Regtest is reachable!');
       console.log('📖 Using RPC credentials from .env');
@@ -65,8 +103,13 @@ describe('Doichain Relay Pinning Service Test', function() {
     }
 
     console.log('🚀 Initializing Helia...');
+    console.log('🔍 Generating Peer ID from private key...');
+    targetPeerId = await getPeerIdFromHexPrivateKey(privateKey);
+    console.log(`🆔 Relay Peer ID to connect to: ${targetPeerId.toString()}`);
+
     helia = await createHelia({
       libp2p: {
+        // peerId: peerId,
         transports: [tcp(), webSockets()],
         connectionEncryption: [noise()],
         streamMuxers: [yamux()],
@@ -78,7 +121,7 @@ describe('Doichain Relay Pinning Service Test', function() {
           listen: ['/ip4/127.0.0.1/tcp/4002', '/ip4/127.0.0.1/tcp/4003/ws']
         },
         peerDiscovery: [
-            bootstrap({ list: ['/ip4/127.0.0.1/tcp/9090/p2p/12D3KooWQpeSaj6FR8SpnDzkESTXY5VqnZVWNUKrkqymGiZTZbW2'] }),
+            bootstrap({ list: [`/ip4/127.0.0.1/tcp/9090/p2p/${targetPeerId.toString()}`] }),
             pubsubPeerDiscovery({
                 interval: 10000,
                 topics: pubsubPeerDiscoveryTopics,
@@ -106,20 +149,21 @@ describe('Doichain Relay Pinning Service Test', function() {
       }
     });
 
-    console.log('⏳ Waiting for initial setup...');
-    await new Promise(resolve => setTimeout(resolve, TIMEOUT));
+    console.log('⏳ Waiting for relay peers...');
+    await waitForPeers(helia.libp2p, 1); // Wait for at least 1 peer
     console.log('✅ Setup complete!');
+
   });
 
   after(async () => {
     if(helia) await helia.stop();
   });
 
-  it('should connect to the existing Helia node and check for specific peer', async function() {
+  it.only('should connect to the existing Helia node and check for specific peer', async function() {
     const peers = await helia.libp2p.getPeers();
-    const targetPeerId = '12D3KooWQpeSaj6FR8SpnDzkESTXY5VqnZVWNUKrkqymGiZTZbW2';
-    
-    const targetConnection = peers.find(peer => peer.toString() === targetPeerId);
+    console.log("peers",peers)
+    console.log("targetPeerId",targetPeerId.toString())
+    const targetConnection = peers.find(peer => peer.toString() === targetPeerId.toString());
     expect(targetConnection).to.exist;
   });
 
@@ -174,7 +218,7 @@ describe('Doichain Relay Pinning Service Test', function() {
     expect(retrievedMetadata).to.deep.equal(metadata);
   });
 
-  it.only('should receive CIDs response when requesting LIST_TODAY', async function() {
+  it('should receive CIDs response when requesting LIST_TODAY', async function() {
     this.timeout(20000);
     messages.length = 0;
 

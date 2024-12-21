@@ -47,15 +47,6 @@ if(relayDevMode) scoreThresholds = {
 const network = (relayLocalRegTest===undefined || (relayLocalRegTest!==true && relayLocalRegTest!=="true"))?{ name: 'doichain-mainnet' }:{ name: 'doichain-regtest' };
 console.log("starting with network:", network)
 const electrumClient = await connectElectrum(network, (x,y)=>{})
-
-const doichainRPC = new DoichainRPC({
-    username: process.env.DOICHAIN_RPC_USER,
-    password: process.env.DOICHAIN_RPC_PASSWORD,
-    port: process.env.DOICHAIN_RPC_PORT || 8339
-});
-
-
-
 // Parse command line arguments
 const argv = yargs(hideBin(process.argv))
   .option('disable-scanning', {
