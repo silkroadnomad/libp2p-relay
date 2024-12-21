@@ -1,0 +1,15 @@
+{
+    "target": {
+      "service-name": {
+        "cache-from": [
+          "type=registry,ref=ghcr.io/MY_GITHUB_ORG_NAME/service-name:cache"
+        ],
+        "cache-to": [
+          "type=registry,ref=ghcr.io/MY_GITHUB_ORG_NAME/service-name:cache"
+        ],
+        "output": [
+          "type=docker"
+        ]
+      }
+    }
+  }

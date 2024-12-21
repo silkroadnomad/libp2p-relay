@@ -22,7 +22,7 @@ jobs:
       uses: hoverkraft-tech/compose-action@v2.0.2
       with:
         compose-file: "docker-compose-test.yml"
-        up-flags: "--build --cache-from=type=local,src=/tmp/.buildx-cache --cache-to=type=local,dest=/tmp/.buildx-cache"
+        up-flags: "--build --file docker-compose-cache.json"
     - name: Check Docker Containers
       run: |
         echo "🔍 Checking Docker Containers..."
