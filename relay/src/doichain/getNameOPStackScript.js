@@ -22,7 +22,7 @@ const ERRORS = {
  * @param {string} network - The Doichain network (e.g., 'mainent', 'testnet', 'regtest').
  * @returns {Buffer} The compiled script as a Buffer.
  */
-export const getNameOPStackScript = (nameId, nameValue, recipientAddress, network) => {
+export const getNameOPStackScript = (nameId, nameValue, recipientAddress) => {
     if (!nameId || nameValue===undefined) {
         throw new Error(ERRORS.NAME_ID_DEFINED);
     }

@@ -195,7 +195,7 @@ export class ElectrumxClient {
 		}
 	}
 
-	onClose(e) {
+	onClose() {
 		this.status = 0;
 		Object.keys(this.callback_message_queue).forEach(key => {
 			this.callback_message_queue[key](new Error('close connect'));
