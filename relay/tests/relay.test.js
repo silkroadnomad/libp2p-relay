@@ -12,6 +12,7 @@ import { pubsubPeerDiscovery } from "@libp2p/pubsub-peer-discovery"
 import { gossipsub } from "@chainsafe/libp2p-gossipsub";
 import { bootstrap } from "@libp2p/bootstrap"
 import { multiaddr } from '@multiformats/multiaddr'
+import { mdns } from '@libp2p/mdns'
 
 const pubsubPeerDiscoveryTopics = process.env.RELAY_PUBSUB_PEER_DISCOVERY_TOPICS?.split(',')
 const CONTENT_TOPIC = '/doichain-nfc/1/message/proto';
@@ -42,9 +43,10 @@ describe('Doichain Relay Pinning Service Test', function() {
             bootstrap({ list: ['/ip4/127.0.0.1/tcp/9090/p2p/12D3KooWQpeSaj6FR8SpnDzkESTXY5VqnZVWNUKrkqymGiZTZbW2'] }),
             pubsubPeerDiscovery({
                 interval: 10000,
-                topics: pubsubPeerDiscoveryTopics, // defaults to ['_peer-discovery._p2p._pubsub'] //if we enable this too many will connect to us!
+                topics: pubsubPeerDiscoveryTopics,
                 listenOnly: false
-            })
+            }),
+            mdns()
         ]
       }
     });

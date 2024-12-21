@@ -17,6 +17,7 @@ import { circuitRelayTransport, circuitRelayServer } from '@libp2p/circuit-relay
 import { kadDHT } from '@libp2p/kad-dht'
 // import { uPnPNAT } from '@libp2p/upnp-nat'
 import { prometheusMetrics } from '@libp2p/prometheus-metrics'
+import { mdns } from '@libp2p/mdns'
 
 import logger from './logger.js'
 dotenv.config();
@@ -79,7 +80,8 @@ export function createLibp2pConfig({ keyPair, datastore, listenAddresses, announ
                 interval: 10000,
                 topics: pubsubPeerDiscoveryTopics,
                 listenOnly: false
-            })
+            }),
+            mdns()
         ],
         services: {
             ping: ping(),
