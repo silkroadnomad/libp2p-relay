@@ -13,9 +13,17 @@ import { bootstrap } from "@libp2p/bootstrap"
 import { mdns } from '@libp2p/mdns'
 import { DoichainRPC } from '../src/doichainRPC.js';
 import net from 'net';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const pubsubPeerDiscoveryTopics = process.env.RELAY_PUBSUB_PEER_DISCOVERY_TOPICS?.split(',')
 const CONTENT_TOPIC = '/doichain-nfc/1/message/proto';
+
+// Access the credentials and connection details from the .env file
+const rpcUser = process.env.DOICHAIN_RPC_USER;
+const rpcPassword = process.env.DOICHAIN_RPC_PASSWORD;
+const rpcHost = process.env.DOICHAIN_RPC_URL; // Assuming this includes the protocol and host
+const rpcPort = process.env.DOICHAIN_RPC_PORT;
 
 describe('Doichain Relay Pinning Service Test', function() {
   this.timeout(100000); 
@@ -38,18 +46,14 @@ describe('Doichain Relay Pinning Service Test', function() {
 
     if (isRegtestReachable) {
       console.log('✅ Regtest is reachable!');
-      console.log('📖 Reading credentials from doichain-regtest.conf...');
-      const config = fs.readFileSync('docker/doichain-regtest.conf', 'utf8');
-      const rpcUser = config.match(/rpcuser=(.*)/)[1];
-      const rpcPassword = config.match(/rpcpassword=(.*)/)[1];
-
+      console.log('📖 Using RPC credentials from .env');
+      // Initialize DoichainRPC with credentials and connection details from .env
       const doichainRPC = new DoichainRPC({
-        host: 'regtest',
-        port: 18445,
+        host: rpcHost,
+        port: rpcPort,
         username: rpcUser,
         password: rpcPassword
       });
-
       console.log('🔗 Connecting to Doichain RPC...');
       const newAddress = await doichainRPC.call('getnewaddress');
       console.log(`🏠 New address generated: ${newAddress}`);
