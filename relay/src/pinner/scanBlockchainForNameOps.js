@@ -65,7 +65,6 @@ export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb, t
         pinningService = new PinningService(helia, orbitdb, electrumClient)
         stopToken.isStopped = _stopToken;
         logger.info("scanBlockchainForNameOps into orbitdb", orbitdb.id)
-        helia = helia
 
         if (!tip) {
             tip = await electrumClient.request('blockchain.headers.subscribe');
