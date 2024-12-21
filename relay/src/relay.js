@@ -16,10 +16,6 @@ import logger from './logger.js'
 import { connectElectrum } from "./doichain/connectElectrum.js"
 import { scanBlockchainForNameOps } from '../src/pinner/scanBlockchainForNameOps.js'
 
-console.log("RELAY_PUBSUB_PEER_DISCOVERY_TOPICS", pubsubPeerDiscoveryTopics)
-// the peer id of the above key
-// const relayId = '12D3KooWAJjbRkp8FPF5MKgMU53aUTxWkqvDrs4zc1VMbwRwfsbE'
-
 import { createHttpServer } from './httpServer.js'
 import TipWatcher from './pinner/tipWatcher.js'
 import { DoichainRPC } from './doichainRPC.js';

@@ -5,8 +5,6 @@ import logger from '../logger.js'
 import moment from 'moment/moment.js'
 import { CID } from 'multiformats/cid'
 import { unixfs } from '@helia/unixfs'
-import fs from 'fs/promises'
-import path from 'path'
 import PQueue from 'p-queue';
 import client from 'prom-client';
 import { PinningService } from './pinningService.js'

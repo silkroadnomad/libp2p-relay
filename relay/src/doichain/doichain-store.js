@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
-
+import { DOICHAIN } from './doichain.js';
 export const libp2p = writable()
 export const helia = writable()
 export const connectedPeers = writable(0);
