@@ -208,14 +208,12 @@ async function pinIpfsContent(electrumClient, helia, orbitdb, nameOp, nameId, ip
     let metadataContent = '';
     let totalSize = 0;
     let metadataSize = 0;
-
+    const fs = unixfs(helia);
     try {
         logger.info(`Attempting to retrieve IPFS metadata content with CID: ${cid}`);
         
         // Notify network that we're starting to pin
         helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNING-CID:" + cid));
-        
-        const fs = unixfs(helia);
         
         // Measure metadata size
         for await (const chunk of fs.cat(CID.parse(cid))) {
@@ -245,7 +243,6 @@ async function pinIpfsContent(electrumClient, helia, orbitdb, nameOp, nameId, ip
         try {
             logger.info(`Measuring file size for CID: ${imageCid}`);
             let fileSize = 0;
-            
             // Measure actual file size
             for await (const chunk of fs.cat(CID.parse(imageCid))) {
                 fileSize += chunk.length;

@@ -18,7 +18,7 @@ export function setupPubsub(helia, orbitdb, pinningService, electrumClient, fsHe
         try {
             messageObject = JSON.parse(message);
         } catch (err) {
-            logger.warn('Failed to parse message as JSON:', err);
+            // logger.warn('Failed to parse message as JSON:', err);
         }
 
         if (messageObject && topic.startsWith(CONTENT_TOPIC)) {
