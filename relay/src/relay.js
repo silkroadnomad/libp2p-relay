@@ -6,6 +6,7 @@ import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { generateKeyPair, privateKeyToProtobuf, privateKeyFromProtobuf } from '@libp2p/crypto/keys'
 import { unixfs } from "@helia/unixfs"
+import { CID } from 'multiformats/cid'
 
 // Storage modules
 import { LevelBlockstore } from "blockstore-level"
