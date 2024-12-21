@@ -20,7 +20,7 @@ async function saveStateToFile(state) {
     await fs.writeFile(filePath, JSON.stringify(state, null, 2));
 }
 
-export async function updateScanningState(unused, metadata) {
+export async function updateScanningState(metadata) {
     try {
         const state = {
             ...metadata,
@@ -44,7 +44,7 @@ export async function updateScanningState(unused, metadata) {
     }
 }
 
-export async function getScanningState(unused) {
+export async function getScanningState() {
     try {
         let state;
         if (isBrowser) {

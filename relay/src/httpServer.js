@@ -572,7 +572,7 @@ async function getNameOpsHistory(db, getKey) {
     })
 
     // Filter and sort entries
-    nameOpsMap.forEach((ops, key) => {
+    nameOpsMap.forEach((ops) => {
         if (ops.length > 1) {
             duplicates.push({
                 nameId: ops[0].nameId,
@@ -630,4 +630,4 @@ async function processBlockAtHeight(height, electrumClient) {
     }
 
     return { nameOpUtxos, blockDate };
-} 
+}    
