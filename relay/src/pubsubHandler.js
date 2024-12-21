@@ -59,6 +59,7 @@ async function handleListRequest(dateString, pageSize, from, filter, orbitdb, he
                 publishMessage(helia, "LAST_100_CIDS:NONE", CONTENT_TOPIC);
                 return;
             }
+            publishMessage(helia, JSON.stringify(nameOps), CONTENT_TOPIC);
         } else {
             const date = parseDate(dateString);
             if (!date) {
@@ -67,12 +68,11 @@ async function handleListRequest(dateString, pageSize, from, filter, orbitdb, he
             }
             filter = { ...filter, date }; // Add date to the filter object
             nameOps = await getLastNameOps(orbitdb, pageSize, from, filter);
-        }
-
-        if (nameOps.length > 0) {
-            publishMessage(helia, JSON.stringify(nameOps), CONTENT_TOPIC);
-        } else {
-            publishMessage(helia, `${dateString}_CIDS:NONE`, CONTENT_TOPIC);
+            if (nameOps.length > 0) {
+                publishMessage(helia, JSON.stringify(nameOps), CONTENT_TOPIC);
+            } else {
+                publishMessage(helia, `${dateString}_CIDS:NONE`, CONTENT_TOPIC);
+            }
         }
     } catch (error) {
         logger.error('Error fetching NameOps:', error);
