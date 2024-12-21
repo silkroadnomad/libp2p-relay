@@ -1,4 +1,3 @@
-version: '3.2'
 services:
   nginx:
     image: nginx:1.22.0
@@ -17,15 +16,20 @@ services:
       - ./data/certbot/www:/var/www/certbot
     entrypoint: "/docker-entrypoint.sh"
     command: ["nginx"]
+    networks:
+      - local-first-network
   certbot:
     image: certbot/certbot
     volumes:
       - ./data/certbot/conf:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - local-first-network
   relay-service:
     build: .
     ports:
+      - "3000:3000"
       - "1235:1235"
       - "12345:12345"
     volumes:
@@ -34,3 +38,12 @@ services:
     environment:
       - DEBUG=libp2p:*
       - NODE_ENV=production
+    #command: ["node", "relay/src/start-relay.js", "--disable-scanning"]
+    # command: ["node", "relay/src/start-relay.js"] 
+    command: ["node", "--max-old-space-size=8192", "relay/src/start-relay.js"]
+    networks:
+      - local-first-network
+
+networks:
+  local-first-network:
+    external: true

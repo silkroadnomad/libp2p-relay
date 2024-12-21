@@ -1,0 +1,38 @@
+name: Run Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Set up Docker BuildX 
+      uses: docker/setup-buildx-action@v2
+    - name: Cache Docker layers
+      uses: actions/cache@v3
+      with:
+        path: /tmp/.buildx-cache
+        key: ${{ runner.os }}-buildx-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-buildx-
+    - name: Set up Docker Compose
+      uses: hoverkraft-tech/compose-action@v2.0.2
+      with:
+        compose-file: "docker-compose-test.yml"
+        up-flags: "--build"
+    - name: Check Docker Containers
+      run: |
+        echo "🔍 Checking Docker Containers..."
+        docker compose -f "docker-compose-test.yml" ps
+    - name: Check Relay Service Logs
+      run: |
+        echo "🔍 Checking Relay Service Logs..."
+        sleep 30 && docker compose -f docker-compose-test.yml logs relay-service
+        # docker compose -f docker-compose-test.yml logs relay-service | grep "Actual listen addresses: "
+    - name: Running-Tests
+      run: |  
+        echo "🧪 Running tests..."
+        docker compose -f docker-compose-test.yml exec relay-service npm test

@@ -1,0 +1,49 @@
+services:
+  regtest:
+    image: "doichain/core:dc0.20.1.15"
+    container_name: regtest
+    ports:
+      - "18332:18332"
+      - "18443:18443"
+      - "18445:18445"
+    # command: ["/usr/local/bin/doichaind"]
+    volumes:
+      - ./docker/doichain-regtest.conf:/home/doichain/.doichain/doichain.conf
+
+  electrumx:
+    container_name: electrumx
+    hostname: electrumx
+    image: "doichain/electrumx:dc1.2.1"
+    depends_on:
+      - regtest
+    volumes:
+      # - ./db:/var/lib/electrumx
+      - ./docker/startElectrumDOIRegTest.sh:/startElectrumDOIRegTest.sh
+    entrypoint: ["/startElectrumDOIRegTest.sh"]
+    ports:
+      - "50001:50001"
+      - "50002:50002"
+      - "8443:8443"
+    stdin_open: true
+    tty: true
+    privileged: true
+
+  relay-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    volumes:
+      - ./docker/entrypoint.sh:/usr/src/app/entrypoint.sh
+      # - ./:/usr/src/app/
+    entrypoint: ["/usr/src/app/entrypoint.sh", "generate-key"]
+    ports:
+      - "1235:1235"
+      - "9091:9091"
+      - "12345:12345"
+      - "3000:3000"
+    depends_on:
+      - regtest
+      - electrumx
+
+volumes:
+  doichain-data:

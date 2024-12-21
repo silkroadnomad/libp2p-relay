@@ -24,20 +24,23 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/${SERVER_NAME}/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-    
+
+    keepalive_timeout 750s;  
+    keepalive_requests 1000;
+
     location / {
-	proxy_pass http://relay_service;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection $connection_upgrade;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_read_timeout 12h;
-    proxy_connect_timeout   12h;
-    proxy_send_timeout      12h;
-    proxy_buffers 8 32k;
-    proxy_buffer_size 64k;
+        proxy_pass http://relay_service;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 12h;
+        proxy_connect_timeout 12h;
+        proxy_send_timeout 12h;
+        proxy_buffers 8 32k;
+        proxy_buffer_size 64k;
     }
 }
