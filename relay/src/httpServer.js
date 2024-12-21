@@ -309,16 +309,16 @@ export function createHttpServer(helia, orbitdb, electrumClient) {
                                             isPinned = true
                                             
                                             // Remove from failed pins DB since we successfully retrieved and pinned it
-                                            try {
-                                                const failedCIDs = await getFailedCIDs(orbitdb)
-                                                const failedEntry = failedCIDs.find(f => f.cid === cidStr)
-                                                if (failedEntry) {
-                                                    await failedEntry.db.del(failedEntry.key)
-                                                    console.log(`✅ Removed ${cidStr} from failed pins database`)
-                                                }
-                                            } catch (cleanupError) {
-                                                console.log(`⚠️  Failed to remove ${cidStr} from failed pins database: ${cleanupError.message}`)
-                                            }
+                                            // try {
+                                            //     const failedCIDs = await getFailedCIDs(orbitdb)
+                                            //     const failedEntry = failedCIDs.find(f => f.cid === cidStr)
+                                            //     if (failedEntry) {
+                                            //         await failedEntry.db.del(failedEntry.key)
+                                            //         console.log(`✅ Removed ${cidStr} from failed pins database`)
+                                            //     }
+                                            // } catch (cleanupError) {
+                                            //     console.log(`⚠️  Failed to remove ${cidStr} from failed pins database: ${cleanupError.message}`)
+                                            // }
                                         } catch (pinError) {
                                             console.log(`❌ Failed to pin CID: ${cid.toString()} - ${pinError.message}`)
                                         }
@@ -630,4 +630,4 @@ async function processBlockAtHeight(height, electrumClient) {
     }
 
     return { nameOpUtxos, blockDate };
-}    
+}       
