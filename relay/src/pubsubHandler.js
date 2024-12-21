@@ -11,13 +11,14 @@ export function setupPubsub(helia, orbitdb, pinningService, electrumClient, fsHe
     helia.libp2p.services.pubsub.addEventListener('message', async event => {
         logger.info(`Received pubsub message from ${event.detail.from} on topic ${event.detail.topic}`);
         const topic = event.detail.topic;
-        const from = event.detail.from;
+        // 'from' value available in event.detail.from if needed later
         const message = new TextDecoder().decode(event.detail.data);
         let messageObject;
         console.log("Received message:", message);
         try {
             messageObject = JSON.parse(message);
-        } catch (error) {
+        } catch (err) {
+            logger.warn('Failed to parse message as JSON:', err);
         }
 
         if (messageObject && topic.startsWith(CONTENT_TOPIC)) {
@@ -115,8 +116,8 @@ async function processNewCID(cid, fsHelia, pinningService, electrumClient, helia
                 try {
                     metadata = JSON.parse(metadataContent);
                     logger.debug('Successfully parsed as JSON metadata:', metadata);
-                } catch (parseError) {
-                    logger.debug('Content is text but not valid JSON, treating as raw text');
+                } catch (err) {
+                    logger.debug('Content is text but not valid JSON, treating as raw text:', err);
                     metadata = {
                         type: 'text',
                         content: metadataContent
