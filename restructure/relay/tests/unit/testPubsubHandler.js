@@ -11,6 +11,8 @@ describe('PubsubHandler', () => {
   beforeEach(() => {
     sandbox = sinon.createSandbox();
     mockNode = {
+      addEventListener: sandbox.stub(),
+      removeEventListener: sandbox.stub(),
       libp2p: {
         services: {
           pubsub: {

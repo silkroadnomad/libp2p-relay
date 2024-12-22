@@ -61,12 +61,7 @@ describe('PinningService', () => {
 
   describe('pinContent', () => {
     it('should pin content successfully', async () => {
-      const mockCid = {
-    toString: () => 'QmPZv7P8nQUSh6E3dGXhE3k8SqF6kY4GKH5bmFtX9DVQeH',
-    toV1: () => ({
-      toString: () => 'QmPZv7P8nQUSh6E3dGXhE3k8SqF6kY4GKH5bmFtX9DVQeH'
-    })
-  };
+      const mockCid = 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi';
       const duration = 30;
       
       await pinningService.pinContent(mockCid, duration);

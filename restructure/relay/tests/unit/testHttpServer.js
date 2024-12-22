@@ -61,7 +61,7 @@ describe('HttpServer', () => {
       expect(mockRes.json.called).to.be.true;
     });
 
-    it('should handle errors gracefully', async () => {
+    it('should handle errors gracefully', (done) => {
       const mockReq = {
         body: { invalid: 'request' }
       };
@@ -72,9 +72,13 @@ describe('HttpServer', () => {
 
       createHttpServer(mockNode, mockPinningService);
       const pinHandler = mockExpress.post.getCall(0).args[1];
-      await pinHandler(mockReq, mockRes);
       
-      expect(mockRes.status.calledWith(400)).to.be.true;
+      pinHandler(mockReq, mockRes)
+        .then(() => {
+          expect(mockRes.status.calledWith(400)).to.be.true;
+          done();
+        })
+        .catch(done);
     });
   });
 });
