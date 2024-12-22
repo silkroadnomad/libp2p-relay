@@ -46,7 +46,7 @@ describe('PinningService', () => {
 
   describe('pinContent', () => {
     it('should pin content successfully', async () => {
-      const cid = 'QmTest';
+      const cid = 'QmPZv7P8nQUSh6E3dGXhE3k8SqF6kY4GKH5bmFtX9DVQeH';
       const duration = 30;
       
       await pinningService.pinContent(cid, duration);

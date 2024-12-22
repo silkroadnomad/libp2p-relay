@@ -3,7 +3,7 @@ export const testConfig = {
   relayDevMode: true,
   serverName: 'test-server',
   relayPubsubPeerDiscoveryTopics: 'test-topic',
-  relayPrivateKey: 'test-key',
+  relayPrivateKey: '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
   bootstrapList: ['/ip4/127.0.0.1/tcp/63785/p2p/12D3KooWRBxYrPDRsLS9PSK3H8YQpKYHTrzK7J2kgjJwGp8JmpHR'],
   pubsubPeerDiscoveryTopics: ['test-topic'],
   scoreThresholds: {

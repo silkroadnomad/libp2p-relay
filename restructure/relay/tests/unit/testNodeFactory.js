@@ -34,26 +34,57 @@ describe('NodeFactory', () => {
     });
 
     it('should create a node with correct configuration', async () => {
-      const node = await createNode(mockLibp2pConfig);
+      const config = {
+        ...mockLibp2pConfig,
+        privKeyHex: process.env.RELAY_PRIVATE_KEY,
+        datastore: {
+          open: () => Promise.resolve(),
+          close: () => Promise.resolve()
+        },
+        blockstore: {
+          open: () => Promise.resolve(),
+          close: () => Promise.resolve()
+        }
+      };
       
-      expect(node).to.exist;
-      expect(node.services).to.have.property('pubsub');
-      expect(node.services).to.have.property('identify');
-      expect(node.connectionManager).to.exist;
+      const { helia, orbitdb, pinningService } = await createNode(config);
+      
+      expect(helia).to.exist;
+      expect(orbitdb).to.exist;
+      expect(pinningService).to.exist;
     });
 
-    it('should configure transport protocols correctly', async () => {
-      const node = await createNode(mockLibp2pConfig);
+    it('should handle missing optional parameters', async () => {
+      const config = {
+        privKeyHex: process.env.RELAY_PRIVATE_KEY,
+        datastore: {
+          open: () => Promise.resolve(),
+          close: () => Promise.resolve()
+        }
+      };
       
-      expect(node.transportManager).to.exist;
-      expect(node.services.identify).to.exist;
+      const { helia, orbitdb, pinningService } = await createNode(config);
+      
+      expect(helia).to.exist;
+      expect(orbitdb).to.exist;
+      expect(pinningService).to.exist;
     });
 
-    it('should initialize with correct connection encryption', async () => {
-      const node = await createNode(mockLibp2pConfig);
+    it('should throw error with invalid private key', async () => {
+      const config = {
+        privKeyHex: 'invalid-key',
+        datastore: {
+          open: () => Promise.resolve(),
+          close: () => Promise.resolve()
+        }
+      };
       
-      expect(node.connectionEncrypter).to.exist;
-      expect(node.services.identify).to.exist;
+      try {
+        await createNode(config);
+        expect.fail('Should have thrown an error');
+      } catch (error) {
+        expect(error.message).to.include('Invalid private key format');
+      }
     });
   });
 });

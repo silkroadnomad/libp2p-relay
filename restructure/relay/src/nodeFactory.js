@@ -10,10 +10,28 @@ import { PinningService } from './pinner/pinningService.js';
 import { connectElectrum } from "./doichain/connectElectrum.js";
 import { createLibp2pConfig } from './libp2p-config.js';
 
-export async function createNode(privKeyHex, datastore, blockstore, listenAddresses, announceAddresses, pubsubPeerDiscoveryTopics, scoreThresholds, network) {
+export async function createNode(config) {
+    // Handle both config object and individual parameters
+    let privKeyHex, datastore, blockstore, listenAddresses, announceAddresses, pubsubPeerDiscoveryTopics, scoreThresholds, network;
+    
+    if (typeof config === 'object') {
+        ({
+            privKeyHex = process.env.RELAY_PRIVATE_KEY,
+            datastore = config.datastore,
+            blockstore = config.blockstore,
+            listenAddresses = config.addresses?.listen,
+            announceAddresses = config.addresses?.announce,
+            pubsubPeerDiscoveryTopics = config.pubsubPeerDiscoveryTopics,
+            scoreThresholds = config.scoreThresholds,
+            network = 'mainnet'
+        } = config);
+    } else {
+        [privKeyHex, datastore, blockstore, listenAddresses, announceAddresses, pubsubPeerDiscoveryTopics, scoreThresholds, network] = arguments;
+    }
+
     // Validate privKeyHex
-    if (!/^[0-9a-fA-F]+$/.test(privKeyHex)) {
-        throw new Error('Invalid private key format: must be a hexadecimal string', privKeyHex);
+    if (!privKeyHex || !/^[0-9a-fA-F]+$/.test(privKeyHex)) {
+        throw new Error('Invalid private key format: must be a hexadecimal string');
     }
 
     const privKeyBuffer = uint8ArrayFromString(privKeyHex, 'hex');

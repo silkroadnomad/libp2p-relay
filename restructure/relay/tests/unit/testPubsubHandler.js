@@ -15,8 +15,18 @@ describe('PubsubHandler', () => {
         pubsub: {
           subscribe: sandbox.stub().resolves(),
           publish: sandbox.stub().resolves(),
-          addEventListener: sandbox.stub()
+          addEventListener: sandbox.stub(),
+          topics: new Set()
+        },
+        identify: {
+          multicodecs: ['/noise']
         }
+      },
+      connectionManager: {
+        getConnections: sandbox.stub().returns([])
+      },
+      peerId: {
+        toString: () => 'QmTestPeerId'
       }
     };
     mockPinningService = {
