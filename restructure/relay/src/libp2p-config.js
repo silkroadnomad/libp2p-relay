@@ -22,7 +22,7 @@ import { mdns } from '@libp2p/mdns'
 import logger from './logger.js'
 dotenv.config();
 
-const bootstrapList = process.env.RELAY_BOOTSTRAP_LIST.split(',');
+const bootstrapList = process.env.RELAY_BOOTSTRAP_LIST ? process.env.RELAY_BOOTSTRAP_LIST.split(',') : [];
 const enableUPnP = process.env.ENABLE_UPNP === 'true'
 
 export function createLibp2pConfig({ keyPair, datastore, listenAddresses, announceAddresses, pubsubPeerDiscoveryTopics, scoreThresholds }) {
@@ -109,4 +109,4 @@ export function createLibp2pConfig({ keyPair, datastore, listenAddresses, announ
             denyDialMultiaddr: async () => false,
         }
     }
-}    
+}                

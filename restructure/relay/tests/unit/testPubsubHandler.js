@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 import { setupPubsub } from '../../src/pubsubHandler.js';
+import { testConfig } from '../test-config.js';
 
 describe('PubsubHandler', () => {
   let sandbox;
