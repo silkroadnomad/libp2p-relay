@@ -1,9 +1,15 @@
 // Test configuration for libp2p-relay
+import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
+import { createEd25519PeerId } from '@libp2p/peer-id-factory';
+
+// Create a consistent test PeerId for all tests
+const testPeerId = await createEd25519PeerId();
+
 export const testConfig = {
   relayDevMode: true,
   serverName: 'test-server',
   relayPubsubPeerDiscoveryTopics: 'test-topic',
-  relayPrivateKey: '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+  relayPrivateKey: testPeerId.privateKey,
   bootstrapList: ['/ip4/127.0.0.1/tcp/63785/p2p/12D3KooWRBxYrPDRsLS9PSK3H8YQpKYHTrzK7J2kgjJwGp8JmpHR'],
   pubsubPeerDiscoveryTopics: ['test-topic'],
   scoreThresholds: {

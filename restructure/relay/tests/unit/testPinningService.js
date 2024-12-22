@@ -13,16 +13,31 @@ describe('PinningService', () => {
     sandbox = sinon.createSandbox();
     mockHelia = {
       blockstore: {
-        put: sandbox.stub().resolves(),
-        get: sandbox.stub().resolves()
+        put: sandbox.stub().resolves(Buffer.from('test')),
+        get: sandbox.stub().resolves(Buffer.from('test')),
+        has: sandbox.stub().resolves(true)
+      },
+      dag: {
+        get: sandbox.stub().resolves({ value: Buffer.from('test') }),
+        put: sandbox.stub().resolves()
       }
     };
     mockOrbitdb = {
+      open: sandbox.stub().resolves({
+        add: sandbox.stub().resolves('hash'),
+        get: sandbox.stub().resolves({ value: 'test' }),
+        close: sandbox.stub().resolves()
+      }),
+      close: sandbox.stub().resolves(),
       id: 'test-id',
       identity: { id: 'test-identity' }
     };
     mockElectrumClient = {
-      request: sandbox.stub().resolves()
+      request: sandbox.stub().resolves(),
+      connect: sandbox.stub().resolves(),
+      close: sandbox.stub().resolves(),
+      blockchain_scripthash_subscribe: sandbox.stub().resolves(),
+      blockchain_scripthash_get_history: sandbox.stub().resolves([])
     };
     
     pinningService = new PinningService(mockHelia, mockOrbitdb, mockElectrumClient);
@@ -46,10 +61,15 @@ describe('PinningService', () => {
 
   describe('pinContent', () => {
     it('should pin content successfully', async () => {
-      const cid = 'QmPZv7P8nQUSh6E3dGXhE3k8SqF6kY4GKH5bmFtX9DVQeH';
+      const mockCid = {
+    toString: () => 'QmPZv7P8nQUSh6E3dGXhE3k8SqF6kY4GKH5bmFtX9DVQeH',
+    toV1: () => ({
+      toString: () => 'QmPZv7P8nQUSh6E3dGXhE3k8SqF6kY4GKH5bmFtX9DVQeH'
+    })
+  };
       const duration = 30;
       
-      await pinningService.pinContent(cid, duration);
+      await pinningService.pinContent(mockCid, duration);
       
       expect(mockHelia.blockstore.put.called).to.be.true;
     });

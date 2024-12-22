@@ -11,22 +11,36 @@ describe('PubsubHandler', () => {
   beforeEach(() => {
     sandbox = sinon.createSandbox();
     mockNode = {
-      services: {
-        pubsub: {
-          subscribe: sandbox.stub().resolves(),
-          publish: sandbox.stub().resolves(),
-          addEventListener: sandbox.stub(),
-          topics: new Set()
+      libp2p: {
+        services: {
+          pubsub: {
+            subscribe: sandbox.stub().resolves(),
+            publish: sandbox.stub().resolves(),
+            addEventListener: sandbox.stub(),
+            removeEventListener: sandbox.stub(),
+            topics: new Set(),
+            start: sandbox.stub().resolves(),
+            stop: sandbox.stub().resolves()
+          },
+          identify: {
+            multicodecs: ['/noise'],
+            start: sandbox.stub().resolves(),
+            stop: sandbox.stub().resolves()
+          }
         },
-        identify: {
-          multicodecs: ['/noise']
-        }
-      },
-      connectionManager: {
-        getConnections: sandbox.stub().returns([])
-      },
-      peerId: {
-        toString: () => 'QmTestPeerId'
+        connectionManager: {
+          getConnections: sandbox.stub().returns([]),
+          addEventListener: sandbox.stub(),
+          removeEventListener: sandbox.stub()
+        },
+        peerId: {
+          toString: () => 'QmTestPeerId',
+          toBytes: () => new Uint8Array([1, 2, 3]),
+          type: 'Ed25519'
+        },
+        start: sandbox.stub().resolves(),
+        stop: sandbox.stub().resolves(),
+        getMultiaddrs: () => []
       }
     };
     mockPinningService = {
