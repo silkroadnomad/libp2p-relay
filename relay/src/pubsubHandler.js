@@ -54,7 +54,7 @@ async function handleListRequest(dateString, pageSize, from, filter, orbitdb) {
         if (dateString !== "LAST") {
             const date = parseDate(dateString);
             if (!date) {
-                publishMessage("INVALID_DATE_FORMAT");
+                publishMessage(helia, "INVALID_DATE_FORMAT");
                 return;
             }
             filter = { ...filter, date }; // Add date to the filter object
@@ -63,13 +63,13 @@ async function handleListRequest(dateString, pageSize, from, filter, orbitdb) {
         nameOps = await getLastNameOps(orbitdb, pageSize, from, filter);
 
         if (nameOps.length > 0) {
-            publishMessage(JSON.stringify(nameOps));
+            publishMessage(helia, JSON.stringify(nameOps));
         } else {
-            publishMessage(`${dateString}_CIDS:NONE`);
+            publishMessage(helia, `${dateString}_CIDS:NONE`);
         }
     } catch (error) {
         logger.error('Error fetching NameOps:', error);
-        publishMessage(`ERROR:Failed to fetch NameOps: ${error.message}`);
+        publishMessage(helia, `ERROR:Failed to fetch NameOps: ${error.message}`);
     }
 }
 
@@ -81,7 +81,7 @@ function parseDate(dateString) {
     return isNaN(date.getTime()) ? null : date;
 }
 
-function publishMessage(message) {
+function publishMessage(helia, message) {
     helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(message));
 }
 
