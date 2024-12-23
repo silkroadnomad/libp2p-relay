@@ -73,20 +73,19 @@ if [ "$1" == "generate-key" ]; then
     fi
     cat .env
 
-    # Wait for all services to be ready before starting
+    # When generating key, just do that and exit
+    echo "Private key generated: $key_output"
+    exit 0
+elif [ "$1" == "start" ]; then
+    echo "Starting node..."
+    # Wait for services and start only once
     if ! wait_for_services; then
         echo "Failed to connect to required services"
         exit 1
     fi
-elif [ "$1" == "start" ]; then
-    echo "Starting node..."
-    # Wait for all services to be ready before starting
-    if wait_for_services; then
-        npm run start
-    else
-        echo "Failed to connect to required services"
-        exit 1
-    fi
+    
+    # Start the service (only once)
+    npm run start
 else
     echo "Invalid command. Use 'generate-key' or 'start'."
     exit 1
