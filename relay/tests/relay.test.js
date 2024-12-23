@@ -20,11 +20,11 @@ const pubsubPeerDiscoveryTopics = process.env.RELAY_PUBSUB_PEER_DISCOVERY_TOPICS
 const CONTENT_TOPIC = '/doichain-nfc/1/message/proto';
 
 describe('Doichain Relay Pinning Service Test', function() {
-  this.timeout(100000); 
+  this.timeout(300000); // Increase timeout for proper synchronization
 
   let helia, fs, pubsub, db;
   const messages = [];
-  const TIMEOUT = 5000;
+  const TIMEOUT = 30000; // Increase timeout for operations
 
   // Helper function to check if OrbitDB has nameOps and relay connection is established
   async function waitForNameOps(orbitdb, maxAttempts = 60) {
@@ -35,7 +35,7 @@ describe('Doichain Relay Pinning Service Test', function() {
         console.log(`[waitForNameOps] Attempt ${attempt + 1}/${maxAttempts}`);
         
         // Check relay connection first with retries
-        const targetPeerId = '12D3KooWQpeSaj6FR8SpnDzkESTXY5VqnZVWNUKrkqymGiZTZbW2';
+        const targetPeerId = '12D3KooWF5fGyE4VeXMhSGd9rCwckyxCVkA6xfoyFJG9DWJis62v'; // Match the configured private key
         let isConnected = false;
         let connectionAttempts = 0;
         const maxConnectionAttempts = 3;
@@ -49,7 +49,7 @@ describe('Doichain Relay Pinning Service Test', function() {
             console.log(`[waitForNameOps] Not connected to relay (attempt ${connectionAttempts}/${maxConnectionAttempts}), trying to connect...`);
             try {
               // Try to explicitly connect to the relay
-              const relayMa = `/ip4/127.0.0.1/tcp/9090/p2p/${targetPeerId}`;
+              const relayMa = `/dns4/relay-service/tcp/9090/p2p/${targetPeerId}`;
               await helia.libp2p.dial(multiaddr(relayMa));
               console.log('[waitForNameOps] Successfully dialed relay');
             } catch (dialError) {
@@ -133,7 +133,29 @@ describe('Doichain Relay Pinning Service Test', function() {
       
       // Wait for relay service to be ready
       console.log('[Setup] Waiting for relay service to be ready...');
-      await new Promise((resolve) => setTimeout(resolve, 30000));
+      // Wait for relay service with exponential backoff
+      let waitTime = 5000;
+      const maxWaitTime = 60000;
+      let totalWaitTime = 0;
+      
+      while (totalWaitTime < maxWaitTime) {
+        try {
+          const response = await fetch('http://relay-service:3000/api/v1/nameops/count');
+          if (response.ok) {
+            console.log('[Setup] Relay service is ready');
+            break;
+          }
+        } catch (error) {
+          console.log(`[Setup] Waiting for relay service (${totalWaitTime}ms / ${maxWaitTime}ms)`);
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+          totalWaitTime += waitTime;
+          waitTime = Math.min(waitTime * 2, 15000); // Cap at 15 seconds
+        }
+      }
+      
+      if (totalWaitTime >= maxWaitTime) {
+        throw new Error('[Setup] Timeout waiting for relay service');
+      }
       
       // Initialize Helia first
       console.log('[Setup] Initializing Helia node...');
@@ -147,10 +169,10 @@ describe('Doichain Relay Pinning Service Test', function() {
             identify: identify(),
           },
           addresses: {
-            listen: ['/ip4/127.0.0.1/tcp/4002', '/ip4/127.0.0.1/tcp/4003/ws']
+            listen: ['/ip4/0.0.0.0/tcp/4002', '/ip4/0.0.0.0/tcp/4003/ws']
           },
           peerDiscovery: [
-            bootstrap({ list: ['/ip4/127.0.0.1/tcp/9090/p2p/12D3KooWQpeSaj6FR8SpnDzkESTXY5VqnZVWNUKrkqymGiZTZbW2'] }),
+            bootstrap({ list: ['/dns4/relay-service/tcp/9090/p2p/12D3KooWF5fGyE4VeXMhSGd9rCwckyxCVkA6xfoyFJG9DWJis62v'] }), // Use container DNS name
             pubsubPeerDiscovery({
               interval: 10000,
               topics: pubsubPeerDiscoveryTopics,
@@ -194,10 +216,10 @@ describe('Doichain Relay Pinning Service Test', function() {
           identify: identify(),
         },
         addresses: {
-          listen: ['/ip4/127.0.0.1/tcp/4002', '/ip4/127.0.0.1/tcp/4003/ws']
+          listen: ['/ip4/0.0.0.0/tcp/4002', '/ip4/0.0.0.0/tcp/4003/ws']
         },
         peerDiscovery: [
-            bootstrap({ list: ['/ip4/127.0.0.1/tcp/9090/p2p/12D3KooWQpeSaj6FR8SpnDzkESTXY5VqnZVWNUKrkqymGiZTZbW2'] }),
+            bootstrap({ list: ['/dns4/relay-service/tcp/9090/p2p/12D3KooWF5fGyE4VeXMhSGd9rCwckyxCVkA6xfoyFJG9DWJis62v'] }), // Use container DNS name
             pubsubPeerDiscovery({
                 interval: 10000,
                 topics: pubsubPeerDiscoveryTopics,

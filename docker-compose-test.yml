@@ -36,15 +36,17 @@ services:
     volumes:
       - ./docker/entrypoint.sh:/usr/src/app/entrypoint.sh
       # - ./:/usr/src/app/
-    entrypoint: ["/usr/src/app/entrypoint.sh", "generate-key"]
+    entrypoint: ["/usr/src/app/entrypoint.sh", "start"]
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "3000"]
+      test: ["CMD", "nc", "-z", "localhost", "9090"]  # Check libp2p port instead
       interval: 5s
       timeout: 3s
       retries: 3
     depends_on:
-      - electrumx
-      - regtest
+      electrumx:
+        condition: service_healthy
+      regtest:
+        condition: service_started
     ports:
       - "1235:1235"
       - "9090:9090"  # Required for libp2p connectivity
@@ -53,8 +55,9 @@ services:
       - "3000:3000"
     environment:
       - RELAY_LISTEN_ADDRESSES=/ip4/0.0.0.0/tcp/9090,/ip4/0.0.0.0/tcp/9091
-      - RELAY_ANNOUNCE_ADDRESSES=/ip4/127.0.0.1/tcp/9090,/ip4/127.0.0.1/tcp/9091
+      - RELAY_ANNOUNCE_ADDRESSES=/dns4/relay-service/tcp/9090,/dns4/relay-service/tcp/9091  # Use container DNS name
       - RELAY_DEV_MODE=true  # Enable dev mode for testing
+      - RELAY_PRIVATE_KEY=08011240053870142e367a49a603623d78ece265568ece425e195fb0540c27ed000bc2baf6f602d7717a7e26b07a8cff2c6784b3f7c9e36a01b5667e6894b6af41ed8b42  # Use consistent key
 
 volumes:
   doichain-data:
