@@ -1,5 +1,29 @@
 #!/bin/bash 
-rm scanning-state.json
+rm -f scanning-state.json
+
+# Function to check if ElectrumX is ready
+check_electrumx() {
+    nc -z electrumx 8443 2>/dev/null
+    return $?
+}
+
+# Function to wait for ElectrumX with timeout
+wait_for_electrumx() {
+    echo "Waiting for ElectrumX to be ready..."
+    local timeout=60
+    local count=0
+    while ! check_electrumx; do
+        count=$((count + 1))
+        if [ $count -gt $timeout ]; then
+            echo "Timeout waiting for ElectrumX"
+            return 1
+        fi
+        echo "Attempt $count/$timeout: ElectrumX not ready yet..."
+        sleep 1
+    done
+    echo "ElectrumX is ready!"
+    return 0
+}
 
 if [ "$1" == "generate-key" ]; then
     echo "Generating private key..."
@@ -15,14 +39,25 @@ if [ "$1" == "generate-key" ]; then
         echo "$key_output" >> .env
     fi
     cat .env
-    npm run start
+
+    # Wait for ElectrumX to be ready before starting
+    if wait_for_electrumx; then
+        echo "Starting relay service..."
+        npm run start
+    else
+        echo "Failed to connect to ElectrumX"
+        exit 1
+    fi
 elif [ "$1" == "start" ]; then
     echo "Starting node..."
-    npm run start
+    # Wait for ElectrumX to be ready before starting
+    if wait_for_electrumx; then
+        npm run start
+    else
+        echo "Failed to connect to ElectrumX"
+        exit 1
+    fi
 else
     echo "Invalid command. Use 'generate-key' or 'start'."
     exit 1
 fi
-
-# Start the application if a valid command was provided
-# exec "$@"

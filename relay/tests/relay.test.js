@@ -26,7 +26,7 @@ describe('Doichain Relay Pinning Service Test', function() {
   const TIMEOUT = 5000;
 
   // Helper function to check if OrbitDB has nameOps and relay connection is established
-  async function waitForNameOps(orbitdb, maxAttempts = 30) {
+  async function waitForNameOps(orbitdb, maxAttempts = 60) {
     console.log('[waitForNameOps] Starting check for nameOps and relay connection...');
     
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -54,20 +54,31 @@ describe('Doichain Relay Pinning Service Test', function() {
           continue;
         }
         
-        // Wait for DB to be ready
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Wait for DB to load and sync
+        await new Promise(resolve => setTimeout(resolve, 5000));
         
+        // Verify DB is ready and has data
         const allDocs = await db.all();
         console.log(`[waitForNameOps] Found ${allDocs.length} documents in OrbitDB`);
         
         if (allDocs.length > 0) {
-          console.log('[waitForNameOps] Successfully found nameOps');
-          // Additional wait to ensure all data is synced
-          await new Promise(resolve => setTimeout(resolve, 3000));
-          return true;
+          // Additional verification: check if we can actually query the data
+          try {
+            const testQuery = await db.query((doc) => doc.value.nameOp !== undefined);
+            console.log(`[waitForNameOps] Query test returned ${testQuery.length} documents`);
+            
+            if (testQuery.length > 0) {
+              console.log('[waitForNameOps] Successfully verified nameOps data access');
+              // Additional wait to ensure complete sync
+              await new Promise(resolve => setTimeout(resolve, 10000));
+              return true;
+            }
+          } catch (queryError) {
+            console.error('[waitForNameOps] Error querying data:', queryError);
+          }
         }
         
-        console.log('[waitForNameOps] No nameOps found yet, waiting 5 seconds...');
+        console.log('[waitForNameOps] No valid nameOps found yet, waiting 5 seconds...');
         await new Promise(resolve => setTimeout(resolve, 5000));
       } catch (error) {
         console.error(`[waitForNameOps] Error in attempt ${attempt + 1}:`, error);
@@ -81,7 +92,7 @@ describe('Doichain Relay Pinning Service Test', function() {
   }
 
   before(async function() {
-    this.timeout(300000); // Increase timeout for initialization
+    this.timeout(600000); // Increase timeout for initialization and sync
     
     try {
       console.log('[Setup] Starting test node setup...');

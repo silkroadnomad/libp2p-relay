@@ -63,8 +63,16 @@ export async function updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDate, bl
                 _id: docId,
                 nameOp,  // Store the entire nameOp object
                 blockHeight,
-                blockDate
+                blockDate,
+                timestamp: new Date().toISOString() // Add timestamp for debugging
             });
+            
+            // Verify the document was stored
+            const doc = await db.get(docId);
+            if (!doc) {
+                throw new Error(`Failed to verify document storage for ${docId}`);
+            }
+            logger.debug(`[updateDailyNameOpsFile] Verified storage of nameOp ${docId}`);
             logger.debug(`[updateDailyNameOpsFile] Successfully stored nameOp ${docId}`);
         }
 
