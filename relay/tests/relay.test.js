@@ -25,34 +25,54 @@ describe('Doichain Relay Pinning Service Test', function() {
   const messages = [];
   const TIMEOUT = 5000;
 
-  // Helper function to check if OrbitDB has nameOps
-  async function waitForNameOps(orbitdb, maxAttempts = 20) {
-    console.log('[waitForNameOps] Starting check for nameOps...');
+  // Helper function to check if OrbitDB has nameOps and relay connection is established
+  async function waitForNameOps(orbitdb, maxAttempts = 30) {
+    console.log('[waitForNameOps] Starting check for nameOps and relay connection...');
     
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         console.log(`[waitForNameOps] Attempt ${attempt + 1}/${maxAttempts}`);
         
+        // Check relay connection first
+        const peers = await helia.libp2p.getPeers();
+        const targetPeerId = '12D3KooWQpeSaj6FR8SpnDzkESTXY5VqnZVWNUKrkqymGiZTZbW2';
+        const isConnected = peers.some(peer => peer.toString() === targetPeerId);
+        
+        if (!isConnected) {
+          console.log('[waitForNameOps] Not connected to relay yet, waiting...');
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          continue;
+        }
+        
+        console.log('[waitForNameOps] Connected to relay, checking OrbitDB...');
+        
+        // Check OrbitDB
         const db = await getOrCreateDB(orbitdb);
         if (!db) {
           console.error('[waitForNameOps] Failed to get OrbitDB instance');
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          await new Promise(resolve => setTimeout(resolve, 5000));
           continue;
         }
+        
+        // Wait for DB to be ready
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
         const allDocs = await db.all();
         console.log(`[waitForNameOps] Found ${allDocs.length} documents in OrbitDB`);
         
         if (allDocs.length > 0) {
           console.log('[waitForNameOps] Successfully found nameOps');
+          // Additional wait to ensure all data is synced
+          await new Promise(resolve => setTimeout(resolve, 3000));
           return true;
         }
         
-        console.log('[waitForNameOps] No nameOps found yet, waiting 3 seconds...');
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        console.log('[waitForNameOps] No nameOps found yet, waiting 5 seconds...');
+        await new Promise(resolve => setTimeout(resolve, 5000));
       } catch (error) {
         console.error(`[waitForNameOps] Error in attempt ${attempt + 1}:`, error);
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        console.error(error.stack);
+        await new Promise(resolve => setTimeout(resolve, 5000));
       }
     }
     
@@ -67,8 +87,8 @@ describe('Doichain Relay Pinning Service Test', function() {
       console.log('[Setup] Starting test node setup...');
       
       // Initialize OrbitDB first
-      const { createOrbitDB } = await import('@orbitdb/core');
-      global.orbitdb = await createOrbitDB({ directory: './orbitdb-test' });
+      const { OrbitDB } = await import('@doichain/orbitdb');
+      global.orbitdb = await OrbitDB.createInstance('./orbitdb-test');
       console.log('[Setup] OrbitDB initialized:', global.orbitdb.id);
       
       helia = await createHelia({
