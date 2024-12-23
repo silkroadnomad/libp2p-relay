@@ -6,9 +6,10 @@ services:
       - "18332:18332"
       - "18443:18443"
       - "18445:18445"
-    # command: ["/usr/local/bin/doichaind"]
     volumes:
       - ./docker/doichain-regtest.conf:/home/doichain/.doichain/doichain.conf
+      - ./docker/regtest-entrypoint.sh:/home/doichain/regtest-entrypoint.sh
+    entrypoint: ["/bin/bash", "/home/doichain/regtest-entrypoint.sh"]
 
   electrumx:
     container_name: electrumx
