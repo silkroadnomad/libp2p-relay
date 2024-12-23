@@ -206,80 +206,88 @@ async function reconnectElectrumClient(electrumClient) {
 
 
 async function pinIpfsContent(electrumClient, helia, orbitdb, nameOp, nameId, ipfsUrl) {
-    const cid = ipfsUrl.replace('ipfs://', '')
+    const cid = ipfsUrl.replace('ipfs://', '');
+    let metadataContent = '';
+    let totalSize = 0;
+    let metadataSize = 0;
+    const fs = unixfs(helia);
     try {
         logger.info(`Attempting to retrieve IPFS metadata content with CID: ${cid}`);
         
         // Notify network that we're starting to pin
-        helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNING-CID:" + cid))
-        
-        const fs = unixfs(helia)
-        
-        // Get metadata content and size
-        let metadataContent = ''
-        let totalSize = 0
-        let metadataSize = 0
+        helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNING-CID:" + cid));
         
         // Measure metadata size
         for await (const chunk of fs.cat(CID.parse(cid))) {
-            metadataContent += new TextDecoder().decode(chunk)
-            metadataSize += chunk.length
+            metadataContent += new TextDecoder().decode(chunk);
+            metadataSize += chunk.length;
         }
-        totalSize += metadataSize
+        totalSize += metadataSize;
         
-        // Parse metadata and get associated file
-        const metadata = JSON.parse(metadataContent)
-        logger.info(`Metadata size: ${metadataSize} bytes`);
+    } catch (error) {
+        logger.error(`Error retrieving IPFS metadata content: ${cid}`, { error: error.message });
+        helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("FAILED-PIN:" + cid));
+        throw error;
+    }
 
-        // Process image/file from metadata
-        if (metadata.image) {
-            const imageCid = metadata.image.replace('ipfs://', '')
-            try {
-                logger.info(`Measuring file size for CID: ${imageCid}`);
-                let fileSize = 0
-                
-                // Measure actual file size
-                for await (const chunk of fs.cat(CID.parse(imageCid))) {
-                    fileSize += chunk.length
-                }
-                totalSize += fileSize
-                logger.info(`File size: ${fileSize} bytes`);
-            } catch (error) {
-                logger.error(`Failed to measure file size for CID: ${imageCid}`, error);
-                throw error;
+    let metadata;
+    try {
+        // Parse metadata
+        metadata = JSON.parse(metadataContent);
+        logger.info(`Metadata size: ${metadataSize} bytes`);
+    } catch (error) {
+        logger.error(`Error parsing metadata content: ${cid}`, { error: error.message });
+        throw error;
+    }
+
+    if (metadata.image) {
+        const imageCid = metadata.image.replace('ipfs://', '');
+        try {
+            logger.info(`Measuring file size for CID: ${imageCid}`);
+            let fileSize = 0;
+            // Measure actual file size
+            for await (const chunk of fs.cat(CID.parse(imageCid))) {
+                fileSize += chunk.length;
             }
+            totalSize += fileSize;
+            logger.info(`File size: ${fileSize} bytes`);
+        } catch (error) {
+            logger.error(`Failed to measure file size for CID: ${imageCid}`, { error: error.message });
+            throw error;
         }
-        
+    }
+
+    try {
         logger.info(`Total size to be pinned: ${totalSize} bytes (metadata: ${metadataSize} bytes)`);
         
         // Calculate fee and duration based on total size
-        const currentBlock = await electrumClient.request('blockchain.headers.subscribe')
-        const registrationBlock = nameOp.blocktime
+        const currentBlock = await electrumClient.request('blockchain.headers.subscribe');
+        const registrationBlock = nameOp.blocktime;
         
         // Get available durations and use maximum available
-        const durations = pinningService.getAvailableDurations(currentBlock.height, registrationBlock)
-        const durationMonths = durations.maxDuration // Always use maximum available duration
+        const durations = pinningService.getAvailableDurations(currentBlock.height, registrationBlock);
+        const durationMonths = durations.maxDuration; // Always use maximum available duration
         
-        const expectedFee = pinningService.calculatePinningFee(totalSize, durationMonths)
+        const expectedFee = pinningService.calculatePinningFee(totalSize, durationMonths);
         
         logger.info(`Using maximum available duration of ${durationMonths} months until NFT expiration`);
         logger.info(`Calculated fee for ${durationMonths} months: ${expectedFee} DOI`);
 
         // Pin the metadata
-        await pinningService.pinContent(cid, durationMonths, metadata.paymentTxId, nameOp)
+        await pinningService.pinContent(cid, durationMonths, metadata.paymentTxId, nameOp);
         logger.info(`Successfully pinned IPFS metadata content: ${cid}`);
-        helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNED-CID:" + cid))
+        helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNED-CID:" + cid));
 
         // Pin the associated file
         if (metadata.image && metadata.image.startsWith('ipfs://')) {
-            const imageCid = metadata.image.replace('ipfs://', '')
+            const imageCid = metadata.image.replace('ipfs://', '');
             try {
-                await pinningService.pinContent(imageCid, durationMonths, metadata.paymentTxId, nameOp)
+                await pinningService.pinContent(imageCid, durationMonths, metadata.paymentTxId, nameOp);
                 logger.info(`Successfully pinned file: ${imageCid}`);
-                helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNED-CID:" + imageCid))
+                helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNED-CID:" + imageCid));
             } catch (imageError) {
                 logger.error(`Failed to pin file: ${imageCid} for nameId: ${nameId}`, { error: imageError.message, nameId });
-                throw imageError
+                throw imageError;
             }
         }
 
@@ -290,11 +298,11 @@ async function pinIpfsContent(electrumClient, helia, orbitdb, nameOp, nameId, ip
             fileSize: totalSize - metadataSize,
             expectedFee,
             durationMonths
-        }
+        };
         
     } catch (error) {
-        helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("FAILED-PIN:" + cid))
-        logger.error(`Error retrieving or processing IPFS content: ${cid} for nameId: ${nameId}`, { error: error.message, nameId });
-        throw error
+        logger.error(`Error during pinning process for CID: ${cid}`, { error: error.message });
+        helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("FAILED-PIN:" + cid));
+        throw error;
     }
 }

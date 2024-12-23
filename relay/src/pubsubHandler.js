@@ -191,7 +191,6 @@ async function processNewCID(cid, fsHelia, pinningService, electrumClient, helia
 
     } catch (error) {
         logger.error('Error processing file or sending notification:', error);
-        await telegramBot.sendMessage(`⚠️ Error processing new file with CID: ${cid}\nError: ${error.message}`);
     }
 
     const addedMsg = JSON.stringify({
