@@ -46,6 +46,10 @@ services:
       - "9091:9091"
       - "12345:12345"
       - "3000:3000"
+    environment:
+      - RELAY_LISTEN_ADDRESSES=/ip4/0.0.0.0/tcp/9090,/ip4/0.0.0.0/tcp/9091
+      - RELAY_ANNOUNCE_ADDRESSES=/ip4/127.0.0.1/tcp/9090,/ip4/127.0.0.1/tcp/9091
+      - RELAY_DEV_MODE=true  # Enable dev mode for testing
 
 volumes:
   doichain-data:

@@ -64,10 +64,29 @@ const errorRate = new client.Counter({
 
 export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb, tip, _stopToken) {
     try {
-        logger.info("[scanBlockchainForNameOps] Starting blockchain scan", {
-            orbitdbId: orbitdb.id,
-            heliaId: helia.libp2p.peerId.toString()
-        });
+        // Verify OrbitDB is ready with retries
+        const maxRetries = 5;
+        let attempt = 0;
+        let dbReady = false;
+
+        while (!dbReady && attempt < maxRetries) {
+            try {
+                await orbitdb.open();
+                dbReady = true;
+                logger.info("[scanBlockchainForNameOps] OrbitDB ready", {
+                    attempt: attempt + 1,
+                    orbitdbId: orbitdb.id,
+                    heliaId: helia.libp2p.peerId.toString()
+                });
+            } catch (error) {
+                attempt++;
+                logger.warn(`OrbitDB not ready (attempt ${attempt}/${maxRetries})`, { error });
+                if (attempt === maxRetries) {
+                    throw new Error(`Failed to ready OrbitDB after ${maxRetries} attempts`);
+                }
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+        }
 
         pinningService = new PinningService(helia, orbitdb, electrumClient);
         stopToken.isStopped = _stopToken;
