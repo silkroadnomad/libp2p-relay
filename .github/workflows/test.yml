@@ -19,6 +19,8 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-buildx-
     - name: Set up Docker Compose
+      env:
+        TEST_RELAY_PRIVATE_KEY: ${{ secrets.TEST_RELAY_PRIVATE_KEY }}
       uses: hoverkraft-tech/compose-action@v2.0.2
       with:
         compose-file: "docker-compose-test.yml"

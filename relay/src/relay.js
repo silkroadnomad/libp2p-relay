@@ -28,8 +28,8 @@ export const CONTENT_TOPIC = process.env.CONTENT_TOPIC || "/doichain-nfc/1/messa
 
 const privKeyHex = process.env.RELAY_PRIVATE_KEY
 const bootstrapList = process.env.RELAY_BOOTSTRAP_LIST?.split(',')||[]
-const listenAddresses = process.env.RELAY_LISTEN_ADDRESSES?.split(',') || ['/ip4/0.0.0.0/tcp/9090']
-const announceAddresses = process.env.RELAY_ANNOUNCE_ADDRESSES?.split(',')
+const listenAddresses = process.env.RELAY_LISTEN_ADDRESSES?.split(',') || ['/ip4/0.0.0.0/tcp/9090', '/ip4/0.0.0.0/tcp/9091']
+const announceAddresses = process.env.RELAY_ANNOUNCE_ADDRESSES?.split(',') || ['/ip4/127.0.0.1/tcp/9090', '/ip4/127.0.0.1/tcp/9091']
 const pubsubPeerDiscoveryTopics = process.env.RELAY_PUBSUB_PEER_DISCOVERY_TOPICS?.split(',')||['doichain._peer-discovery._p2p._pubsub']
 const relayDevMode = process.env.RELAY_DEV_MODE
 const relayLocalRegTest = process.env.RELAY_LOCAL_REGTTEST
@@ -188,5 +188,25 @@ process.on('SIGTERM', async () => {
     process.exit(0)
 })
 
-createHttpServer(helia, orbitdb, electrumClient)
+// Initialize HTTP server with retries
+let httpServerStarted = false;
+const maxHttpRetries = 5;
+let httpAttempt = 0;
+
+while (!httpServerStarted && httpAttempt < maxHttpRetries) {
+    try {
+        await createHttpServer(helia, orbitdb, electrumClient);
+        httpServerStarted = true;
+        logger.info('HTTP server started successfully', {
+            attempt: httpAttempt + 1
+        });
+    } catch (error) {
+        httpAttempt++;
+        logger.warn(`Failed to start HTTP server (attempt ${httpAttempt}/${maxHttpRetries})`, { error });
+        if (httpAttempt === maxHttpRetries) {
+            throw new Error(`Failed to start HTTP server after ${maxHttpRetries} attempts`);
+        }
+        await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+}
 

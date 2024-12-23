@@ -7,23 +7,42 @@ let db = null
  * Initialize or get the single OrbitDB instance
  */
 export async function getOrCreateDB(orbitdb) {
-    console.log("getOrCreateDB", orbitdb.id)
-    if (db) {
-        return db
+    try {
+        if (!orbitdb) {
+            logger.error('OrbitDB instance not provided');
+            throw new Error('OrbitDB instance not provided');
+        }
+
+        console.log("getOrCreateDB called with orbitdb id:", orbitdb.id);
+        
+        if (db) {
+            logger.info('Using existing OrbitDB instance');
+            return db;
+        }
+
+        // Open new DB with documents type and access control
+        const dbName = 'nameops';
+        logger.info(`Creating new OrbitDB: ${dbName}`);
+        
+        db = await orbitdb.open(dbName, {
+            type: 'documents',
+            create: true,
+            overwrite: false,
+            directory: './orbitdb/nameops',
+            AccessController: IPFSAccessController({ write: [orbitdb.identity.id] })
+        });
+
+        if (!db) {
+            throw new Error('Failed to create OrbitDB instance');
+        }
+
+        logger.info(`Successfully opened OrbitDB: ${dbName}`);
+        return db;
+    } catch (error) {
+        logger.error(`Error in getOrCreateDB: ${error.message}`);
+        logger.error(error.stack);
+        throw error;
     }
-
-    // Open new DB with documents type and access control
-    const dbName = 'nameops'
-    db = await orbitdb.open(dbName, {
-        type: 'documents',
-        create: true,
-        overwrite: false,
-        directory: './orbitdb/nameops',
-        AccessController: IPFSAccessController({ write: [orbitdb.identity.id] })
-    })
-
-    logger.info(`Opened OrbitDB: ${dbName}`)
-    return db
 }
 
 /**
@@ -31,21 +50,36 @@ export async function getOrCreateDB(orbitdb) {
  */
 export async function updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDate, blockHeight) {
     try {
-        const db = await getOrCreateDB(orbitdb)
+        logger.info(`[updateDailyNameOpsFile] Starting to store ${nameOpUtxos.length} nameOps for block ${blockHeight}`);
+        const db = await getOrCreateDB(orbitdb);
+        
         // Iterate over each nameOpUtxo and store it individually
         for (const nameOp of nameOpUtxos) {
             const docId = nameOp.txid;  // Use txid as the document ID
+            logger.debug(`[updateDailyNameOpsFile] Storing nameOp with txid ${docId}`);
 
             // Store each nameOpUtxo as a separate document
             await db.put({
                 _id: docId,
                 nameOp,  // Store the entire nameOp object
                 blockHeight,
-                blockDate
-            })
+                blockDate,
+                timestamp: new Date().toISOString() // Add timestamp for debugging
+            });
+            
+            // Verify the document was stored
+            const doc = await db.get(docId);
+            if (!doc) {
+                throw new Error(`Failed to verify document storage for ${docId}`);
+            }
+            logger.debug(`[updateDailyNameOpsFile] Verified storage of nameOp ${docId}`);
+            logger.debug(`[updateDailyNameOpsFile] Successfully stored nameOp ${docId}`);
         }
 
-        console.log(`Stored ${nameOpUtxos.length} name operations in OrbitDB`)
+        // Verify the documents were stored
+        const allDocs = await db.all();
+        logger.info(`[updateDailyNameOpsFile] Total documents in OrbitDB after update: ${allDocs.length}`);
+        logger.info(`[updateDailyNameOpsFile] Successfully stored ${nameOpUtxos.length} nameOps for block ${blockHeight}`);
         return nameOpUtxos.length
 
     } catch (error) {
@@ -79,16 +113,18 @@ Document Structure: The structure of your documents might allow for multiple nam
  */
 export async function getLastNameOps(orbitdb, pageSize, from=10, filter) {
     try {
-        const db = await getOrCreateDB(orbitdb)
-        const allDocs = await db.all()
+        logger.info(`[getLastNameOps] Starting to fetch nameOps with filter: ${JSON.stringify(filter)}`);
+        const db = await getOrCreateDB(orbitdb);
+        const allDocs = await db.all();
+        logger.info(`[getLastNameOps] Found ${allDocs.length} total documents in OrbitDB`);
         
-        let nameOps = []
+        let nameOps = [];
         for (const doc of allDocs) {
             const nameOp = doc.value.nameOp;
             const blockDate = doc.value.blockDate;
             
-            // Add debug logging
-            console.log('Processing document:', {
+            logger.debug(`[getLastNameOps] Processing document:`, {
+                txid: nameOp.txid,
                 blockDate,
                 filterDate: filter?.date,
                 passedFilter: applyFilter(nameOp, filter) && applyDateFilter(blockDate, filter?.date)
@@ -96,12 +132,16 @@ export async function getLastNameOps(orbitdb, pageSize, from=10, filter) {
             
             if (applyFilter(nameOp, filter) && applyDateFilter(blockDate, filter?.date)) {
                 nameOps.push(nameOp);
+                logger.debug(`[getLastNameOps] Added nameOp ${nameOp.txid} to results`);
             }
         }
-        // Sort nameOps by blocktime in descending order
-        nameOps.sort((a, b) => b.blocktime - a.blocktime)
         
-        const paginatedNameOps = nameOps.slice(from, from + pageSize)
+        // Sort nameOps by blocktime in descending order
+        nameOps.sort((a, b) => b.blocktime - a.blocktime);
+        logger.info(`[getLastNameOps] Found ${nameOps.length} matching nameOps before pagination`);
+        
+        const paginatedNameOps = nameOps.slice(from, from + pageSize);
+        logger.info(`[getLastNameOps] Returning ${paginatedNameOps.length} nameOps after pagination`);
         return paginatedNameOps
 
     } catch (error) {
@@ -165,8 +205,16 @@ function applyDateFilter(blockDate, filterDate) {
 // Add new function to close DB
 export async function closeDB() {
     if (db) {
-        await db.close()
-        db = null
-        logger.info('Closed nameops database')
+        logger.info('[closeDB] Closing nameops database');
+        try {
+            await db.close();
+            db = null;
+            logger.info('[closeDB] Successfully closed nameops database');
+        } catch (error) {
+            logger.error('[closeDB] Error closing database:', error);
+            throw error;
+        }
+    } else {
+        logger.debug('[closeDB] No database instance to close');
     }
 }

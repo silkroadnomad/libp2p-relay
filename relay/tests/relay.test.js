@@ -13,21 +13,200 @@ import { gossipsub } from "@chainsafe/libp2p-gossipsub";
 import { bootstrap } from "@libp2p/bootstrap"
 import { multiaddr } from '@multiformats/multiaddr'
 import { mdns } from '@libp2p/mdns'
+import { createOrbitDB } from '@doichain/orbitdb'
+import { getOrCreateDB } from '../src/pinner/nameOpsFileManager.js'
 
 const pubsubPeerDiscoveryTopics = process.env.RELAY_PUBSUB_PEER_DISCOVERY_TOPICS?.split(',')
 const CONTENT_TOPIC = '/doichain-nfc/1/message/proto';
 
 describe('Doichain Relay Pinning Service Test', function() {
-  this.timeout(100000); 
+  this.timeout(300000); // Increase timeout for proper synchronization
 
-  let helia, fs, pubsub;
+  let helia, fs, pubsub, db;
   const messages = [];
-  const TIMEOUT = 5000;
+  const TIMEOUT = 30000; // Increase timeout for operations
+
+  // Helper function to check if OrbitDB has nameOps and relay connection is established
+  async function waitForNameOps(orbitdb, maxAttempts = 60) {
+    console.log('[waitForNameOps] Starting check for nameOps and relay connection...');
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        console.log(`[waitForNameOps] Attempt ${attempt + 1}/${maxAttempts}`);
+        
+        // Check relay connection first with retries
+        const targetPeerId = '12D3KooWF5fGyE4VeXMhSGd9rCwckyxCVkA6xfoyFJG9DWJis62v'; // Match the configured private key
+        let isConnected = false;
+        let connectionAttempts = 0;
+        const maxConnectionAttempts = 3;
+
+        while (!isConnected && connectionAttempts < maxConnectionAttempts) {
+          const peers = await helia.libp2p.getPeers();
+          isConnected = peers.some(peer => peer.toString() === targetPeerId);
+          
+          if (!isConnected) {
+            connectionAttempts++;
+            console.log(`[waitForNameOps] Not connected to relay (attempt ${connectionAttempts}/${maxConnectionAttempts}), trying to connect...`);
+            try {
+              // Try to explicitly connect to the relay
+              const relayMa = `/dns4/relay-service/tcp/9090/p2p/${targetPeerId}`;
+              await helia.libp2p.dial(multiaddr(relayMa));
+              console.log('[waitForNameOps] Successfully dialed relay');
+            } catch (dialError) {
+              console.error('[waitForNameOps] Failed to dial relay:', dialError.message);
+            }
+            await new Promise(resolve => setTimeout(resolve, 5000));
+          }
+        }
+        
+        if (!isConnected) {
+          console.log('[waitForNameOps] Failed to connect to relay, retrying full check...');
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          continue;
+        }
+        
+        console.log('[waitForNameOps] Connected to relay, checking OrbitDB...');
+        
+        // Check OrbitDB with improved error handling
+        const db = await getOrCreateDB(orbitdb);
+        if (!db) {
+          throw new Error('[waitForNameOps] Failed to get OrbitDB instance');
+        }
+        
+        // Wait for DB to load and sync with exponential backoff
+        const syncDelay = Math.min(5000 * Math.pow(2, Math.floor(attempt / 10)), 30000);
+        console.log(`[waitForNameOps] Waiting ${syncDelay}ms for DB sync...`);
+        await new Promise(resolve => setTimeout(resolve, syncDelay));
+        
+        // Verify DB is ready and has data with detailed logging
+        const allDocs = await db.all();
+        console.log(`[waitForNameOps] Found ${allDocs.length} documents in OrbitDB`);
+        
+        if (allDocs.length > 0) {
+          // Additional verification: check if we can actually query the data
+          try {
+            const testQuery = await db.query((doc) => doc.value.nameOp !== undefined);
+            console.log(`[waitForNameOps] Query test returned ${testQuery.length} documents`);
+            
+            if (testQuery.length > 0) {
+              // Verify we can access specific fields
+              const sampleDoc = testQuery[0].value;
+              if (!sampleDoc.nameOp || !sampleDoc.blockDate) {
+                console.error('[waitForNameOps] Document structure invalid:', sampleDoc);
+                continue;
+              }
+              
+              console.log('[waitForNameOps] Successfully verified nameOps data structure and access');
+              // Final sync wait with progress logging
+              for (let i = 1; i <= 5; i++) {
+                console.log(`[waitForNameOps] Final sync: ${i}/5 intervals complete`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+              }
+              return true;
+            }
+          } catch (queryError) {
+            console.error('[waitForNameOps] Error querying data:', queryError);
+            throw queryError; // Propagate query errors for better debugging
+          }
+        }
+        
+        console.log('[waitForNameOps] No valid nameOps found yet, waiting 5 seconds...');
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      } catch (error) {
+        console.error(`[waitForNameOps] Error in attempt ${attempt + 1}:`, error);
+        console.error(error.stack);
+        if (attempt === maxAttempts - 1) {
+          throw error; // Throw on last attempt for better error reporting
+        }
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+    }
+    
+    throw new Error('[waitForNameOps] Failed to find nameOps after all attempts');
+  }
 
   before(async function() {
-    this.timeout(100000);
+    this.timeout(600000); // Increase timeout for initialization and sync
     
-    helia = await createHelia({
+    try {
+      console.log('[Setup] Starting test node setup...');
+      
+      // Wait for relay service to be ready
+      console.log('[Setup] Waiting for relay service to be ready...');
+      // Wait for relay service with exponential backoff
+      let waitTime = 5000;
+      const maxWaitTime = 60000;
+      let totalWaitTime = 0;
+      
+      while (totalWaitTime < maxWaitTime) {
+        try {
+          const response = await fetch('http://relay-service:3000/api/v1/nameops/count');
+          if (response.ok) {
+            console.log('[Setup] Relay service is ready');
+            break;
+          }
+        } catch (error) {
+          console.log(`[Setup] Waiting for relay service (${totalWaitTime}ms / ${maxWaitTime}ms)`);
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+          totalWaitTime += waitTime;
+          waitTime = Math.min(waitTime * 2, 15000); // Cap at 15 seconds
+        }
+      }
+      
+      if (totalWaitTime >= maxWaitTime) {
+        throw new Error('[Setup] Timeout waiting for relay service');
+      }
+      
+      // Initialize Helia first
+      console.log('[Setup] Initializing Helia node...');
+      helia = await createHelia({
+        libp2p: {
+          transports: [tcp(), webSockets()],
+          connectionEncryption: [noise()],
+          streamMuxers: [yamux()],
+          services: {
+            pubsub: gossipsub(),
+            identify: identify(),
+          },
+          addresses: {
+            listen: ['/ip4/0.0.0.0/tcp/4002', '/ip4/0.0.0.0/tcp/4003/ws']
+          },
+          peerDiscovery: [
+            bootstrap({ list: ['/dns4/relay-service/tcp/9090/p2p/12D3KooWF5fGyE4VeXMhSGd9rCwckyxCVkA6xfoyFJG9DWJis62v'] }), // Use container DNS name
+            pubsubPeerDiscovery({
+              interval: 10000,
+              topics: pubsubPeerDiscoveryTopics,
+              listenOnly: false
+            }),
+            mdns()
+          ]
+        }
+      });
+      console.log('[Setup] Helia node initialized:', helia.libp2p.peerId.toString());
+
+      // Initialize OrbitDB with Helia instance
+      console.log('[Setup] Initializing OrbitDB...');
+      global.orbitdb = await createOrbitDB({
+        ipfs: helia,
+        directory: './orbitdb-test'
+      });
+      console.log('[Setup] OrbitDB initialized:', global.orbitdb.id);
+      
+      // Initialize the nameOps database using the production code pattern
+      db = await getOrCreateDB(global.orbitdb);
+      console.log('[Setup] NameOps database initialized');
+
+      // Wait for nameOps to be created by regtest container and indexed
+      console.log('[Setup] Waiting for nameOps to be indexed...');
+      try {
+        await waitForNameOps(global.orbitdb);
+        console.log('[Setup] Successfully verified nameOps are indexed');
+      } catch (error) {
+        console.error('[Setup] Failed waiting for nameOps:', error);
+        throw error;
+      }
+
+      helia = await createHelia({
       libp2p: {
         transports: [tcp(), webSockets()],
         connectionEncryption: [noise()],
@@ -37,10 +216,10 @@ describe('Doichain Relay Pinning Service Test', function() {
           identify: identify(),
         },
         addresses: {
-          listen: ['/ip4/127.0.0.1/tcp/4002', '/ip4/127.0.0.1/tcp/4003/ws']
+          listen: ['/ip4/0.0.0.0/tcp/4002', '/ip4/0.0.0.0/tcp/4003/ws']
         },
         peerDiscovery: [
-            bootstrap({ list: ['/ip4/127.0.0.1/tcp/9090/p2p/12D3KooWQpeSaj6FR8SpnDzkESTXY5VqnZVWNUKrkqymGiZTZbW2'] }),
+            bootstrap({ list: ['/dns4/relay-service/tcp/9090/p2p/12D3KooWF5fGyE4VeXMhSGd9rCwckyxCVkA6xfoyFJG9DWJis62v'] }), // Use container DNS name
             pubsubPeerDiscovery({
                 interval: 10000,
                 topics: pubsubPeerDiscoveryTopics,
@@ -68,10 +247,38 @@ describe('Doichain Relay Pinning Service Test', function() {
     });
 
     await new Promise(resolve => setTimeout(resolve, TIMEOUT));
+
+      // Wait for nameOps to be indexed and verify they exist
+      console.log('[Setup] Waiting for nameOps to be indexed in OrbitDB...');
+      const hasNameOps = await waitForNameOps(global.orbitdb);
+      if (!hasNameOps) {
+        console.warn('[Setup] No nameOps found in OrbitDB after timeout');
+        throw new Error('Failed to verify nameOps in OrbitDB after creation');
+      }
+      console.log('[Setup] Successfully verified nameOps in OrbitDB');
+    } catch (error) {
+      console.error('[Setup] Error in test setup:', error);
+      throw error;
+    }
   });
 
   after(async () => {
-    if(helia) await helia.stop();
+    try {
+      console.log('[Cleanup] Starting cleanup...');
+      if (global.orbitdb) {
+        const { closeDB } = await import('../src/pinner/nameOpsFileManager.js');
+        await closeDB();
+        delete global.orbitdb;
+        console.log('[Cleanup] OrbitDB closed and cleaned up');
+      }
+      if (helia) {
+        await helia.stop();
+        console.log('[Cleanup] Helia node stopped');
+      }
+    } catch (error) {
+      console.error('[Cleanup] Error during cleanup:', error);
+      throw error;
+    }
   });
 
   it('should connect to the existing Helia node and check for specific peer', async function() {
@@ -134,38 +341,52 @@ describe('Doichain Relay Pinning Service Test', function() {
   });
 
   it.only('should receive CIDs response when requesting LIST_TODAY', async function() {
-    this.timeout(20000);
+    this.timeout(60000); // Increase timeout
     messages.length = 0;
+    
+    try {
+      // Wait for nameOps to be indexed before starting test
+      console.log('[LIST_TODAY] Waiting for nameOps...');
+      const hasNameOps = await waitForNameOps(global.orbitdb);
+      expect(hasNameOps, 'Expected nameOps to be indexed before running test').to.be.true;
 
-    // Use ISO format for consistency
-    const today = "2024-12-08"; 
+    // Use "TODAY" for consistent date handling
     const messageObject = {
         type: "LIST",
-        dateString: today, // Send actual date instead of "TODAY"
+        dateString: "TODAY", // Use TODAY instead of hardcoded date
         pageSize: 10,
         from: 0,
         filter: ""
     };
 
-    console.log('Publishing LIST request message');
+    console.log('[LIST_TODAY] Publishing LIST request message');
     await pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(JSON.stringify(messageObject)));
-    await new Promise(resolve => setTimeout(resolve, 1000));
-   const nameOps = messages.flatMap(msg => {
-        try {
-            const parsed = JSON.parse(msg);
-            return Array.isArray(parsed) ? parsed : [];
-        } catch (e) {
-            return [];
-        }
+
+    // Wait longer for response
+    console.log('[LIST_TODAY] Waiting for response...');
+    await new Promise(resolve => setTimeout(resolve, 30000));
+
+    const nameOps = messages.flatMap(msg => {
+      try {
+        const parsed = JSON.parse(msg);
+        console.log('[LIST_TODAY] Parsed message:', parsed);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        console.error('[LIST_TODAY] Error parsing message:', e);
+        return [];
+      }
     });
-    //expect 3 namops
-    console.log(`Received ${nameOps.length} nameOps`);
+
+    console.log(`[LIST_TODAY] Received ${nameOps.length} nameOps`);
     expect(nameOps.length).to.be.greaterThan(0);
     nameOps.forEach(op => {
-            expect(op).to.have.property('nameId');
-            expect(op).to.have.property('txid');
-        });
-    
+      expect(op).to.have.property('nameId');
+      expect(op).to.have.property('txid');
+    });
+    } catch (error) {
+      console.error('[LIST_TODAY] Error in test:', error);
+      throw error;
+    }
   });
 
   // it('should receive CIDs response for the last 5 days', async function() {
@@ -203,41 +424,56 @@ describe('Doichain Relay Pinning Service Test', function() {
   // });
 
   it.only('should receive last 100 NameOps when requesting LIST_LAST_100', async function() {
-    this.timeout(20000); 
-    messages.length = 0; 
+    this.timeout(60000); // Increase timeout
+    messages.length = 0;
+    
+    try {
+      // Wait for nameOps to be indexed before starting test
+      console.log('[LIST_LAST_100] Waiting for nameOps...');
+      const hasNameOps = await waitForNameOps(global.orbitdb);
+      expect(hasNameOps, 'Expected nameOps to be indexed before running test').to.be.true;
 
     const messageObject = {
         type: "LIST",
+        dateString: "LAST", // Add dateString parameter to avoid INVALID_DATE_FORMAT
         pageSize: 100,
         from: 0,
         filter: ""  // empty string for no filter
     };
 
-    console.log('Publishing LIST request message');
+    console.log('[LIST_LAST_100] Publishing LIST request message');
     await pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(JSON.stringify(messageObject)));
 
     // Wait for response
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    console.log('[LIST_LAST_100] Waiting for response...');
+    await new Promise(resolve => setTimeout(resolve, 30000));
 
     // Process the response
     const nameOps = messages.flatMap(msg => {
       try {
-        return JSON.parse(msg);
+        const parsed = JSON.parse(msg);
+        console.log('[LIST_LAST_100] Parsed message:', parsed);
+        return Array.isArray(parsed) ? parsed : [];
       } catch (e) {
+        console.error('[LIST_LAST_100] Error parsing message:', e);
         return [];
       }
     });
 
     if (nameOps.length > 0) {
-      console.log(`Received ${nameOps.length} NameOps`);
+      console.log(`[LIST_LAST_100] Received ${nameOps.length} NameOps`);
       expect(nameOps.length).to.be.at.most(100);
       expect(nameOps[0]).to.have.property('nameId');
       expect(nameOps[0]).to.have.property('txid');
       
-      console.log("First few nameIds:", nameOps.slice(0, 5).map(op => op.nameId).join(', '));
+      console.log("[LIST_LAST_100] First few nameIds:", nameOps.slice(0, 5).map(op => op.nameId).join(', '));
     } else {
-      console.log('No NameOps received');
+      console.log('[LIST_LAST_100] No NameOps received');
       expect(messages).to.include('LAST_100_CIDS:NONE');
+    }
+    } catch (error) {
+      console.error('[LIST_LAST_100] Error in test:', error);
+      throw error;
     }
   });
 

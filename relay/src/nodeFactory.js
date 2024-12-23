@@ -46,13 +46,33 @@ export async function createNode(privKeyHex, datastore, blockstore, listenAddres
         ]
     });
 
-    // Create OrbitDB instance
-    const orbitdb = await createOrbitDB({ 
-        ipfs: helia,
-        directory: './orbitdb', // Base directory for OrbitDB data
-        id: 'doichain-relay', // Optional identifier
-    });
-    logger.info('OrbitDB initialized');
+    // Create OrbitDB instance with retries
+    let orbitdb;
+    const maxRetries = 10;
+    let attempt = 0;
+    
+    while (attempt < maxRetries) {
+        try {
+            orbitdb = await createOrbitDB({ 
+                ipfs: helia,
+                directory: './orbitdb',
+                id: 'doichain-relay',
+            });
+            logger.info('OrbitDB initialized successfully', {
+                attempt: attempt + 1,
+                address: orbitdb.address,
+                id: orbitdb.id
+            });
+            break;
+        } catch (error) {
+            attempt++;
+            logger.warn(`Failed to initialize OrbitDB (attempt ${attempt}/${maxRetries})`, { error });
+            if (attempt === maxRetries) {
+                throw new Error(`Failed to initialize OrbitDB after ${maxRetries} attempts`);
+            }
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retrying
+        }
+    }
 
     console.log('Helia peerId:', helia.libp2p.peerId.toString());
     console.log('Configured listen addresses:', listenAddresses);
