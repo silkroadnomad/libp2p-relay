@@ -42,6 +42,7 @@ services:
       - regtest
     ports:
       - "1235:1235"
+      - "9090:9090"  # Required for libp2p connectivity
       - "9091:9091"
       - "12345:12345"
       - "3000:3000"
