@@ -45,8 +45,8 @@ export function createLibp2pConfig({ keyPair, datastore, listenAddresses, announ
         },
         transports: [
             tcp(),
-            webRTCDirect(),
-            webRTC(),
+            // webRTCDirect(),
+            // webRTC(),
             // webRTCDirect({
             //     rtcConfiguration: {
             //         iceServers: [

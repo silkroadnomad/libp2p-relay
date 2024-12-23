@@ -4,8 +4,8 @@ import { getLastNameOps } from "./pinner/nameOpsFileManager.js";
 import { formatFileSize } from './utils.js';
 import moment from 'moment';
 
-export function setupPubsub(helia, orbitdb, pinningService, electrumClient, fsHelia, CONTENT_TOPIC) {
-    helia.libp2p.services.pubsub.subscribe(CONTENT_TOPIC);
+export function setupPubsub(helia, orbitdb, pinningService, electrumClient, fsHelia, contentTopic) {
+    helia.libp2p.services.pubsub.subscribe(contentTopic);
 
     helia.libp2p.services.pubsub.addEventListener('message', async event => {
         logger.info(`Received pubsub message from ${event.detail.from} on topic ${event.detail.topic}`);
@@ -19,19 +19,19 @@ export function setupPubsub(helia, orbitdb, pinningService, electrumClient, fsHe
         } catch (error) {
         }
 
-        if (messageObject && topic.startsWith(CONTENT_TOPIC)) {
+        if (messageObject && topic.startsWith(contentTopic)) {
             console.log("Received message:", messageObject);
             if (messageObject.type == "LIST") {
                 console.log("Received LIST request:", messageObject);
                 const { dateString, pageSize, from, filter } = messageObject;
                 const pageSizeValue = parseInt(pageSize, 10) || 10; // Default to 100 if not specified
-                await handleListRequest(dateString, pageSizeValue, from, filter, orbitdb);
+                await handleListRequest(dateString, pageSizeValue, from, filter, contentTopic, helia, orbitdb);
             }
         } else {
             if (message.startsWith("NEW-CID")) {
                 const cid = message.substring(8);
                 logger.info(`Processing new CID request: ${cid}`);
-                await processNewCID(cid, fsHelia, pinningService, electrumClient, helia, CONTENT_TOPIC);
+                await processNewCID(cid, fsHelia, pinningService, electrumClient, contentTopic, helia);
             }
         }
     });
@@ -46,7 +46,7 @@ export function setupPubsub(helia, orbitdb, pinningService, electrumClient, fsHe
     });
 }
 
-async function handleListRequest(dateString, pageSize, from, filter, orbitdb) {
+async function handleListRequest(dateString, pageSize, from, filter, contentTopic, helia, orbitdb) {
     try {
         let nameOps;
         console.log("Handling LIST request:", { dateString, pageSize, from, filter });
@@ -54,7 +54,7 @@ async function handleListRequest(dateString, pageSize, from, filter, orbitdb) {
         if (dateString !== "LAST") {
             const date = parseDate(dateString);
             if (!date) {
-                publishMessage(helia, "INVALID_DATE_FORMAT");
+                publishMessage(helia, contentTopic, "INVALID_DATE_FORMAT");
                 return;
             }
             filter = { ...filter, date }; // Add date to the filter object
@@ -63,13 +63,13 @@ async function handleListRequest(dateString, pageSize, from, filter, orbitdb) {
         nameOps = await getLastNameOps(orbitdb, pageSize, from, filter);
 
         if (nameOps.length > 0) {
-            publishMessage(helia, JSON.stringify(nameOps));
+            publishMessage(helia, contentTopic, JSON.stringify(nameOps));
         } else {
-            publishMessage(helia, `${dateString}_CIDS:NONE`);
+            publishMessage(helia, contentTopic, `${dateString}_CIDS:NONE`);
         }
     } catch (error) {
         logger.error('Error fetching NameOps:', error);
-        publishMessage(helia, `ERROR:Failed to fetch NameOps: ${error.message}`);
+        publishMessage(helia, contentTopic, `ERROR:Failed to fetch NameOps: ${error.message}`);
     }
 }
 
@@ -81,11 +81,11 @@ function parseDate(dateString) {
     return isNaN(date.getTime()) ? null : date;
 }
 
-function publishMessage(helia, message) {
-    helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(message));
+function publishMessage(helia, contentTopic, message) {
+    helia.libp2p.services.pubsub.publish(contentTopic, new TextEncoder().encode(message));
 }
 
-async function processNewCID(cid, fsHelia, pinningService, electrumClient, helia, CONTENT_TOPIC) {
+async function processNewCID(cid, fsHelia, pinningService, electrumClient, contentTopic, helia) {
     try {
         // Get metadata content and size
         let metadataContent = '';
@@ -187,7 +187,7 @@ async function processNewCID(cid, fsHelia, pinningService, electrumClient, helia
 
         logger.info(`Publishing response for CID ${cid}`);
         logger.info("Response payload:", addingMsg);
-        helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addingMsg));
+        helia.libp2p.services.pubsub.publish(contentTopic, new TextEncoder().encode(addingMsg));
 
     } catch (error) {
         logger.error('Error processing file or sending notification:', error);
@@ -199,5 +199,5 @@ async function processNewCID(cid, fsHelia, pinningService, electrumClient, helia
         // timestamp: Date.now()
     });
     logger.info(`Publishing completion message for CID ${cid}:`, addedMsg);
-    helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addedMsg));
+    helia.libp2p.services.pubsub.publish(contentTopic, new TextEncoder().encode(addedMsg));
 }
