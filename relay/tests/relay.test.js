@@ -13,6 +13,7 @@ import { gossipsub } from "@chainsafe/libp2p-gossipsub";
 import { bootstrap } from "@libp2p/bootstrap"
 import { multiaddr } from '@multiformats/multiaddr'
 import { mdns } from '@libp2p/mdns'
+import { getOrCreateDB } from '../src/pinner/nameOpsFileManager.js'
 
 const pubsubPeerDiscoveryTopics = process.env.RELAY_PUBSUB_PEER_DISCOVERY_TOPICS?.split(',')
 const CONTENT_TOPIC = '/doichain-nfc/1/message/proto';
@@ -23,6 +24,22 @@ describe('Doichain Relay Pinning Service Test', function() {
   let helia, fs, pubsub;
   const messages = [];
   const TIMEOUT = 5000;
+
+  // Helper function to check if OrbitDB has nameOps
+  async function waitForNameOps(orbitdb, maxAttempts = 10) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const db = await getOrCreateDB(orbitdb);
+      const allDocs = await db.all();
+      if (allDocs.length > 0) {
+        console.log(`Found ${allDocs.length} nameOps in OrbitDB`);
+        return true;
+      }
+      console.log(`Attempt ${attempt + 1}/${maxAttempts}: Waiting for nameOps to be indexed...`);
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds between attempts
+    }
+    console.log('Timed out waiting for nameOps');
+    return false;
+  }
 
   before(async function() {
     this.timeout(100000);
@@ -68,6 +85,13 @@ describe('Doichain Relay Pinning Service Test', function() {
     });
 
     await new Promise(resolve => setTimeout(resolve, TIMEOUT));
+
+    // Wait for nameOps to be indexed
+    console.log('Waiting for nameOps to be indexed in OrbitDB...');
+    const hasNameOps = await waitForNameOps(helia.orbitdb);
+    if (!hasNameOps) {
+      console.warn('No nameOps found in OrbitDB after timeout');
+    }
   });
 
   after(async () => {
@@ -136,12 +160,16 @@ describe('Doichain Relay Pinning Service Test', function() {
   it.only('should receive CIDs response when requesting LIST_TODAY', async function() {
     this.timeout(20000);
     messages.length = 0;
+    
+    // Wait for nameOps to be indexed before starting test
+    console.log('Waiting for nameOps before LIST_TODAY test...');
+    const hasNameOps = await waitForNameOps(helia.orbitdb);
+    expect(hasNameOps, 'Expected nameOps to be indexed before running test').to.be.true;
 
-    // Use ISO format for consistency
-    const today = "2024-12-08"; 
+    // Use "TODAY" for consistent date handling
     const messageObject = {
         type: "LIST",
-        dateString: today, // Send actual date instead of "TODAY"
+        dateString: "TODAY", // Use TODAY instead of hardcoded date
         pageSize: 10,
         from: 0,
         filter: ""
@@ -204,10 +232,16 @@ describe('Doichain Relay Pinning Service Test', function() {
 
   it.only('should receive last 100 NameOps when requesting LIST_LAST_100', async function() {
     this.timeout(20000); 
-    messages.length = 0; 
+    messages.length = 0;
+    
+    // Wait for nameOps to be indexed before starting test
+    console.log('Waiting for nameOps before LIST_LAST_100 test...');
+    const hasNameOps = await waitForNameOps(helia.orbitdb);
+    expect(hasNameOps, 'Expected nameOps to be indexed before running test').to.be.true;
 
     const messageObject = {
         type: "LIST",
+        dateString: "LAST", // Add dateString parameter to avoid INVALID_DATE_FORMAT
         pageSize: 100,
         from: 0,
         filter: ""  // empty string for no filter
