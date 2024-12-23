@@ -25,6 +25,12 @@ services:
       - "50001:50001"
       - "50002:50002"
       - "8443:8443"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "50001"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     stdin_open: true
     tty: true
     privileged: true
@@ -43,10 +49,10 @@ services:
       timeout: 3s
       retries: 3
     depends_on:
-      electrumx:
-        condition: service_healthy
       regtest:
         condition: service_started
+      electrumx:
+        condition: service_healthy
     ports:
       - "1235:1235"
       - "9090:9090"  # Required for libp2p connectivity
@@ -57,7 +63,7 @@ services:
       - RELAY_LISTEN_ADDRESSES=/ip4/0.0.0.0/tcp/9090,/ip4/0.0.0.0/tcp/9091
       - RELAY_ANNOUNCE_ADDRESSES=/dns4/relay-service/tcp/9090,/dns4/relay-service/tcp/9091  # Use container DNS name
       - RELAY_DEV_MODE=true  # Enable dev mode for testing
-      - RELAY_PRIVATE_KEY=08011240053870142e367a49a603623d78ece265568ece425e195fb0540c27ed000bc2baf6f602d7717a7e26b07a8cff2c6784b3f7c9e36a01b5667e6894b6af41ed8b42  # Use consistent key
+      - RELAY_PRIVATE_KEY=${TEST_RELAY_PRIVATE_KEY}  # Use environment variable for security
 
 volumes:
   doichain-data:
