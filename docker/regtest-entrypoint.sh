@@ -4,8 +4,12 @@ set -e
 echo "Starting doichaind in regtest mode..."
 doichaind -regtest -daemon
 
-echo "Waiting 5s for doichaind to be ready..."
-sleep 5
+echo "Waiting for doichaind to be ready..."
+while ! doichain-cli -regtest -rpcuser=admin -rpcpassword=adminpw -rpcwait getblockchaininfo > /dev/null 2>&1; do
+    echo "Waiting for doichaind..."
+    sleep 1
+done
+echo "doichaind is ready!"
 
 echo "Generating a new address..."
 NEWADDR=$(doichain-cli -regtest -rpcuser=admin -rpcpassword=adminpw -rpcwait getnewaddress)

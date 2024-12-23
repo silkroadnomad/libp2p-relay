@@ -37,6 +37,11 @@ services:
       - ./docker/entrypoint.sh:/usr/src/app/entrypoint.sh
       # - ./:/usr/src/app/
     entrypoint: ["/usr/src/app/entrypoint.sh", "generate-key"]
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "3000"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
     depends_on:
       - electrumx
       - regtest

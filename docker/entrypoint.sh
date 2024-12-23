@@ -39,11 +39,11 @@ wait_for_services() {
     done
     echo "ElectrumX and regtest are ready!"
     
-    # Start the relay service
-    npm run start &
-    
     # Then wait for relay service to be ready
     count=0
+    echo "Starting relay service..."
+    npm run start &
+    
     echo "Waiting for relay service to initialize..."
     while ! check_relay_service; do
         count=$((count + 1))
@@ -74,10 +74,7 @@ if [ "$1" == "generate-key" ]; then
     cat .env
 
     # Wait for all services to be ready before starting
-    if wait_for_services; then
-        echo "Starting relay service..."
-        npm run start
-    else
+    if ! wait_for_services; then
         echo "Failed to connect to required services"
         exit 1
     fi
