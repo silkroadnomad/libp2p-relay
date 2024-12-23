@@ -64,60 +64,104 @@ const errorRate = new client.Counter({
 
 export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb, tip, _stopToken) {
     try {
-        pinningService = new PinningService(helia, orbitdb, electrumClient)
+        logger.info("[scanBlockchainForNameOps] Starting blockchain scan", {
+            orbitdbId: orbitdb.id,
+            heliaId: helia.libp2p.peerId.toString()
+        });
+
+        pinningService = new PinningService(helia, orbitdb, electrumClient);
         stopToken.isStopped = _stopToken;
-        logger.info("scanBlockchainForNameOps into orbitdb", orbitdb.id)
-        helia = helia
 
         if (!tip) {
             tip = await electrumClient.request('blockchain.headers.subscribe');
-            logger.info("Blockchain tip", { height: tip.height });
+            logger.info("[scanBlockchainForNameOps] Current blockchain tip", { 
+                height: tip.height,
+                timestamp: new Date().toISOString()
+            });
         }
 
-
-        let state = await getScanningState(orbitdb)
+        let state = await getScanningState(orbitdb);
         let startHeight;
+        
         if (state && state.tipHeight) {
             if (tip.height > state.tipHeight) {
                 startHeight = tip.height;
-                logger.info("New blocks detected, starting from current tip", { startHeight, storedTip: state.tipHeight });
+                logger.info("[scanBlockchainForNameOps] New blocks detected", { 
+                    startHeight, 
+                    storedTip: state.tipHeight,
+                    diff: tip.height - state.tipHeight
+                });
             } else {
                 startHeight = state.lastBlockHeight;
-                logger.info("Continuing from last scanned block", { startHeight });
+                logger.info("[scanBlockchainForNameOps] Continuing scan", { 
+                    startHeight,
+                    lastProcessed: state.lastBlockHeight,
+                    remainingBlocks: startHeight - MIN_HEIGHT
+                });
             }
         } else {
             startHeight = tip.height; 
-            logger.info("No previous state, starting from current tip", { startHeight });
+            logger.info("[scanBlockchainForNameOps] Starting fresh scan", { 
+                startHeight,
+                timestamp: new Date().toISOString()
+            });
         }
 
-        await processBlocks(helia, electrumClient, startHeight, tip,state, orbitdb, stopToken);
+        // Verify OrbitDB is ready
+        logger.info("[scanBlockchainForNameOps] Verifying OrbitDB connection", {
+            address: orbitdb.address,
+            id: orbitdb.id
+        });
+
+        await processBlocks(helia, electrumClient, startHeight, tip, state, orbitdb, stopToken);
     } finally {
         // Close DB when scanning is complete or if there's an error
         await closeDB()
     }
 }
 
-async function processBlocks(helia, electrumClient, startHeight, tip,origState, orbitdb, stopToken) {
+async function processBlocks(helia, electrumClient, startHeight, tip, origState, orbitdb, stopToken) {
     const MIN_HEIGHT = 0;
     let currentDay = null;
     let state = null;
+    let totalNameOps = 0;
     const pinQueue = new PQueue({ concurrency: 5 });
 
-    for (let height = startHeight; height > MIN_HEIGHT; height--) {
-        if (stopToken.isStopped) break;
-        const endTimer = blockProcessingDuration.startTimer(); // Start timing block processing
-        try {
-            // Update connection status
-            electrumClientConnectionStatus.set(electrumClient.getStatus() === 1 ? 1 : 0);
+    logger.info("[processBlocks] Starting block processing", {
+        startHeight,
+        tipHeight: tip.height,
+        minHeight: MIN_HEIGHT,
+        timestamp: new Date().toISOString()
+    });
 
-            if (electrumClient.getStatus() !== 1) {
-                logger.warn("ElectrumX connection lost, attempting to reconnect...");
+    for (let height = startHeight; height > MIN_HEIGHT; height--) {
+        if (stopToken.isStopped) {
+            logger.info("[processBlocks] Stopping block processing due to stop token");
+            break;
+        }
+
+        const endTimer = blockProcessingDuration.startTimer();
+        try {
+            // Update and log connection status
+            const connectionStatus = electrumClient.getStatus() === 1;
+            electrumClientConnectionStatus.set(connectionStatus ? 1 : 0);
+            logger.debug("[processBlocks] Connection status", {
+                height,
+                connected: connectionStatus,
+                timestamp: new Date().toISOString()
+            });
+
+            if (!connectionStatus) {
+                logger.warn("[processBlocks] ElectrumX connection lost, reconnecting...");
                 await reconnectElectrumClient(electrumClient);
             }
 
-            logger.info(`Processing block at height ${height}`);
+            logger.info(`[processBlocks] Processing block ${height}`, {
+                remainingBlocks: height - MIN_HEIGHT,
+                totalNameOpsFound: totalNameOps
+            });
+
             const { nameOpUtxos, blockDate } = await processBlockAtHeight(height, electrumClient);
-            logger.info(`nameOpUtxos ${nameOpUtxos} at ${blockDate}`);
             const blockDay = moment.utc(blockDate).format('YYYY-MM-DD');
             if (blockDay !== currentDay) {
                 currentDay = blockDay;
@@ -125,17 +169,27 @@ async function processBlocks(helia, electrumClient, startHeight, tip,origState, 
             }
 
             if (nameOpUtxos.length > 0) {
-                logger.debug(`Found ${nameOpUtxos.length} name operations in block ${height}`);
+                totalNameOps += nameOpUtxos.length;
+                logger.info("[processBlocks] Found nameOps", {
+                    blockHeight: height,
+                    count: nameOpUtxos.length,
+                    totalSoFar: totalNameOps,
+                    blockDay,
+                    timestamp: new Date().toISOString()
+                });
 
-                // Increment the NameOps Indexed counter
+                // Update metrics
                 nameOpsIndexedCounter.inc(nameOpUtxos.length);
-
-                // Record the number of NameOps per block
                 nameOpsPerBlock.observe(nameOpUtxos.length);
 
-                // Use the updateQueue for updateDailyNameOpsFile operation
-                // await updateQueue.add(() => updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDay, height));
-                updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDay, height)
+                // Store nameOps in OrbitDB
+                logger.debug("[processBlocks] Storing nameOps in OrbitDB", {
+                    count: nameOpUtxos.length,
+                    blockHeight: height,
+                    blockDay
+                });
+
+                await updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDay, height);
 
                 for (const nameOp of nameOpUtxos) {
                     if (nameOp.nameValue && nameOp.nameValue.startsWith('ipfs://')) {
