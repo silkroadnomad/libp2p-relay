@@ -7,23 +7,42 @@ let db = null
  * Initialize or get the single OrbitDB instance
  */
 export async function getOrCreateDB(orbitdb) {
-    console.log("getOrCreateDB", orbitdb.id)
-    if (db) {
-        return db
+    try {
+        if (!orbitdb) {
+            logger.error('OrbitDB instance not provided');
+            throw new Error('OrbitDB instance not provided');
+        }
+
+        console.log("getOrCreateDB called with orbitdb id:", orbitdb.id);
+        
+        if (db) {
+            logger.info('Using existing OrbitDB instance');
+            return db;
+        }
+
+        // Open new DB with documents type and access control
+        const dbName = 'nameops';
+        logger.info(`Creating new OrbitDB: ${dbName}`);
+        
+        db = await orbitdb.open(dbName, {
+            type: 'documents',
+            create: true,
+            overwrite: false,
+            directory: './orbitdb/nameops',
+            AccessController: IPFSAccessController({ write: [orbitdb.identity.id] })
+        });
+
+        if (!db) {
+            throw new Error('Failed to create OrbitDB instance');
+        }
+
+        logger.info(`Successfully opened OrbitDB: ${dbName}`);
+        return db;
+    } catch (error) {
+        logger.error(`Error in getOrCreateDB: ${error.message}`);
+        logger.error(error.stack);
+        throw error;
     }
-
-    // Open new DB with documents type and access control
-    const dbName = 'nameops'
-    db = await orbitdb.open(dbName, {
-        type: 'documents',
-        create: true,
-        overwrite: false,
-        directory: './orbitdb/nameops',
-        AccessController: IPFSAccessController({ write: [orbitdb.identity.id] })
-    })
-
-    logger.info(`Opened OrbitDB: ${dbName}`)
-    return db
 }
 
 /**

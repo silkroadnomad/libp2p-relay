@@ -36,7 +36,7 @@ services:
     volumes:
       - ./docker/entrypoint.sh:/usr/src/app/entrypoint.sh
       # - ./:/usr/src/app/
-    entrypoint: ["/usr/src/app/entrypoint.sh", "generate-key"]
+    entrypoint: ["/bin/sh", "-c", "sleep 30 && /usr/src/app/entrypoint.sh generate-key && sleep 30"]
     ports:
       - "1235:1235"
       - "9091:9091"
