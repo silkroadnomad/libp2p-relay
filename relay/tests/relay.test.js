@@ -131,6 +131,10 @@ describe('Doichain Relay Pinning Service Test', function() {
     try {
       console.log('[Setup] Starting test node setup...');
       
+      // Wait for relay service to be ready
+      console.log('[Setup] Waiting for relay service to be ready...');
+      await new Promise((resolve) => setTimeout(resolve, 30000));
+      
       // Initialize Helia first
       console.log('[Setup] Initializing Helia node...');
       helia = await createHelia({
@@ -170,34 +174,15 @@ describe('Doichain Relay Pinning Service Test', function() {
       db = await getOrCreateDB(global.orbitdb);
       console.log('[Setup] NameOps database initialized');
 
-      // Create nameOps with Silk Road city names
-      console.log('[Setup] Creating nameOps with Silk Road city names...');
-      const silkRoadCities = [
-        'Xian', 'Luoyang', 'Dunhuang', 'Kashgar', 'Samarkand',
-        'Bukhara', 'Merv', 'Baghdad', 'Damascus', 'Constantinople',
-        'Antioch', 'Tyre', 'Alexandria', 'Balkh', 'Taxila',
-        'Peshawar', 'Kucha', 'Turpan', 'Hotan', 'Lanzhou'
-      ];
-
-      for (const city of silkRoadCities) {
-        const nameOp = {
-          txid: `${Date.now()}-${city.toLowerCase()}`,
-          nameId: `test/${city.toLowerCase()}`,
-          nameValue: `City of ${city} on the Silk Road`,
-          blockHeight: 200,
-          blocktime: Math.floor(Date.now() / 1000),
-          blockDate: new Date().toISOString()
-        };
-        await db.put({
-          _id: nameOp.txid,
-          nameOp,
-          blockHeight: nameOp.blockHeight,
-          blockDate: nameOp.blockDate,
-          timestamp: new Date().toISOString()
-        });
-        console.log(`[Setup] Created nameOp for ${city}`);
+      // Wait for nameOps to be created by regtest container and indexed
+      console.log('[Setup] Waiting for nameOps to be indexed...');
+      try {
+        await waitForNameOps(global.orbitdb);
+        console.log('[Setup] Successfully verified nameOps are indexed');
+      } catch (error) {
+        console.error('[Setup] Failed waiting for nameOps:', error);
+        throw error;
       }
-      console.log('[Setup] Finished creating nameOps');
 
       helia = await createHelia({
       libp2p: {

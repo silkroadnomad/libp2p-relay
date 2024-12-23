@@ -36,7 +36,10 @@ services:
     volumes:
       - ./docker/entrypoint.sh:/usr/src/app/entrypoint.sh
       # - ./:/usr/src/app/
-    entrypoint: ["/bin/sh", "-c", "sleep 10 && /usr/src/app/entrypoint.sh generate-key"]
+    entrypoint: ["/bin/sh", "-c", "while ! nc -z electrumx 8443 || ! nc -z regtest 18443; do echo 'Waiting for services...'; sleep 5; done && sleep 15 && /usr/src/app/entrypoint.sh generate-key"]
+    depends_on:
+      - electrumx
+      - regtest
     ports:
       - "1235:1235"
       - "9091:9091"
