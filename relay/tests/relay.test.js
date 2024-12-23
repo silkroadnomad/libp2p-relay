@@ -13,6 +13,7 @@ import { gossipsub } from "@chainsafe/libp2p-gossipsub";
 import { bootstrap } from "@libp2p/bootstrap"
 import { multiaddr } from '@multiformats/multiaddr'
 import { mdns } from '@libp2p/mdns'
+import { createOrbitDB } from '@doichain/orbitdb'
 import { getOrCreateDB } from '../src/pinner/nameOpsFileManager.js'
 
 const pubsubPeerDiscoveryTopics = process.env.RELAY_PUBSUB_PEER_DISCOVERY_TOPICS?.split(',')
@@ -98,9 +99,15 @@ describe('Doichain Relay Pinning Service Test', function() {
       console.log('[Setup] Starting test node setup...');
       
       // Initialize OrbitDB first
-      const { OrbitDB } = await import('@doichain/orbitdb');
-      global.orbitdb = await OrbitDB.createInstance('./orbitdb-test');
+      console.log('[Setup] Initializing OrbitDB...');
+      global.orbitdb = await createOrbitDB({
+        directory: './orbitdb-test'
+      });
       console.log('[Setup] OrbitDB initialized:', global.orbitdb.id);
+      
+      // Initialize the nameOps database using the production code pattern
+      db = await getOrCreateDB(global.orbitdb);
+      console.log('[Setup] NameOps database initialized');
       
       helia = await createHelia({
       libp2p: {
