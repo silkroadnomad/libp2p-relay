@@ -1,5 +1,6 @@
 import { IPFSAccessController } from '@doichain/orbitdb'
-import level from 'level'
+import pkg from 'level';
+const { Level } = pkg;
 import logger from '../logger.js'
 import dotenv from 'dotenv'
 
@@ -40,7 +41,7 @@ class OrbitDBInterface {
 
 class LevelDBInterface {
     constructor() {
-        this.db = level('./leveldb/nameops')
+        this.db = new Level('./leveldb/nameops')
     }
 
     async put(doc) {
@@ -48,15 +49,13 @@ class LevelDBInterface {
     }
 
     async all() {
-        const allDocs = []
-        return new Promise((resolve, reject) => {
-            this.db.createReadStream()
-                .on('data', ({ key, value }) => {
-                    allDocs.push(JSON.parse(value))
-                })
-                .on('end', () => resolve(allDocs))
-                .on('error', reject)
-        })
+        const allDocs = [];
+        // Iterate over all entries in the database
+        // You can add conditions like { gt: 'a' } if needed
+        for await (const [key, value] of this.db.iterator()) {
+            allDocs.push(value); // Directly use value as it's already parsed
+        }
+        return allDocs;
     }
 
     close() {
@@ -108,7 +107,12 @@ export async function getLastNameOps(orbitdb, pageSize, from = 10, filter) {
         let nameOps = []
 
         for (const doc of allDocs) {
-            const nameOp = doc.nameOp
+            console.log('doc', JSON.parse(doc))
+            const nameOp = JSON.parse(doc).nameOp
+            if (!nameOp) {
+                console.warn('nameOp is undefined for doc:', doc._id)
+                continue
+            }
             const blockDate = doc.blockDate
             if (applyFilter(nameOp, filter) && applyDateFilter(blockDate, filter?.date)) {
                 nameOps.push(nameOp)
@@ -133,7 +137,9 @@ export async function closeDB() {
     }
 }
 
-function applyFilter(nameOp, selectedFilter) {
+function applyFilter(nameOp, selectedFilter){
+    console.log('nameOp', nameOp)
+    console.log('Applying filter:', selectedFilter)
     const hasNameValue = nameOp.nameValue && nameOp.nameValue !== '' && nameOp.nameValue !== ' ' && nameOp.nameValue !== 'empty';
 		
     const isNotSpecialPrefix = !nameOp.nameId.startsWith('e/') &&
