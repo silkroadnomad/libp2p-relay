@@ -1,112 +1,135 @@
 import { IPFSAccessController } from '@doichain/orbitdb'
+import level from 'level'
 import logger from '../logger.js'
+import dotenv from 'dotenv'
+
+dotenv.config()
 
 let db = null
+const dbType = process.env.DB_TYPE || 'leveldb' // Default to OrbitDB
 
-/**
- * Initialize or get the single OrbitDB instance
- */
+class OrbitDBInterface {
+    constructor(orbitdb) {
+        this.orbitdb = orbitdb
+    }
+
+    async open() {
+        const dbName = 'nameops'
+        this.db = await this.orbitdb.open(dbName, {
+            type: 'documents',
+            create: true,
+            overwrite: false,
+            directory: './orbitdb/nameops',
+            AccessController: IPFSAccessController({ write: [this.orbitdb.identity.id] })
+        })
+        logger.info(`Opened OrbitDB: ${dbName}`)
+    }
+
+    async put(doc) {
+        await this.db.put(doc)
+    }
+
+    async all() {
+        return await this.db.all()
+    }
+
+    async close() {
+        await this.db.close()
+    }
+}
+
+class LevelDBInterface {
+    constructor() {
+        this.db = level('./leveldb/nameops')
+    }
+
+    async put(doc) {
+        await this.db.put(doc._id, JSON.stringify(doc))
+    }
+
+    async all() {
+        const allDocs = []
+        return new Promise((resolve, reject) => {
+            this.db.createReadStream()
+                .on('data', ({ key, value }) => {
+                    allDocs.push(JSON.parse(value))
+                })
+                .on('end', () => resolve(allDocs))
+                .on('error', reject)
+        })
+    }
+
+    close() {
+        this.db.close()
+    }
+}
+
 export async function getOrCreateDB(orbitdb) {
-    console.log("getOrCreateDB", orbitdb.id)
     if (db) {
         return db
     }
 
-    // Open new DB with documents type and access control
-    const dbName = 'nameops'
-    db = await orbitdb.open(dbName, {
-        type: 'documents',
-        create: true,
-        overwrite: false,
-        directory: './orbitdb/nameops',
-        AccessController: IPFSAccessController({ write: [orbitdb.identity.id] })
-    })
+    if (dbType === 'orbitdb') {
+        db = new OrbitDBInterface(orbitdb)
+        await db.open()
+    } else if (dbType === 'leveldb') {
+        db = new LevelDBInterface()
+    }
 
-    logger.info(`Opened OrbitDB: ${dbName}`)
     return db
 }
 
-/**
- * Updates the name operations in OrbitDB.
- */
 export async function updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDate, blockHeight) {
     try {
         const db = await getOrCreateDB(orbitdb)
-        // Iterate over each nameOpUtxo and store it individually
         for (const nameOp of nameOpUtxos) {
-            const docId = nameOp.txid;  // Use txid as the document ID
-
-            // Store each nameOpUtxo as a separate document
+            const docId = nameOp.txid
             await db.put({
                 _id: docId,
-                nameOp,  // Store the entire nameOp object
+                nameOp,
                 blockHeight,
                 blockDate
             })
         }
 
-        console.log(`Stored ${nameOpUtxos.length} name operations in OrbitDB`)
+        console.log(`Stored ${nameOpUtxos.length} name operations in ${dbType}`)
         return nameOpUtxos.length
 
     } catch (error) {
-        logger.error(`Error updating OrbitDB: ${error.message}`)
+        logger.error(`Error updating ${dbType}: ${error.message}`)
         throw error
     }
 }
 
-/**
- * 
- * A discrepancy between the number of documents (allDocs.length) and the number of name operation transactions (nameOps) can occur due to the structure and content of the documents in your database. Here's a breakdown of how this might happen:
- * 1. Multiple NameOps per Document: Each document in allDocs can contain multiple nameOps. If each document has more than one nameOp, the total number of nameOps can exceed the number of documents.
- * 2. Filtering and Aggregation: The getLastNameOps function filters and aggregates nameOps from all documents. If the filter criteria match multiple nameOps within a single document, those will be included in the final count.
-Document Structure: The structure of your documents might allow for multiple nameOps entries. For example, if a document is structured like this:
- *    {
-     "_id": "nameops-2023-10-01",
-     "nameOps": [
-       { "nameId": "1", "nameValue": "value1" },
-       { "nameId": "2", "nameValue": "value2" }
-     ],
-     "blockHeight": 123456,
-     "blockDate": "2023-10-01"
-   }
- * 
- * 
- * @param {*} orbitdb 
- * @param {*} pageSize 
- * @param {*} from 
- * @param {*} filter 
- * @returns 
- */
-export async function getLastNameOps(orbitdb, pageSize, from=10, filter) {
+export async function getLastNameOps(orbitdb, pageSize, from = 10, filter) {
     try {
         const db = await getOrCreateDB(orbitdb)
         const allDocs = await db.all()
-        
         let nameOps = []
+
         for (const doc of allDocs) {
-            const nameOp = doc.value.nameOp;
-            const blockDate = doc.value.blockDate;
-            
-            // Add debug logging
-            console.log('Processing document:', {
-                blockDate,
-                filterDate: filter?.date,
-                passedFilter: applyFilter(nameOp, filter) && applyDateFilter(blockDate, filter?.date)
-            });
-            
+            const nameOp = doc.nameOp
+            const blockDate = doc.blockDate
             if (applyFilter(nameOp, filter) && applyDateFilter(blockDate, filter?.date)) {
-                nameOps.push(nameOp);
+                nameOps.push(nameOp)
             }
         }
-        // Sort nameOps by blocktime in descending order
+
         nameOps.sort((a, b) => b.blocktime - a.blocktime)
-        
         const paginatedNameOps = nameOps.slice(from, from + pageSize)
         return paginatedNameOps
 
     } catch (error) {
-        logger.error(`Error getting nameOps from OrbitDB: ${error.message}`)
+        logger.error(`Error getting nameOps from ${dbType}: ${error.message}`)
         throw error
+    }
+}
+
+export async function closeDB() {
+    if (db) {
+        await db.close()
+        db = null
+        logger.info(`Closed ${dbType} database`)
     }
 }
 
@@ -160,13 +183,4 @@ function applyDateFilter(blockDate, filterDate) {
     });
     
     return blockDateStart === filterDateStart;
-}
-
-// Add new function to close DB
-export async function closeDB() {
-    if (db) {
-        await db.close()
-        db = null
-        logger.info('Closed nameops database')
-    }
 }
