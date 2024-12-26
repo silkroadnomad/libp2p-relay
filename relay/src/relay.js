@@ -6,6 +6,7 @@ import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { generateKeyPair, privateKeyToProtobuf, privateKeyFromProtobuf } from '@libp2p/crypto/keys'
 import { unixfs } from "@helia/unixfs"
+import { CID } from 'multiformats/cid'
 
 // Storage modules
 import { LevelBlockstore } from "blockstore-level"
@@ -120,7 +121,7 @@ if (!argv['disable-scanning']) {
     // const mempoolTxs = await doichainRPC.getRawMempool();
     // logger.info(`Current mempool has ${mempoolTxs.length} transactions`);
 
-  //  await scanBlockchainForNameOps(electrumClient, helia, orbitdb); 
+   await scanBlockchainForNameOps(electrumClient, helia, orbitdb); 
 
     tipWatcher.on('newTip', async (tip) => {
         try {

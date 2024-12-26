@@ -97,7 +97,7 @@ export async function scanBlockchainForNameOps(electrumClient, helia, orbitdb, t
     }
 }
 
-async function processBlocks(helia, electrumClient, startHeight, tip,origState, orbitdb, stopToken) {
+async function processBlocks(helia, electrumClient, startHeight, tip, origState, orbitdb, stopToken) {
     const MIN_HEIGHT = 0;
     let currentDay = null;
     let state = null;
@@ -140,7 +140,7 @@ async function processBlocks(helia, electrumClient, startHeight, tip,origState, 
                 for (const nameOp of nameOpUtxos) {
                     if (nameOp.nameValue && nameOp.nameValue.startsWith('ipfs://')) {
                         // Use the pinQueue for pinIpfsContent operation
-                        pinQueue.add(() => pinIpfsContent(electrumClient, helia, orbitdb, nameOp, nameOp.nameId, nameOp.nameValue)
+                        pinQueue.add(() => pinIpfsContent(electrumClient, helia, nameOp, nameOp.nameId, nameOp.nameValue, )
                             .then(() => {
                                 logger.info(`Successfully pinned IPFS content: ${nameOp.nameValue}`);
                                 // Increment the IPFS CIDs Pinned counter
@@ -205,7 +205,7 @@ async function reconnectElectrumClient(electrumClient) {
 }
 
 
-async function pinIpfsContent(electrumClient, helia, orbitdb, nameOp, nameId, ipfsUrl) {
+async function pinIpfsContent(electrumClient, helia, nameOp, nameId, ipfsUrl) {
     const cid = ipfsUrl.replace('ipfs://', '');
     let metadataContent = '';
     let totalSize = 0;
@@ -274,7 +274,7 @@ async function pinIpfsContent(electrumClient, helia, orbitdb, nameOp, nameId, ip
         logger.info(`Calculated fee for ${durationMonths} months: ${expectedFee} DOI`);
 
         // Pin the metadata
-        await pinningService.pinContent(cid, durationMonths, metadata.paymentTxId, nameOp);
+        await pinningService.pinContent(cid, durationMonths, nameOp);
         logger.info(`Successfully pinned IPFS metadata content: ${cid}`);
         helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNED-CID:" + cid));
 
@@ -282,7 +282,7 @@ async function pinIpfsContent(electrumClient, helia, orbitdb, nameOp, nameId, ip
         if (metadata.image && metadata.image.startsWith('ipfs://')) {
             const imageCid = metadata.image.replace('ipfs://', '');
             try {
-                await pinningService.pinContent(imageCid, durationMonths, metadata.paymentTxId, nameOp);
+                await pinningService.pinContent(imageCid, durationMonths, nameOp);
                 logger.info(`Successfully pinned file: ${imageCid}`);
                 helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode("PINNED-CID:" + imageCid));
             } catch (imageError) {

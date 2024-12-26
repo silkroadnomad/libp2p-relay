@@ -69,26 +69,20 @@ export class PinningService {
      * Pin content with expiration tracking
      * @param {string} cid - Content identifier
      * @param {number} durationMonths - Pinning duration in months
-     * @param {string} paymentTxId - Payment transaction ID
      * @param {Object} nameOp - Name operation details
      * @returns {Promise<Object>} - Pinning result
      */
-    async pinContent(cid, durationMonths, paymentTxId, nameOp) {
+    async pinContent(cid, durationMonths, nameOp) {
         try {
-            // Check payment requirement based on date
             const paymentStartDate = new Date(process.env.PAYMENT_START_DATE || '2025-01-01');
             const currentDate = new Date();
             const requirePayment = currentDate >= paymentStartDate;
 
-            // Get content size
             let totalSize = 0;
             for await (const chunk of this.fs.cat(CID.parse(cid))) {
                 totalSize += chunk.length;
             }
-
-            // Calculate expected fee
             const expectedFee = this.calculatePinningFee(totalSize, durationMonths);
-
             let paymentAmount = 0;
             if (requirePayment) {
                 const RELAY_ADDRESS = process.env.RELAY_PAYMENT_ADDRESS;
@@ -114,19 +108,34 @@ export class PinningService {
             // Pin the content
             logger.info(`Pinning content: ${cid}`)
             await this.helia.pins.add(CID.parse(cid))
+
+            // Retrieve file information from IPFS
+            let fileName = 'unknown';
+            for await (const file of this.fs.ls(CID.parse(cid))) {
+                if (file.type === 'file') {
+                    fileName = file.name;
+                    break; // Assuming you want the first file's name
+                }
+            }
+
+            logger.info(`Detected file name: ${fileName}`);
+            logger.info(`nameOp: `,nameOp);
             // Store pinning metadata in OrbitDB with explicit null values instead of undefined
             logger.info(`Storing pinning metadata in OrbitDB for content: ${cid}`)
             const pinningMetadata = {
                 _id: cid, // Required for docstore
                 cid: cid || null,
+                fileName: fileName || null,
                 size: totalSize || 0,
                 pinDate: Date.now(),
                 expirationDate: Date.now() + (durationMonths * 30 * 24 * 60 * 60 * 1000),
-                paymentTxId: paymentTxId || null,
+                paymentTxId: nameOp.txid || null,
                 fee: expectedFee || 0,
                 paymentAmount: paymentAmount || 0,
+                paymentSufficient: requirePayment?(paymentAmount >= expectedFee):true,
                 nameId: nameOp.nameId || null,
-                nameTxid: nameOp.txid || null
+                nameTxid: nameOp.txid || null,
+                requirePayment: requirePayment || false
             }
 
             // Open docstore instead of kvstore
