@@ -183,7 +183,7 @@ export class PinningService {
                 return false
             }
 
-            return Date.now() < metadata.expirationDate
+            return Date.now() < metadata.expirationDate || !metadata.requirePayment || metadata.paymentSufficient
         } catch (error) {
             logger.error(`Error checking pin status for ${cid}:`, error)
             return false
