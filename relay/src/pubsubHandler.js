@@ -187,6 +187,7 @@ async function processNewCID(cid, fsHelia, pinningService, electrumClient, conte
 
         logger.info(`Publishing response for CID ${cid}`);
         logger.info("Response payload:", addingMsg);
+        //TODO prompt  was wondering if instead of publishing this message we could stream it to the requesting peer instead? how would that work?
         helia.libp2p.services.pubsub.publish(contentTopic, new TextEncoder().encode(addingMsg));
 
     } catch (error) {
