@@ -161,7 +161,8 @@ function applyFilter(nameOp, selectedFilter){
             return !hasNameValue && isNotSpecialPrefix;
         case 'nfc':
             return (nameOp.nameValue && nameOp.nameValue.startsWith('ipfs://'));
-            // return hasNameValue && isNotSpecialPrefix;
+        case 'collections':
+            return nameOp.nameId.startsWith('collections/');
         default:
             return true; // No filter applied, include all nameOps
     }
