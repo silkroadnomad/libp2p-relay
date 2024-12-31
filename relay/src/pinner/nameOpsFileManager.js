@@ -107,15 +107,26 @@ export async function getLastNameOps(orbitdb, pageSize, from = 10, filter) {
         let nameOps = []
 
         for (const doc of allDocs) {
-            console.log('doc', JSON.parse(doc))
-            const nameOp = JSON.parse(doc).nameOp
-            if (!nameOp) {
-                console.warn('nameOp is undefined for doc:', doc._id)
-                continue
+            let parsedDoc;
+            try {
+                parsedDoc = typeof doc === 'string' ? JSON.parse(doc) : doc;
+            } catch (error) {
+                console.warn('Failed to parse doc:', error);
+                continue;
             }
-            const blockDate = doc.blockDate
-            if (applyFilter(nameOp, filter) && applyDateFilter(blockDate, filter?.date)) {
-                nameOps.push(nameOp)
+
+            const nameOp = parsedDoc.nameOp;
+            if (!nameOp) {
+                console.warn('nameOp is undefined for doc:', parsedDoc._id);
+                continue;
+            }
+
+            const blockDate = parsedDoc.blockDate;
+            const filterType = typeof filter === 'string' ? filter : filter?.type;
+            const filterDate = filter?.dateString;
+
+            if (applyFilter(nameOp, filterType) && applyDateFilter(blockDate, filterDate)) {
+                nameOps.push(nameOp);
             }
         }
 
@@ -172,22 +183,26 @@ function applyFilter(nameOp, selectedFilter){
 function applyDateFilter(blockDate, filterDate) {
     if (!filterDate) return true; // If no date filter, include all
     
-    // Add debug logging
-    console.log('Filtering dates:', {
-        originalBlockDate: blockDate,
-        originalFilterDate: filterDate
-    });
-    
-    // Convert both dates to start of day for comparison
-    const blockDateStart = new Date(blockDate).setHours(0, 0, 0, 0);
-    const filterDateStart = new Date(filterDate).setHours(0, 0, 0, 0);
-    
-    // Add more detailed debug logging
-    console.log('Comparing dates:', {
-        blockDateStart: new Date(blockDateStart).toISOString(),
-        filterDateStart: new Date(filterDateStart).toISOString(),
-        areEqual: blockDateStart === filterDateStart
-    });
-    
-    return blockDateStart === filterDateStart;
+    if (!blockDate || !filterDate) {
+        console.log('Missing date parameters:', { blockDate, filterDate });
+        return true;
+    }
+
+    try {
+        // Convert both dates to start of day for comparison
+        const blockDateStart = new Date(blockDate).setHours(0, 0, 0, 0);
+        const filterDateStart = new Date(filterDate).setHours(0, 0, 0, 0);
+        
+        console.log('Comparing dates:', {
+            blockDate,
+            filterDate,
+            blockDateStart: new Date(blockDateStart).toISOString(),
+            filterDateStart: new Date(filterDateStart).toISOString()
+        });
+        
+        return blockDateStart === filterDateStart;
+    } catch (error) {
+        console.error('Error comparing dates:', error);
+        return true; // Include the record if there's an error parsing dates
+    }
 }
