@@ -19,12 +19,6 @@ import { connectElectrum } from "./doichain/connectElectrum.js"
 import { scanBlockchainForNameOps } from '../src/pinner/scanBlockchainForNameOps.js'
 
 import { createHttpServer } from './httpServer.js'
-<<<<<<< HEAD
-import TipWatcher from './pinner/tipWatcher.js'
-// Import commented out as it's currently unused
-// import { DoichainRPC } from './doichainRPC.js';
-=======
->>>>>>> dev
 import { createNode } from './nodeFactory.js';
 import { setupPubsub } from './pubsubHandler.js';
 import TipWatcher from './pinner/tipWatcher.js';
