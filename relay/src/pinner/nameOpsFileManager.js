@@ -107,21 +107,12 @@ export async function getLastNameOps(orbitdb, pageSize, from = 10, filter) {
         let nameOps = []
 
         for (const doc of allDocs) {
-            let parsedDoc;
-            try {
-                parsedDoc = typeof doc === 'string' ? JSON.parse(doc) : doc;
-            } catch (error) {
-                console.warn('Failed to parse doc:', error);
-                continue;
-            }
-
-            const nameOp = parsedDoc.nameOp;
+            const nameOp = JSON.parse(doc).nameOp
             if (!nameOp) {
-                console.warn('nameOp is undefined for doc:', parsedDoc._id);
-                continue;
+                console.warn('nameOp is undefined for doc:', doc._id)
+                continue
             }
-
-            const blockDate = parsedDoc.blockDate;
+            const blockDate = nameOp.blockDate;
             const filterType = typeof filter === 'string' ? filter : filter?.type;
             const filterDate = filter?.dateString;
 
@@ -149,8 +140,7 @@ export async function closeDB() {
 }
 
 function applyFilter(nameOp, selectedFilter){
-    console.log('nameOp', nameOp)
-    console.log('Applying filter:', selectedFilter)
+   
     const hasNameValue = nameOp.nameValue && nameOp.nameValue !== '' && nameOp.nameValue !== ' ' && nameOp.nameValue !== 'empty';
 		
     const isNotSpecialPrefix = !nameOp.nameId.startsWith('e/') &&
@@ -173,7 +163,7 @@ function applyFilter(nameOp, selectedFilter){
         case 'nfc':
             return (nameOp.nameValue && nameOp.nameValue.startsWith('ipfs://'));
         case 'collections':
-            return nameOp.nameId.startsWith('collections/');
+            return (nameOp.nameValue && nameOp.nameValue.startsWith('ipfs://'));
         default:
             return true; // No filter applied, include all nameOps
     }

@@ -8,12 +8,11 @@ export function setupPubsub(helia, orbitdb, pinningService, electrumClient, fsHe
     helia.libp2p.services.pubsub.subscribe(contentTopic);
 
     helia.libp2p.services.pubsub.addEventListener('message', async event => {
-        logger.info(`Received pubsub message from ${event.detail.from} on topic ${event.detail.topic}`);
+        // logger.info(`Received pubsub message from ${event.detail.from} on topic ${event.detail.topic}`);
         const topic = event.detail.topic;
         const from = event.detail.from;
         const message = new TextDecoder().decode(event.detail.data);
         let messageObject;
-        console.log("Received message:", message);
         try {
             messageObject = JSON.parse(message);
         } catch (error) {
@@ -186,7 +185,8 @@ async function processNewCID(cid, fsHelia, pinningService, electrumClient, conte
         });
 
         logger.info(`Publishing response for CID ${cid}`);
-        logger.info("Response payload:", addingMsg);
+        console.log("Response payload:", addingMsg);
+        //TODO prompt  was wondering if instead of publishing this message we could stream it to the requesting peer instead? how would that work?
         helia.libp2p.services.pubsub.publish(contentTopic, new TextEncoder().encode(addingMsg));
 
     } catch (error) {
