@@ -86,6 +86,34 @@ function publishMessage(helia, contentTopic, message) {
 
 async function processNewCID(cid, fsHelia, pinningService, electrumClient, contentTopic, helia) {
     try {
+        // Open the OrbitDB docstore for pinning metadata
+        const db = await pinningService.orbitdb.open('pinning-metadata', {
+            type: 'documents',
+            create: true,
+            overwrite: false,
+            AccessController: IPFSAccessController({ write: [pinningService.orbitdb.identity.id] })
+        });
+
+        // Check if the CID is already pinned
+        const existingDocs = await db.query(doc => doc.cid === cid);
+        if (existingDocs.length > 0) {
+            const existingNameId = existingDocs[0].nameId;
+            const expirationDate = existingDocs[0].expirationDate;
+            const remainingTime = expirationDate - Date.now();
+            const remainingDays = Math.floor(remainingTime / (1000 * 60 * 60 * 24));
+
+            logger.info(`CID already pinned with nameId: ${existingNameId}`);
+            const pinnedMsg = JSON.stringify({
+                status: "CID-PINNED-WITH-NAME",
+                cid: cid,
+                nameId: existingNameId,
+                expirationDate: new Date(expirationDate).toISOString(),
+                remainingDays: remainingDays
+            });
+            helia.libp2p.services.pubsub.publish(contentTopic, new TextEncoder().encode(pinnedMsg));
+            return; // Exit early since the CID is already pinned
+        }
+
         // Get metadata content and size
         let metadataContent = '';
         let totalSize = 0;
@@ -186,7 +214,6 @@ async function processNewCID(cid, fsHelia, pinningService, electrumClient, conte
 
         logger.info(`Publishing response for CID ${cid}`);
         console.log("Response payload:", addingMsg);
-        //TODO prompt  was wondering if instead of publishing this message we could stream it to the requesting peer instead? how would that work?
         helia.libp2p.services.pubsub.publish(contentTopic, new TextEncoder().encode(addingMsg));
 
     } catch (error) {
