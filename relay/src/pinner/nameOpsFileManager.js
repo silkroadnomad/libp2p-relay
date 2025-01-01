@@ -107,7 +107,7 @@ export async function getLastNameOps(orbitdb, pageSize, from = 10, filter) {
         let nameOps = []
 
         for (const doc of allDocs) {
-            console.log('doc', JSON.parse(doc))
+            // console.log('doc', JSON.parse(doc))
             const nameOp = JSON.parse(doc).nameOp
             if (!nameOp) {
                 console.warn('nameOp is undefined for doc:', doc._id)
@@ -138,8 +138,7 @@ export async function closeDB() {
 }
 
 function applyFilter(nameOp, selectedFilter){
-    console.log('nameOp', nameOp)
-    console.log('Applying filter:', selectedFilter)
+   
     const hasNameValue = nameOp.nameValue && nameOp.nameValue !== '' && nameOp.nameValue !== ' ' && nameOp.nameValue !== 'empty';
 		
     const isNotSpecialPrefix = !nameOp.nameId.startsWith('e/') &&
