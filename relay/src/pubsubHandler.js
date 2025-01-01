@@ -56,10 +56,10 @@ async function handleListRequest(dateString, pageSize, from, filter, contentTopi
         if (!dateString || dateString === "LAST") {
             nameOps = await getLastNameOps(orbitdb, pageSize, from, filter);
             if (nameOps.length === 0) {
-                publishMessage(helia, "LAST_100_CIDS:NONE", CONTENT_TOPIC);
+                publishMessage(helia, "LAST_100_CIDS:NONE", contentTopic);
                 return;
             }
-            publishMessage(helia, JSON.stringify(nameOps), CONTENT_TOPIC);
+            publishMessage(helia, JSON.stringify(nameOps), contentTopic);
         } else {
             const date = parseDate(dateString);
             if (!date) {
