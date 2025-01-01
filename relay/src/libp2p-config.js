@@ -22,17 +22,18 @@ import { mdns } from '@libp2p/mdns'
 import logger from './logger.js'
 dotenv.config();
 
-const bootstrapList = process.env.RELAY_BOOTSTRAP_LIST.split(',');
+const bootstrapList = process.env.RELAY_BOOTSTRAP_LIST?.split(',');
 const enableUPnP = process.env.ENABLE_UPNP === 'true'
 
 export function createLibp2pConfig({ keyPair, datastore, listenAddresses, announceAddresses, pubsubPeerDiscoveryTopics, scoreThresholds }) {
+    console.log("pubsubPeerDiscoveryTopics: ", pubsubPeerDiscoveryTopics)
     return {
         metrics: prometheusMetrics(),
         privateKey: keyPair,
         datastore,
         addresses: {
-            listen: listenAddresses,
-            announce: announceAddresses
+            listen: [...listenAddresses, '/p2p-circuit'],
+            announce: [...announceAddresses, '/p2p-circuit']
         },
         connectionManager: {
             maxConnections: 1000,
@@ -45,8 +46,8 @@ export function createLibp2pConfig({ keyPair, datastore, listenAddresses, announ
         },
         transports: [
             tcp(),
-            webRTCDirect(),
-            webRTC(),
+            // webRTCDirect(),
+            // webRTC(),
             // webRTCDirect({
             //     rtcConfiguration: {
             //         iceServers: [
@@ -75,7 +76,7 @@ export function createLibp2pConfig({ keyPair, datastore, listenAddresses, announ
         connectionEncrypters: [noise()],
         streamMuxers: [yamux()],
         peerDiscovery: [
-            bootstrap({ list: bootstrapList }),
+            ...(bootstrapList ? [bootstrap({ list: bootstrapList })] : []),
             pubsubPeerDiscovery({
                 interval: 10000,
                 topics: pubsubPeerDiscoveryTopics,

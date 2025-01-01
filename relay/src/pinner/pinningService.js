@@ -4,7 +4,7 @@ import { unixfs } from '@helia/unixfs'
 import { IPFSAccessController } from '@doichain/orbitdb'
 
 const BASE_RATE_PER_MB_PER_MONTH = 742000; // 0.00742 DOI in swartz (1 DOI = 100,000,000 swartz)
-const BLOCKS_PER_YEAR = 52560 // Approximate number of blocks per year
+const BLOCKS_PER_YEAR = 525600 // Approximate number of blocks per year
 const EXPIRATION_BLOCKS = 36000 // NFT name expiration in blocks
 const MIN_FEE = 1000000; // 0.01 DOI in swartz
 
@@ -69,26 +69,20 @@ export class PinningService {
      * Pin content with expiration tracking
      * @param {string} cid - Content identifier
      * @param {number} durationMonths - Pinning duration in months
-     * @param {string} paymentTxId - Payment transaction ID
      * @param {Object} nameOp - Name operation details
      * @returns {Promise<Object>} - Pinning result
      */
-    async pinContent(cid, durationMonths, paymentTxId, nameOp) {
+    async pinContent(cid, durationMonths, nameOp) {
         try {
-            // Check payment requirement based on date
             const paymentStartDate = new Date(process.env.PAYMENT_START_DATE || '2025-01-01');
             const currentDate = new Date();
             const requirePayment = currentDate >= paymentStartDate;
 
-            // Get content size
             let totalSize = 0;
             for await (const chunk of this.fs.cat(CID.parse(cid))) {
                 totalSize += chunk.length;
             }
-
-            // Calculate expected fee
             const expectedFee = this.calculatePinningFee(totalSize, durationMonths);
-
             let paymentAmount = 0;
             if (requirePayment) {
                 const RELAY_ADDRESS = process.env.RELAY_PAYMENT_ADDRESS;
@@ -114,38 +108,55 @@ export class PinningService {
             // Pin the content
             logger.info(`Pinning content: ${cid}`)
             await this.helia.pins.add(CID.parse(cid))
+
+            // Retrieve file information from IPFS
+            let fileName = 'unknown';
+            for await (const file of this.fs.ls(CID.parse(cid))) {
+                if (file.type === 'file') {
+                    fileName = file.name;
+                    break; // Assuming you want the first file's name
+                }
+            }
+
+            logger.info(`Detected file name: ${fileName}`);
+            logger.info(`nameOp: `,nameOp);
             // Store pinning metadata in OrbitDB with explicit null values instead of undefined
             logger.info(`Storing pinning metadata in OrbitDB for content: ${cid}`)
             const pinningMetadata = {
                 _id: cid, // Required for docstore
                 cid: cid || null,
+                fileName: fileName || null,
                 size: totalSize || 0,
                 pinDate: Date.now(),
                 expirationDate: Date.now() + (durationMonths * 30 * 24 * 60 * 60 * 1000),
-                paymentTxId: paymentTxId || null,
+                paymentTxId: nameOp.txid || null,
                 fee: expectedFee || 0,
                 paymentAmount: paymentAmount || 0,
+                paymentSufficient: requirePayment?(paymentAmount >= expectedFee):true,
                 nameId: nameOp.nameId || null,
-                nameTxid: nameOp.txid || null
+                nameTxid: nameOp.txid || null,
+                requirePayment: requirePayment || false
             }
 
             // Open docstore instead of kvstore
             logger.info(`Opening OrbitDB docstore for pinning metadata`)
-            const db = await this.orbitdb.open('pinning-metadata', {
-                type: 'documents',
-                create: true,
-                overwrite: false,
-                AccessController: IPFSAccessController({ write: [this.orbitdb.identity.id] })
-            })
             try {
+                const db = await this.orbitdb.open('pinning-metadata', {
+                    type: 'documents',
+                    create: true,
+                    overwrite: false,
+                    AccessController: IPFSAccessController({ write: [this.orbitdb.identity.id] })
+                })
                 logger.info(`Putting pinning metadata in OrbitDB`)
                 await db.put(pinningMetadata)
-            } finally {
-                logger.info(`Closing OrbitDB docstore for pinning metadata`)
-                await db.close()
-            }
 
-            logger.info(`Content pinned successfully: ${cid}`, pinningMetadata)
+                logger.info(`Content pinned successfully: ${cid}`, pinningMetadata)
+            } finally {
+                if (db) {
+                    await db.close();
+                    logger.info('Database closed successfully');
+                }
+            }
 
             return {
                 success: true,
@@ -179,10 +190,15 @@ export class PinningService {
                 return false
             }
 
-            return Date.now() < metadata.expirationDate
+            return Date.now() < metadata.expirationDate || !metadata.requirePayment || metadata.paymentSufficient
         } catch (error) {
             logger.error(`Error checking pin status for ${cid}:`, error)
             return false
+        } finally {
+            if (db) {
+                await db.close();
+                logger.info('Database closed successfully');
+            }
         }
     }
 } 

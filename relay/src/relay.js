@@ -19,11 +19,15 @@ import { connectElectrum } from "./doichain/connectElectrum.js"
 import { scanBlockchainForNameOps } from '../src/pinner/scanBlockchainForNameOps.js'
 
 import { createHttpServer } from './httpServer.js'
+<<<<<<< HEAD
 import TipWatcher from './pinner/tipWatcher.js'
 // Import commented out as it's currently unused
 // import { DoichainRPC } from './doichainRPC.js';
+=======
+>>>>>>> dev
 import { createNode } from './nodeFactory.js';
 import { setupPubsub } from './pubsubHandler.js';
+import TipWatcher from './pinner/tipWatcher.js';
 
 export const CONTENT_TOPIC = process.env.CONTENT_TOPIC || "/doichain-nfc/1/message/proto"
 
@@ -104,15 +108,17 @@ logger.info('Helia and OrbitDB are running')
 const fsHelia = unixfs(helia)
 
 setupPubsub(helia, orbitdb, pinningService, electrumClient, fsHelia, CONTENT_TOPIC);
+const tipWatcher = new TipWatcher(electrumClient);
+createHttpServer(helia, orbitdb, electrumClient, tipWatcher);
 
-// Near the end of the file, replace the scanBlockchainForNameOps call with:
+
 if (!argv['disable-scanning']) {
     logger.info('Starting blockchain scanning...');
     // const mempoolTxs = await doichainRPC.getRawMempool();
     // logger.info(`Current mempool has ${mempoolTxs.length} transactions`);
 
-    await scanBlockchainForNameOps(electrumClient, helia, orbitdb); 
-    const tipWatcher = new TipWatcher(electrumClient);
+   await scanBlockchainForNameOps(electrumClient, helia, orbitdb); 
+
     tipWatcher.on('newTip', async (tip) => {
         try {
             console.log("newTip: ", tip);
@@ -137,7 +143,6 @@ if (!argv['disable-scanning']) {
         }
     });
     
-    // Add error handler for tipWatcher
     tipWatcher.on('error', async (error) => {
         logger.error('TipWatcher error:', error);
         if (electrumClient.getStatus() !== 1) {
@@ -180,6 +185,3 @@ process.on('SIGTERM', async () => {
     await cleanup()
     process.exit(0)
 })
-
-createHttpServer(helia, orbitdb, electrumClient)
-

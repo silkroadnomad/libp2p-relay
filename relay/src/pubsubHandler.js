@@ -2,38 +2,38 @@ import { TextEncoder, TextDecoder } from 'util';
 import logger from './logger.js';
 import { getLastNameOps } from "./pinner/nameOpsFileManager.js";
 import { formatFileSize } from './utils.js';
+import { IPFSAccessController } from '@doichain/orbitdb'
 import moment from 'moment';
 import { CID } from 'multiformats/cid'
 
-export function setupPubsub(helia, orbitdb, pinningService, electrumClient, fsHelia, CONTENT_TOPIC) {
-    helia.libp2p.services.pubsub.subscribe(CONTENT_TOPIC);
+export function setupPubsub(helia, orbitdb, pinningService, electrumClient, fsHelia, contentTopic) {
+    helia.libp2p.services.pubsub.subscribe(contentTopic);
 
     helia.libp2p.services.pubsub.addEventListener('message', async event => {
-        logger.info(`Received pubsub message from ${event.detail.from} on topic ${event.detail.topic}`);
+        // logger.info(`Received pubsub message from ${event.detail.from} on topic ${event.detail.topic}`);
         const topic = event.detail.topic;
         // 'from' value available in event.detail.from if needed later
         const message = new TextDecoder().decode(event.detail.data);
         let messageObject;
-        console.log("Received message:", message);
         try {
             messageObject = JSON.parse(message);
         } catch (err) {
             // logger.warn('Failed to parse message as JSON:', err);
         }
 
-        if (messageObject && topic.startsWith(CONTENT_TOPIC)) {
-            // console.log("Received message:", messageObject);
+        if (messageObject && topic.startsWith(contentTopic)) {
+            console.log("Received message:", messageObject);
             if (messageObject.type == "LIST") {
                 console.log("Received LIST request:", messageObject);
                 const { dateString, pageSize, from, filter } = messageObject;
                 const pageSizeValue = parseInt(pageSize, 10) || 10; // Default to 100 if not specified
-                await handleListRequest(dateString, pageSizeValue, from, filter, orbitdb, helia, CONTENT_TOPIC);
+                await handleListRequest(dateString, pageSizeValue, from, filter, contentTopic, helia, orbitdb);
             }
         } else {
             if (message.startsWith("NEW-CID")) {
                 const cid = message.substring(8);
                 logger.info(`Processing new CID request: ${cid}`);
-                await processNewCID(cid, fsHelia, pinningService, electrumClient, helia, CONTENT_TOPIC);
+                await processNewCID(cid, fsHelia, pinningService, electrumClient, contentTopic, helia);
             }
         }
     });
@@ -48,7 +48,7 @@ export function setupPubsub(helia, orbitdb, pinningService, electrumClient, fsHe
     });
 }
 
-async function handleListRequest(dateString, pageSize, from, filter, orbitdb, helia, CONTENT_TOPIC) {
+async function handleListRequest(dateString, pageSize, from, filter, contentTopic, helia, orbitdb) {
     try {
         let nameOps;
         console.log("Handling LIST request:", { dateString, pageSize, from, filter });
@@ -63,20 +63,22 @@ async function handleListRequest(dateString, pageSize, from, filter, orbitdb, he
         } else {
             const date = parseDate(dateString);
             if (!date) {
-                publishMessage(helia, "INVALID_DATE_FORMAT", CONTENT_TOPIC);
+                publishMessage(helia, contentTopic, "INVALID_DATE_FORMAT");
                 return;
             }
             filter = { ...filter, date }; // Add date to the filter object
-            nameOps = await getLastNameOps(orbitdb, pageSize, from, filter);
-            if (nameOps.length > 0) {
-                publishMessage(helia, JSON.stringify(nameOps), CONTENT_TOPIC);
-            } else {
-                publishMessage(helia, `${dateString}_CIDS:NONE`, CONTENT_TOPIC);
-            }
+        }
+
+        nameOps = await getLastNameOps(orbitdb, pageSize, from, filter);
+
+        if (nameOps.length > 0) {
+            publishMessage(helia, contentTopic, JSON.stringify(nameOps));
+        } else {
+            publishMessage(helia, contentTopic, `${dateString}_CIDS:NONE`);
         }
     } catch (error) {
         logger.error('Error fetching NameOps:', error);
-        publishMessage(helia, `ERROR:Failed to fetch NameOps: ${error.message}`, CONTENT_TOPIC);
+        publishMessage(helia, contentTopic, `ERROR:Failed to fetch NameOps: ${error.message}`);
     }
 }
 
@@ -88,12 +90,43 @@ function parseDate(dateString) {
     return isNaN(date.getTime()) ? null : date;
 }
 
-function publishMessage(helia, message, CONTENT_TOPIC) {
-    helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(message));
+function publishMessage(helia, contentTopic, message) {
+    helia.libp2p.services.pubsub.publish(contentTopic, new TextEncoder().encode(message));
 }
 
-async function processNewCID(cid, fsHelia, pinningService, electrumClient, helia, CONTENT_TOPIC) {
+async function processNewCID(cid, fsHelia, pinningService, electrumClient, contentTopic, helia) {
+    let db;
     try {
+        db = await pinningService.orbitdb.open('pinning-metadata', {
+            type: 'documents',
+            create: true,
+            overwrite: false,
+            AccessController: IPFSAccessController({ write: [pinningService.orbitdb.identity.id] })
+        });
+        logger.info('Database opened successfully');
+
+        // Check if the CID is already pinned
+        const existingDocs = await db.query(doc => doc.cid === cid);
+        console.log("existingDocs", existingDocs);
+        if (existingDocs.length > 0) {
+            const existingNameId = existingDocs[0].nameId;
+            const expirationDate = existingDocs[0].expirationDate;
+            const remainingTime = expirationDate - Date.now();
+            const remainingDays = Math.floor(remainingTime / (1000 * 60 * 60 * 24));
+
+            logger.info(`CID already pinned with nameId: ${existingNameId}`);
+            const pinnedMsg = JSON.stringify({
+                status: "CID-PINNED-WITH-NAME",
+                cid: cid,
+                nameId: existingNameId,
+                expirationDate: new Date(expirationDate).toISOString(),
+                remainingDays: remainingDays
+            });
+            console.log("pinnedMsg", pinnedMsg);
+            helia.libp2p.services.pubsub.publish(contentTopic, new TextEncoder().encode(pinnedMsg));
+            return; // Exit early since the CID is already pinned
+        }
+
         // Get metadata content and size
         let metadataContent = '';
         let totalSize = 0;
@@ -202,11 +235,17 @@ async function processNewCID(cid, fsHelia, pinningService, electrumClient, helia
         });
 
         logger.info(`Publishing response for CID ${cid}`);
-        logger.info("Response payload:", addingMsg);
-        helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addingMsg));
+        console.log("Response payload:", addingMsg);
+        //TODO prompt  was wondering if instead of publishing this message we could stream it to the requesting peer instead? how would that work?
+        helia.libp2p.services.pubsub.publish(contentTopic, new TextEncoder().encode(addingMsg));
 
     } catch (error) {
         logger.error('Error processing file or sending notification:', error);
+    } finally {
+        if (db) {
+            await db.close();
+            logger.info('Database closed successfully');
+        }
     }
 
     const addedMsg = JSON.stringify({
@@ -215,5 +254,5 @@ async function processNewCID(cid, fsHelia, pinningService, electrumClient, helia
         // timestamp: Date.now()
     });
     logger.info(`Publishing completion message for CID ${cid}:`, addedMsg);
-    helia.libp2p.services.pubsub.publish(CONTENT_TOPIC, new TextEncoder().encode(addedMsg));
+    helia.libp2p.services.pubsub.publish(contentTopic, new TextEncoder().encode(addedMsg));
 }

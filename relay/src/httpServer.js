@@ -1,17 +1,18 @@
 import http from 'http'
 import os from 'os'
-import 'dotenv/config'
 import url from 'url'
+import 'dotenv/config'
+import moment from 'moment/moment.js'
+import mime from 'mime-types'
 import { CID } from 'multiformats/cid'
-import { base64 } from "multiformats/bases/base64"
-import { unixfs } from "@helia/unixfs"
+import { base64 } from 'multiformats/bases/base64'
+import { multiaddr } from '@multiformats/multiaddr'
+import { unixfs } from '@helia/unixfs'
+import { IPFSAccessController } from '@doichain/orbitdb'
+import client from 'prom-client'
+import logger from './logger.js'
 import { getOrCreateDB } from './pinner/nameOpsFileManager.js'
 import { getScanningState } from './pinner/scanningStateManager.js'
-import { multiaddr } from '@multiformats/multiaddr'
-import client from 'prom-client'
-import moment from 'moment/moment.js';
-import logger from './logger.js';
-import mime from 'mime-types';
 
 // Initialize Prometheus metrics
 const collectDefaultMetrics = client.collectDefaultMetrics;
@@ -24,8 +25,8 @@ const requestCounter = new client.Counter({
     labelNames: ['method', 'path']
 });
 
-export function createHttpServer(helia, orbitdb, electrumClient) {
-    
+export function createHttpServer(helia, orbitdb, electrumClient, tipWatcher) {
+    console.log("createHttpServer")
     const server = http.createServer(async (req, res) => {
         const parsedUrl = url.parse(req.url, true);
         // Increment the request counter
@@ -433,6 +434,100 @@ export function createHttpServer(helia, orbitdb, electrumClient) {
                     error: 'Failed to retrieve IPFS content',
                     message: error.message
                 }));
+            }
+        } else if (req.method === 'GET' && parsedUrl.pathname === '/blocknotify') {
+            try {
+                const tip = {
+                    height: parseInt(parsedUrl.query.height, 10),
+                };
+
+                // if (isNaN(tip.height)) {
+                //     throw new Error('Invalid or missing height parameter');
+                // }
+
+                tipWatcher.handleNewTip(tip);
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ message: 'TipWatcher triggered successfully' }));
+            } catch (error) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    error: 'Failed to trigger TipWatcher',
+                    message: error.message
+                }));
+            }
+        } else if (req.method === 'GET' && parsedUrl.pathname === '/help') {
+            const endpoints = {
+                "/status": {
+                    method: "GET",
+                    description: "Returns the status of the server, including connected peers and memory usage.",
+                    parameters: "None"
+                },
+                "/metrics": {
+                    method: "GET",
+                    description: "Exposes metrics for Prometheus.",
+                    parameters: "None"
+                },
+                "/pinned-cids": {
+                    method: "GET",
+                    description: "Lists all pinned CIDs and their content.",
+                    parameters: "None"
+                },
+                "/scan-block": {
+                    method: "GET",
+                    description: "Scans a specific block for name operations.",
+                    parameters: {
+                        height: "Block height to scan (required)",
+                        count: "Number of blocks to scan (optional, default is 1)"
+                    }
+                },
+                "/ipfs/{cid}": {
+                    method: "GET",
+                    description: "Retrieves content from IPFS for a given CID.",
+                    parameters: {
+                        cid: "The CID of the content to retrieve (required)"
+                    }
+                },
+                "/blocknotify": {
+                    method: "GET",
+                    description: "Triggers the TipWatcher with a new block tip.",
+                    parameters: {
+                        height: "Block height to trigger (required)"
+                    }
+                }
+            };
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(endpoints, null, 2));
+        } else if (req.method === 'GET' && parsedUrl.pathname.startsWith('/pinning-data/')) {
+            const nameId = parsedUrl.pathname.split('/pinning-data/')[1];
+            try {
+                const db = await orbitdb.open('pinning-metadata', {
+                    type: 'documents',
+                    create: true,
+                    overwrite: false,
+                    AccessController: IPFSAccessController({ write: [orbitdb.identity.id] })
+                });
+
+                const pinningData = await db.query(doc => doc.nameId === nameId);
+
+                if (pinningData.length === 0) {
+                    res.writeHead(404, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'No pinning data found for the specified nameId' }));
+                } else {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify(pinningData, null, 2));
+                }
+            } catch (error) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    error: 'Failed to retrieve pinning data',
+                    message: error.message
+                }));
+            } finally {
+                if (db) {
+                    await db.close();
+                    logger.info('Database closed successfully');
+                }
             }
         } else {
             res.writeHead(404, { 'Content-Type': 'text/plain' });
