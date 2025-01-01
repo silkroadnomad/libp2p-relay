@@ -4,7 +4,7 @@ import { unixfs } from '@helia/unixfs'
 import { IPFSAccessController } from '@doichain/orbitdb'
 
 const BASE_RATE_PER_MB_PER_MONTH = 742000; // 0.00742 DOI in swartz (1 DOI = 100,000,000 swartz)
-const BLOCKS_PER_YEAR = 52560 // Approximate number of blocks per year
+const BLOCKS_PER_YEAR = 525600 // Approximate number of blocks per year
 const EXPIRATION_BLOCKS = 36000 // NFT name expiration in blocks
 const MIN_FEE = 1000000; // 0.01 DOI in swartz
 
@@ -140,16 +140,23 @@ export class PinningService {
 
             // Open docstore instead of kvstore
             logger.info(`Opening OrbitDB docstore for pinning metadata`)
-            const db = await this.orbitdb.open('pinning-metadata', {
-                type: 'documents',
-                create: true,
-                overwrite: false,
-                AccessController: IPFSAccessController({ write: [this.orbitdb.identity.id] })
-            })
-            logger.info(`Putting pinning metadata in OrbitDB`)
-            await db.put(pinningMetadata)
+            try {
+                const db = await this.orbitdb.open('pinning-metadata', {
+                    type: 'documents',
+                    create: true,
+                    overwrite: false,
+                    AccessController: IPFSAccessController({ write: [this.orbitdb.identity.id] })
+                })
+                logger.info(`Putting pinning metadata in OrbitDB`)
+                await db.put(pinningMetadata)
 
-            logger.info(`Content pinned successfully: ${cid}`, pinningMetadata)
+                logger.info(`Content pinned successfully: ${cid}`, pinningMetadata)
+            } finally {
+                if (db) {
+                    await db.close();
+                    logger.info('Database closed successfully');
+                }
+            }
 
             return {
                 success: true,
@@ -187,6 +194,11 @@ export class PinningService {
         } catch (error) {
             logger.error(`Error checking pin status for ${cid}:`, error)
             return false
+        } finally {
+            if (db) {
+                await db.close();
+                logger.info('Database closed successfully');
+            }
         }
     }
 } 

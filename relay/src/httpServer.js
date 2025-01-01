@@ -523,6 +523,11 @@ export function createHttpServer(helia, orbitdb, electrumClient, tipWatcher) {
                     error: 'Failed to retrieve pinning data',
                     message: error.message
                 }));
+            } finally {
+                if (db) {
+                    await db.close();
+                    logger.info('Database closed successfully');
+                }
             }
         } else {
             res.writeHead(404, { 'Content-Type': 'text/plain' });

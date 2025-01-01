@@ -2,6 +2,7 @@ import { TextEncoder, TextDecoder } from 'util';
 import logger from './logger.js';
 import { getLastNameOps } from "./pinner/nameOpsFileManager.js";
 import { formatFileSize } from './utils.js';
+import { IPFSAccessController } from '@doichain/orbitdb'
 import moment from 'moment';
 
 export function setupPubsub(helia, orbitdb, pinningService, electrumClient, fsHelia, contentTopic) {
@@ -85,17 +86,19 @@ function publishMessage(helia, contentTopic, message) {
 }
 
 async function processNewCID(cid, fsHelia, pinningService, electrumClient, contentTopic, helia) {
+    let db;
     try {
-        // Open the OrbitDB docstore for pinning metadata
-        const db = await pinningService.orbitdb.open('pinning-metadata', {
+        db = await pinningService.orbitdb.open('pinning-metadata', {
             type: 'documents',
             create: true,
             overwrite: false,
             AccessController: IPFSAccessController({ write: [pinningService.orbitdb.identity.id] })
         });
+        logger.info('Database opened successfully');
 
         // Check if the CID is already pinned
         const existingDocs = await db.query(doc => doc.cid === cid);
+        console.log("existingDocs", existingDocs);
         if (existingDocs.length > 0) {
             const existingNameId = existingDocs[0].nameId;
             const expirationDate = existingDocs[0].expirationDate;
@@ -110,6 +113,7 @@ async function processNewCID(cid, fsHelia, pinningService, electrumClient, conte
                 expirationDate: new Date(expirationDate).toISOString(),
                 remainingDays: remainingDays
             });
+            console.log("pinnedMsg", pinnedMsg);
             helia.libp2p.services.pubsub.publish(contentTopic, new TextEncoder().encode(pinnedMsg));
             return; // Exit early since the CID is already pinned
         }
@@ -214,10 +218,16 @@ async function processNewCID(cid, fsHelia, pinningService, electrumClient, conte
 
         logger.info(`Publishing response for CID ${cid}`);
         console.log("Response payload:", addingMsg);
+        //TODO prompt  was wondering if instead of publishing this message we could stream it to the requesting peer instead? how would that work?
         helia.libp2p.services.pubsub.publish(contentTopic, new TextEncoder().encode(addingMsg));
 
     } catch (error) {
         logger.error('Error processing file or sending notification:', error);
+    } finally {
+        if (db) {
+            await db.close();
+            logger.info('Database closed successfully');
+        }
     }
 
     const addedMsg = JSON.stringify({
