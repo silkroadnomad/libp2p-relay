@@ -97,12 +97,13 @@ export class PinningService {
                     throw new Error(`No payment output found in transaction ${nameOp.txid}`);
                 }
 
-                paymentAmount = paymentOutput.value;
+                paymentAmount = paymentOutput.value * 100000000; // Convert paymentAmount from DOI to swartz
+
                 if (paymentAmount < expectedFee) {
-                    throw new Error(`Insufficient payment: expected ${expectedFee} DOI, got ${paymentAmount} DOI`);
+                    throw new Error(`Insufficient payment: expected ${expectedFee} swartz, got ${paymentAmount} swartz`);
                 }
 
-                logger.info(`Valid payment found: ${paymentAmount} DOI in tx ${nameOp.txid}`);
+                logger.info(`Valid payment found: ${paymentAmount} swartz in tx ${nameOp.txid}`);
             }
 
             // Pin the content
@@ -140,8 +141,9 @@ export class PinningService {
 
             // Open docstore instead of kvstore
             logger.info(`Opening OrbitDB docstore for pinning metadata`)
+            let db = null
             try {
-                const db = await this.orbitdb.open('pinning-metadata', {
+                db = await this.orbitdb.open('pinning-metadata', {
                     type: 'documents',
                     create: true,
                     overwrite: false,

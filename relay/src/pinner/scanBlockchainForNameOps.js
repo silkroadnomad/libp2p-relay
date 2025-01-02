@@ -156,18 +156,15 @@ async function processBlocks(helia, electrumClient, startHeight, tip, origState,
                 logger.debug(`No name operations found in block ${height}`);
             }
             
-            state = await updateScanningState(orbitdb, { lastBlockHeight: height, tipHeight: tip.height });
+            state = await updateScanningState({ lastBlockHeight: height, tipHeight: tip.height });
             
             // Check if we have reached the stored tipHeight
             if (state && origState && state.tipHeight && height === origState.tipHeight) {
                 logger.info(`Reached stored tipHeight, jumping to last processed block`, { height: origState.lastBlockHeight });
                 height = origState.lastBlockHeight; // Set height to one above lastBlockHeight to continue scanning
-                state = await updateScanningState(orbitdb, { lastBlockHeight: height, tipHeight: tip.height });
+                state = await updateScanningState({ lastBlockHeight: height, tipHeight: tip.height });
             }
 
-            // Update queue lengths
-            // updateQueueLength.set(updateQueue.size);
-            // pinQueueLength.set(pinQueue.size);
         } catch (error) {
             logger.error(`Error processing block at height ${height}:`, { error });
             errorRate.inc(); // Increment the error rate counter
