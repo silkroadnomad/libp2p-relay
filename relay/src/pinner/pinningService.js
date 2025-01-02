@@ -75,8 +75,8 @@ export class PinningService {
     async pinContent(cid, durationMonths, nameOp) {
         try {
             const paymentStartDate = new Date(process.env.PAYMENT_START_DATE || '2025-01-01');
-            const currentDate = new Date();
-            const requirePayment = currentDate >= paymentStartDate;
+            const nameOpDate = new Date(nameOp.blockDateTime); // Assuming nameOp.blockDateTime is a valid date string
+            const requirePayment = nameOpDate >= paymentStartDate;
 
             let totalSize = 0;
             for await (const chunk of this.fs.cat(CID.parse(cid))) {
