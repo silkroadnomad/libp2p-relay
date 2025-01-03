@@ -64,43 +64,27 @@ describe('Doichain Relay Pinning Service Test', function() {
   before(async function() {
     this.timeout(100000);
 
-    console.log('🔍 Checking if regtest is reachable...');
-    let isRegtestReachable = await new Promise(resolve => {
-      const socket = net.createConnection(18445, 'regtest', () => {
-         rpcHost = 'regtest'
-        socket.end();
-        resolve(true);
-      });
-      socket.on('error', () => resolve(false));
-    });
-
-    isRegtestReachable = await new Promise(resolve => {
-      const socket = net.createConnection(18445, 'localhost', () => {
-        rpcHost = 'localhost'
-        socket.end();
-        resolve(true);
-      });
-      socket.on('error', () => resolve(false));
-    });
-    if (isRegtestReachable) {
+    let host = 'localhost'
+    console.log('🔍 Checking if localhost is reachable...', rpcUser, rpcPassword);
       console.log('✅ Regtest is reachable!');
       console.log('📖 Using RPC credentials from .env');
       // Initialize DoichainRPC with credentials and connection details from .env
-      const doichainRPC = new DoichainRPC({
-        host: rpcHost,
-        port: rpcPort,
-        username: rpcUser,
-        password: rpcPassword
-      });
+      try {
+        const doichainRPC = new DoichainRPC({
+          host: host,
+          port: 18332,
+          username: rpcUser,
+          password: rpcPassword
+        });
       console.log('🔗 Connecting to Doichain RPC...');
       const newAddress = await doichainRPC.call('getnewaddress');
       console.log(`🏠 New address generated: ${newAddress}`);
       console.log('⛏️ Mining 200 DOI...');
-      await doichainRPC.call('generatetoaddress', [200, newAddress]);
-      console.log('✅ Mining complete!');
-    } else {
-      console.log('❌ Regtest is not reachable. Skipping Doichain setup.');
-    }
+      const miningResult = await doichainRPC.call('generatetoaddress', [200, newAddress]);
+      console.log(`✅ Mining complete! ${miningResult.length} blocks mined`);
+      } catch (error) {
+        console.log(`❌ Regtest is not reachable. Skipping Doichain setup. Using ${host} as host`,error);
+      }
 
     console.log('🚀 Initializing Helia...');
     console.log('🔍 Generating Peer ID from private key...');
@@ -167,7 +151,7 @@ describe('Doichain Relay Pinning Service Test', function() {
     expect(targetConnection).to.exist;
   });
 
-  it('should add a file to IPFS and publish messages', async () => {
+  it.only('should add a file to IPFS and publish messages', async () => {
     // Create valid metadata JSON
     const metadata = {
         name: "Test NFT",

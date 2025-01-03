@@ -18,9 +18,8 @@ export class DoichainRPC {
     async call(method, params = []) {
         const url = `${this.config.protocol}://${this.config.host}:${this.config.port}`;
         const auth = Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64');
-
         const axiosConfig = {
-            method: 'post',
+            method: 'POST',
             url: url,
             headers: {
                 'Content-Type': 'application/json',
@@ -34,7 +33,7 @@ export class DoichainRPC {
             }
         };
 
-        console.log('Axios Configuration:', axiosConfig);
+        // console.log('Axios Configuration:', axiosConfig);
 
         try {
             const response = await axios(axiosConfig);

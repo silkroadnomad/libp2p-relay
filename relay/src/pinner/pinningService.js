@@ -176,8 +176,9 @@ export class PinningService {
      * @returns {Promise<boolean>} - Should remain pinned
      */
     async shouldRemainPinned(cid) {
+        let db = null
         try {
-            const db = await this.orbitdb.open('pinning-metadata', {
+            db = await this.orbitdb.open('pinning-metadata', {
                 type: 'documents',
                 create: true,
                 overwrite: false,
