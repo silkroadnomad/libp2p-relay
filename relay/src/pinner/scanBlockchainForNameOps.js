@@ -8,6 +8,7 @@ import { unixfs } from '@helia/unixfs'
 import PQueue from 'p-queue';
 import client from 'prom-client';
 import { PinningService } from './pinningService.js'
+import sanitizeHtml from 'sanitize-html';
 
 const CONTENT_TOPIC = '/doichain/nft/1.0.0'
 let stopToken = { isStopped: false };
@@ -136,20 +137,27 @@ async function processBlocks(helia, electrumClient, startHeight, tip, origState,
                 updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDay, height)
 
                 for (const nameOp of nameOpUtxos) {
-                    if (nameOp.nameValue && nameOp.nameValue.startsWith('ipfs://')) {
+                    const sanitizedValue = sanitizeHtml(nameOp.nameValue, {
+                        allowedTags: [],
+                        allowedAttributes: {}
+                    });
+
+                    if (sanitizedValue && sanitizedValue.startsWith('ipfs://')) {
                         // Use the pinQueue for pinIpfsContent operation
-                        pinQueue.add(() => pinIpfsContent(electrumClient, helia, nameOp, nameOp.nameId, nameOp.nameValue, )
+                        pinQueue.add(() => pinIpfsContent(electrumClient, helia, nameOp, nameOp.nameId, sanitizedValue)
                             .then(() => {
-                                logger.info(`Successfully pinned IPFS content: ${nameOp.nameValue}`);
+                                logger.info(`Successfully pinned IPFS content: ${sanitizedValue}`);
                                 // Increment the IPFS CIDs Pinned counter
                                 ipfsCidsPinnedCounter.inc();
                             })
                             .catch(error => {
-                                logger.error(`Failed to pin IPFS content: ${nameOp.nameValue}`, { error });
+                                logger.error(`Failed to pin IPFS content: ${sanitizedValue}`, { error });
                                 // Increment the IPFS CIDs Pinned Errors counter
                                 ipfsCidsPinnedErrorCounter.inc();
                             })
                         );
+                    } else {
+                        logger.warn(`Invalid or potentially harmful nameValue detected: ${nameOp.nameValue}`);
                     }
                 }
             } else {
