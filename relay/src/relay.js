@@ -98,7 +98,6 @@ const { helia, orbitdb, pinningService } = await createNode(
     network
 );
 logger.info('Helia and OrbitDB are running')
-//when a peer connecs we need to update the peer list
 const fsHelia = unixfs(helia)
 
 setupPubsub(helia, orbitdb, pinningService, electrumClient, fsHelia, CONTENT_TOPIC);

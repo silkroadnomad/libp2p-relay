@@ -3,11 +3,14 @@ import pkg from 'level';
 const { Level } = pkg;
 import logger from '../logger.js'
 import dotenv from 'dotenv'
+import PQueue from 'p-queue';
 
 dotenv.config()
 
 let db = null
 const dbType = process.env.DB_TYPE || 'leveldb' // Default to OrbitDB
+
+const queue = new PQueue({ concurrency: 5 }); // Adjust concurrency as needed
 
 class OrbitDBInterface {
     constructor(orbitdb) {
@@ -80,24 +83,29 @@ export async function getOrCreateDB(orbitdb) {
 
 export async function updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDate, blockHeight) {
     try {
-        db = await getOrCreateDB(orbitdb)
+        db = await getOrCreateDB(orbitdb);
+
         for (const nameOp of nameOpUtxos) {
-            const docId = nameOp.txid
-            await db.put({
+            const docId = nameOp.txid;
+
+            // Add the put operation to the queue
+            queue.add(() => db.put({
                 _id: docId,
                 nameOp,
                 blockHeight,
                 blockDate
-            })
+            }));
         }
-        // db.close()
-        // db = null
-        console.log(`Stored ${nameOpUtxos.length} name operations in ${dbType}`)
-        return nameOpUtxos.length
+
+        // Wait for all queued operations to complete
+        await queue.onIdle();
+
+        console.log(`Stored ${nameOpUtxos.length} name operations in ${dbType}`);
+        return nameOpUtxos.length;
 
     } catch (error) {
-        logger.error(`Error updating ${dbType}: ${error.message}`)
-        throw error
+        logger.error(`Error updating ${dbType}: ${error.message}`);
+        throw error;
     }
 }
 
