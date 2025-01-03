@@ -142,7 +142,7 @@ async function processBlocks(helia, electrumClient, startHeight, tip, origState,
                         allowedAttributes: {}
                     });
 
-                    if (sanitizedValue && sanitizedValue.startsWith('ipfs://')) {
+                    if (sanitizedValue && !sanitizedValue.startsWith('ipfs://')) {
                         // Use the pinQueue for pinIpfsContent operation
                         pinQueue.add(() => pinIpfsContent(electrumClient, helia, nameOp, nameOp.nameId, sanitizedValue)
                             .then(() => {
