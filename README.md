@@ -27,7 +27,6 @@ This is a docker image and docker compose file which runs a
 ### Ideas
 When starting a relay-node for libp2p, it would be nice to have place where other peers could find the multi address of our new peer.
 It is also the case that webtransport and webrtc peers and generate new hashes to connect. (E.g. webtransport hashes need to renewed every 2 weeks).
-
 The idea is now to store those multi addresses on a blockchain such as Bitcoin (via Ordinals) or Doichain (a merged-mining Namecoin fork)
 
 What will it do?
@@ -35,9 +34,9 @@ What will it do?
 2. If our node is not yet stored on blockchain and a private key is inside .env it should send a transaction to a blockchain
 
 # Adaptation of this relay
-- [ ] pinner should calculate fee based on file size 
-- [ ] pinner should only pin if cid is inside of nameOp transaction and 
-  - a minimum fee per kb is paid to a certain doichain address (-> multisig)
+- [x] pinner should calculate fee based on file size 
+- [x] pinner should only pin if cid is inside of nameOp transaction and 
+  - [x] a minimum fee per kb is paid to a certain doichain address (-> multisig)
 - [x] BUG: fix scanning blocks on new tip
 - [x] tipWatcher:  when every a new block comes in the scan should be restarted. (Remark: src/pinner/tipWatcher already implemented but functionality not reviewed nor untestet)
 - [x] adding a Telegram bot to send certain messages e.g. status, minted nameOps etc
