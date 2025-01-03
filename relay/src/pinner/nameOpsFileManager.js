@@ -90,8 +90,8 @@ export async function updateDailyNameOpsFile(orbitdb, nameOpUtxos, blockDate, bl
                 blockDate
             })
         }
-        db.close()
-        db = null
+        // db.close()
+        // db = null
         console.log(`Stored ${nameOpUtxos.length} name operations in ${dbType}`)
         return nameOpUtxos.length
 
