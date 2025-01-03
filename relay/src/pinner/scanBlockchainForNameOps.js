@@ -144,6 +144,7 @@ async function processBlocks(helia, electrumClient, startHeight, tip, origState,
 
                     if (sanitizedValue && !sanitizedValue.startsWith('ipfs://')) {
                         // Use the pinQueue for pinIpfsContent operation
+                        // TODO: sanitize metadata before pinning
                         pinQueue.add(() => pinIpfsContent(electrumClient, helia, nameOp, nameOp.nameId, sanitizedValue)
                             .then(() => {
                                 logger.info(`Successfully pinned IPFS content: ${sanitizedValue}`);
@@ -209,6 +210,8 @@ async function reconnectElectrumClient(electrumClient) {
 
 
 async function pinIpfsContent(electrumClient, helia, nameOp, nameId, ipfsUrl) {
+    if (!ipfsUrl.startsWith('ipfs://')) return;
+    
     const cid = ipfsUrl.replace('ipfs://', '');
     let metadataContent = '';
     let totalSize = 0;
